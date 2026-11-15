@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: masbate-dlas-free-demo
+    name: masbate-colleges-digital-literacy-assessment-system
     runtime: node
     region: singapore
     plan: free
