@@ -83,7 +83,7 @@ export const RegisterPage = () => {
     }
   };
 
-  const inputClass = 'block min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pl-11 pr-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-600 focus:bg-white focus:ring-4 focus:ring-green-600/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-12 sm:text-sm';
+  const inputClass = 'block min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 pl-11 pr-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-600 focus:bg-white focus:ring-4 focus:ring-green-600/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-12 sm:text-sm';
   const labelClass = 'mb-2 block text-sm font-semibold text-slate-800 sm:text-base';
 
   const renderPasswordField = ({ id, name, label, value, visible, setVisible, autoComplete, placeholder }) => (
@@ -199,7 +199,7 @@ export const RegisterPage = () => {
 
         <section className="relative isolate order-1 flex min-h-[calc(100svh-1.5rem)] flex-col justify-center overflow-hidden bg-white/75 px-4 py-5 backdrop-blur-sm sm:min-h-[calc(100svh-2.5rem)] sm:px-7 sm:py-7 lg:order-2 lg:min-h-0 lg:px-8 lg:py-6 xl:px-10">
           <div className="relative z-10 mx-auto w-full max-w-xl">
-            <div className="mb-4 sm:mb-5">
+            <div className="mb-3 sm:mb-4">
               <div className="mb-4 flex items-center gap-3 sm:hidden">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200">
                   <img src="/masbate-colleges-logo.png" alt="Masbate Colleges seal" className="h-full w-full object-contain" />
@@ -214,7 +214,7 @@ export const RegisterPage = () => {
               <p className="mt-1 text-sm leading-5 text-slate-700">Register as a student to get started with your digital literacy assessment.</p>
             </div>
 
-            <div className="rounded-2xl border border-white/80 bg-white/95 p-4 shadow-xl shadow-slate-900/10 backdrop-blur-sm sm:p-5 lg:p-5">
+            <div className="rounded-2xl border border-white/80 bg-white/95 p-4 shadow-xl shadow-slate-900/10 backdrop-blur-sm sm:p-5 lg:p-4">
               {registrationComplete ? (
                 <div className="flex min-h-[24rem] flex-col items-center justify-center text-center" role="status" aria-live="polite">
                   <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-green-50 text-green-800 ring-1 ring-green-100">
@@ -244,9 +244,9 @@ export const RegisterPage = () => {
                   </div>
                 </div>
               ) : <>
-              <form className="space-y-3 sm:space-y-4" onSubmit={handleSubmit} noValidate aria-busy={isLoading}>
+              <form className="space-y-2.5 sm:space-y-3" onSubmit={handleSubmit} noValidate aria-busy={isLoading}>
                 {serverError && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium leading-6 text-red-800" role="alert">{serverError}</p>}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:gap-3">
                   <div>
                     <label htmlFor="registration-first-name" className={labelClass}>First name</label>
                     <input
@@ -262,7 +262,7 @@ export const RegisterPage = () => {
                       placeholder="Juan"
                       aria-invalid={Boolean(visibleError('first_name'))}
                       aria-describedby={visibleError('first_name') ? 'registration-first-name-error' : undefined}
-                      className={`block min-h-11 w-full rounded-xl border bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:bg-white focus:ring-4 disabled:cursor-wait disabled:opacity-70 sm:min-h-12 ${visibleError('first_name') ? 'border-red-500 focus:border-red-600 focus:ring-red-500/10' : 'border-slate-200 focus:border-green-600 focus:ring-green-600/10'}`}
+                      className={`block min-h-10 w-full rounded-xl border bg-slate-50 px-4 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:bg-white focus:ring-4 disabled:cursor-wait disabled:opacity-70 sm:min-h-12 ${visibleError('first_name') ? 'border-red-500 focus:border-red-600 focus:ring-red-500/10' : 'border-slate-200 focus:border-green-600 focus:ring-green-600/10'}`}
                     />
                     {visibleError('first_name') && <p id="registration-first-name-error" className="mt-1.5 text-sm font-medium text-red-700" role="alert">{visibleError('first_name')}</p>}
                   </div>
@@ -281,13 +281,13 @@ export const RegisterPage = () => {
                       placeholder="Dela Cruz"
                       aria-invalid={Boolean(visibleError('last_name'))}
                       aria-describedby={visibleError('last_name') ? 'registration-last-name-error' : undefined}
-                      className={`block min-h-11 w-full rounded-xl border bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:bg-white focus:ring-4 disabled:cursor-wait disabled:opacity-70 sm:min-h-12 ${visibleError('last_name') ? 'border-red-500 focus:border-red-600 focus:ring-red-500/10' : 'border-slate-200 focus:border-green-600 focus:ring-green-600/10'}`}
+                      className={`block min-h-10 w-full rounded-xl border bg-slate-50 px-4 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:bg-white focus:ring-4 disabled:cursor-wait disabled:opacity-70 sm:min-h-12 ${visibleError('last_name') ? 'border-red-500 focus:border-red-600 focus:ring-red-500/10' : 'border-slate-200 focus:border-green-600 focus:ring-green-600/10'}`}
                     />
                     {visibleError('last_name') && <p id="registration-last-name-error" className="mt-1.5 text-sm font-medium text-red-700" role="alert">{visibleError('last_name')}</p>}
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2 lg:gap-3">
                   <div>
                     <label htmlFor="registration-email" className={labelClass}>Email address</label>
                     <div className="relative">
@@ -324,13 +324,13 @@ export const RegisterPage = () => {
                       onChange={handleChange}
                       onBlur={handleBlur}
                       placeholder="School ID (if available)"
-                      className="block min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-600 focus:bg-white focus:ring-4 focus:ring-green-600/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-12"
+                      className="block min-h-10 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-600 focus:bg-white focus:ring-4 focus:ring-green-600/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-12"
                     />
-                    <p className="mt-1 text-[0.6875rem] leading-4 text-slate-500">Used to match your account to an official assessment roster.</p>
+                    <p className="mt-1 text-[0.6875rem] leading-4 text-slate-500">For official roster matching only.</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:gap-3">
                   {renderPasswordField({
                     id: 'registration-password',
                     name: 'password',
@@ -356,7 +356,7 @@ export const RegisterPage = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="group flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-green-800 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-green-900/15 transition hover:bg-green-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-wait disabled:opacity-60 sm:min-h-12 sm:text-sm"
+                  className="group flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-green-800 px-4 py-2 text-sm font-semibold text-white shadow-md shadow-green-900/15 transition hover:bg-green-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-wait disabled:opacity-60 sm:min-h-12 sm:text-sm"
                 >
                   {isLoading ? (
                     <>
@@ -372,7 +372,7 @@ export const RegisterPage = () => {
                 </button>
               </form>
 
-              <div className="mt-4 border-t border-slate-200 pt-3 text-center">
+              <div className="mt-3 border-t border-slate-200 pt-2 text-center">
                 <p className="text-sm text-slate-700 sm:text-base">
                   Already registered?{' '}
                   <Link to="/login" className="font-semibold text-green-800 underline-offset-4 hover:text-green-900 hover:underline">Sign in</Link>
