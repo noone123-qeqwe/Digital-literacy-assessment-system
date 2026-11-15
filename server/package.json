@@ -17,7 +17,7 @@
     "bootstrap-admin": "node scripts/bootstrap-admin.js",
     "test": "node test_system.js && node test_knowledge.js && npm run test:cloud && npm run test:email",
     "test:email": "node --test test_email.js",
-    "test:cloud": "node --expose-gc --test test_cloud.js",
+    "test:cloud": "node --expose-gc --test test_cloud.js test_connection.js",
     "test:libsql": "node scripts/test-libsql.js",
     "verify-backup": "node db/verify-backup.js",
     "ping-site": "node scripts/ping-site.js"

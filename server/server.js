@@ -73,6 +73,11 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // Health Check
 app.get('/api/health', (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
+  try {
+    db.prepare('SELECT 1 AS connected').get();
+  } catch {
+    return res.status(503).json({ status: 'unavailable', service: 'Digital Literacy Assessment System API' });
+  }
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),

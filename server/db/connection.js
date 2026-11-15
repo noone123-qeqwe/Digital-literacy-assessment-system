@@ -23,10 +23,84 @@ function databaseConfiguration(env = process.env) {
   return { driver, remote: false, dbPath: path.resolve(env.DLAS_DB_PATH || path.join(__dirname, 'dlas.db')), isTurso: false };
 }
 
-function openDatabase(config = databaseConfiguration()) {
+function cleanLibsqlRow(row) {
+  if (!row) return row;
+  const { _metadata, ...values } = row;
+  return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value instanceof ArrayBuffer ? Buffer.from(value) : value]));
+}
+
+function openRemoteDatabase(createClient) {
+  let closed = false;
+  let transactionConnection = null;
+
+  // A remote native connection owns an expiring server-side stream. Release it
+  // after each operation, keeping it only for a synchronous transaction. Never
+  // replay writes: a lost response can still represent a committed operation.
+  function useConnection(operation) {
+    if (closed) throw new Error('Database is closed.');
+    if (transactionConnection) return operation(transactionConnection);
+    const connection = createClient();
+    try {
+      connection.exec('PRAGMA foreign_keys = ON;');
+      return operation(connection);
+    } finally {
+      connection.close();
+    }
+  }
+
+  return {
+    get inTransaction() { return transactionConnection !== null; },
+    exec(sql) {
+      if (/^\s*(BEGIN|COMMIT|ROLLBACK)\b/i.test(sql)) throw new Error('Use database.transaction() for remote transactions.');
+      return useConnection((connection) => connection.exec(sql));
+    },
+    prepare(sql) {
+      if (closed) throw new Error('Database is closed.');
+      if (typeof sql !== 'string') throw new TypeError('SQL must be a string.');
+      // Cache SQL, not a statement bound to a stream that may have expired.
+      return {
+        run: (...args) => useConnection((connection) => connection.prepare(sql).run(args)),
+        get: (...args) => useConnection((connection) => cleanLibsqlRow(connection.prepare(sql).get(args))),
+        all: (...args) => useConnection((connection) => connection.prepare(sql).all(args).map(cleanLibsqlRow)),
+      };
+    },
+    transaction(fn) {
+      if (typeof fn !== 'function') throw new TypeError('Transaction callback must be a function.');
+      return (...args) => {
+        if (transactionConnection) throw new Error('Nested database transactions are not supported.');
+        return useConnection((connection) => {
+          transactionConnection = connection;
+          try {
+            connection.exec('BEGIN TRANSACTION;');
+            try {
+              const result = fn(...args);
+              if (result && typeof result.then === 'function') throw new Error('Database transaction callbacks must be synchronous.');
+              connection.exec('COMMIT;');
+              return result;
+            } catch (error) {
+              try { connection.exec('ROLLBACK;'); } catch {}
+              throw error;
+            }
+          } finally {
+            transactionConnection = null;
+          }
+        });
+      };
+    },
+    close() {
+      if (transactionConnection) throw new Error('Cannot close a database during a transaction.');
+      closed = true;
+    },
+  };
+}
+
+function openDatabase(config = databaseConfiguration(), { createRemoteClient } = {}) {
+  if (config.remote) {
+    return openRemoteDatabase(createRemoteClient || (() => new (require('libsql'))(config.url, { authToken: config.token })));
+  }
   if (config.dbPath) fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
   const db = config.driver === 'libsql'
-    ? new (require('libsql'))(config.remote ? config.url : config.dbPath, config.remote ? { authToken: config.token } : undefined)
+    ? new (require('libsql'))(config.dbPath)
     : new (require('node:sqlite').DatabaseSync)(config.dbPath);
   db.exec('PRAGMA foreign_keys = ON;');
   if (!config.remote) {
@@ -36,17 +110,12 @@ function openDatabase(config = databaseConfiguration()) {
   // libSQL attaches query timing metadata to rows. Keep the API's existing row shape.
   if (config.driver === 'libsql') {
     const prepare = db.prepare.bind(db);
-    const clean = (row) => {
-      if (!row) return row;
-      const { _metadata, ...values } = row;
-      return Object.fromEntries(Object.entries(values).map(([key, value]) => [key, value instanceof ArrayBuffer ? Buffer.from(value) : value]));
-    };
     db.prepare = (sql) => {
       const statement = prepare(sql);
       return {
         run: (...args) => statement.run(args),
-        get: (...args) => clean(statement.get(args)),
-        all: (...args) => statement.all(args).map(clean),
+        get: (...args) => cleanLibsqlRow(statement.get(args)),
+        all: (...args) => statement.all(args).map(cleanLibsqlRow),
       };
     };
   }

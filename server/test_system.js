@@ -114,6 +114,13 @@ async function run() {
 
     const health = await request(baseUrl, '/health');
     check(health.status === 200 && health.data.status === 'healthy', 'health endpoint responds');
+    const originalPrepare = db.prepare;
+    try {
+      db.prepare = () => { throw new Error('Private database connection details'); };
+      const unavailable = await request(baseUrl, '/health');
+      check(unavailable.status === 503 && unavailable.data.status === 'unavailable' && !JSON.stringify(unavailable.data).includes('Private'), 'health endpoint reports database outages without revealing connection details');
+    } finally { db.prepare = originalPrepare; }
+    check((await request(baseUrl, '/health')).status === 200, 'health endpoint recovers when the database is available again');
 
     const adminLogin = await request(baseUrl, '/auth/login', {
       method: 'POST', body: { email: 'admin@dlas.edu.ph', password: 'Admin@123' },
