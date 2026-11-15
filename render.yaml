@@ -1,64 +1,20 @@
 services:
   - type: web
-    name: masbate-dlas
+    name: masbate-dlas-free-demo
     runtime: node
     region: singapore
-    plan: starter
+    plan: free
     buildCommand: npm --prefix server ci && npm --prefix client ci && npm --prefix client run build
-    startCommand: npm --prefix server start
+    startCommand: npm --prefix server run seed && npm --prefix server start
     healthCheckPath: /api/health
-    disk:
-      name: dlas-persistent-data
-      mountPath: /var/data
-      sizeGB: 1
     envVars:
       - key: NODE_ENV
         value: production
       - key: JWT_SECRET
         generateValue: true
+      - key: DLAS_FREE_DEMO
+        value: "true"
       - key: DLAS_DB_PATH
-        value: /var/data/db/dlas.db
-      - key: BACKUP_DIRECTORY
-        value: /var/data/backups
-      - key: BACKUP_INTERVAL_HOURS
-        value: "6"
-      - key: BACKUP_RETENTION_DAYS
-        value: "30"
+        value: /tmp/dlas-free-demo.sqlite
       - key: TRUST_PROXY
         value: "1"
-      - key: MFA_ENCRYPTION_KEY
-        sync: false
-      - key: BACKUP_ENCRYPTION_KEY
-        sync: false
-      - key: SMTP_HOST
-        sync: false
-      - key: SMTP_PORT
-        value: "587"
-      - key: SMTP_SECURE
-        value: "false"
-      - key: SMTP_FROM
-        sync: false
-      - key: SMTP_USER
-        sync: false
-      - key: SMTP_PASS
-        sync: false
-      - key: RESEARCH_APPROVAL_ID
-        sync: false
-      - key: RESEARCH_CONSENT_VERSION
-        sync: false
-      - key: RESEARCH_CONSENT_APPROVED
-        value: "false"
-      - key: RESEARCH_CONSENT_TEXT
-        sync: false
-      - key: RESEARCH_ASSENT_TEXT
-        sync: false
-      - key: GUARDIAN_CONSENT_TEXT
-        sync: false
-      - key: GUARDIAN_PROCESS_APPROVED
-        value: "false"
-      - key: RESEARCHER_NAME
-        sync: false
-      - key: RESEARCHER_EMAIL
-        sync: false
-      - key: DATA_RETENTION_POLICY
-        sync: false

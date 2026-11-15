@@ -9,6 +9,7 @@ const { startAutomaticBackups, getBackupStatus } = require('./db/backup');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const freeDemoMode = process.env.DLAS_FREE_DEMO === 'true';
 // On Render's default domain, keep account verification links and same-origin
 // API requests on this service. A custom domain can override both values.
 if (process.env.RENDER_EXTERNAL_HOSTNAME) {
@@ -33,7 +34,7 @@ if (process.env.NODE_ENV === 'production') {
 // Initialize Database Schema
 try {
   initializeDatabase();
-  assertProductionReady();
+  if (!freeDemoMode) assertProductionReady();
   console.log('Database initialized successfully.');
 } catch (err) {
   console.error('Database initialization error:', err);
@@ -76,6 +77,17 @@ app.get('/api/health', (req, res) => {
 });
 
 app.use('/api', (req, res, next) => {
+  if (freeDemoMode) {
+    const safeMethod = ['GET', 'HEAD', 'OPTIONS'].includes(req.method);
+    const allowedAuthAction = req.method === 'POST' && ['/auth/login', '/auth/logout'].includes(req.path);
+    if (!safeMethod && !allowedAuthAction) {
+      return res.status(403).json({
+        success: false,
+        message: 'This free demo is read-only. Registration, profile changes, and assessment submissions are disabled. Do not enter real study data.',
+      });
+    }
+    return next();
+  }
   if (process.env.NODE_ENV === 'production' && !getBackupStatus().isReady) {
     return res.status(503).json({ success: false, message: 'A recent encrypted database backup is required before study data can be accessed. The system will reopen after backup recovery.' });
   }
@@ -123,7 +135,7 @@ function startServer(port = PORT) {
   if (process.env.BACKUP_ENCRYPTION_KEY) {
     startAutomaticBackups()
       .catch((error) => console.error('Initial encrypted backup failed; API remains unavailable until a retry succeeds:', error.message));
-  } else if (process.env.NODE_ENV === 'production') {
+  } else if (process.env.NODE_ENV === 'production' && !freeDemoMode) {
     throw new Error('Production startup requires automatic encrypted backups. Configure BACKUP_ENCRYPTION_KEY.');
   }
   const server = app.listen(port, () => {

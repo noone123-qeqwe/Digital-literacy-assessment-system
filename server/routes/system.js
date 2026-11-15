@@ -12,7 +12,14 @@ const mailTestLimit = rateLimit({ id: 'admin-mail-test', windowMs: 60 * 60 * 100
 
 router.get('/status', (req, res) => {
   const { demoMode, studyCollectionReady } = getStudyReadiness();
-  return res.json({ success: true, data: { demoMode, studyCollectionReady } });
+  return res.json({
+    success: true,
+    data: {
+      demoMode,
+      studyCollectionReady,
+      freeDemoReadOnly: process.env.DLAS_FREE_DEMO === 'true',
+    },
+  });
 });
 
 router.get('/study-information', (req, res) => {

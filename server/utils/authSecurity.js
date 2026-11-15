@@ -16,7 +16,7 @@ function durationMs(value) {
 function cookieOptions(httpOnly, maxAge) {
   return {
     httpOnly,
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === 'production' || process.env.DLAS_FREE_DEMO === 'true',
     sameSite: 'strict',
     path: httpOnly ? '/api' : '/',
     ...(maxAge ? { maxAge } : {}),

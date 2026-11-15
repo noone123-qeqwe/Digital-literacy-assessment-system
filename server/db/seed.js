@@ -3,7 +3,7 @@ const { db, initializeDatabase, logActivity } = require('./database');
 const { initializeInstrument } = require('./instrument');
 
 function seed() {
-  if (process.env.NODE_ENV === 'production') {
+  if (process.env.NODE_ENV === 'production' && process.env.DLAS_FREE_DEMO !== 'true') {
     throw new Error('The demonstration seed is disabled in production. Use the documented bootstrap-admin command on a clean production database.');
   }
   console.log('Initializing database schema...');
