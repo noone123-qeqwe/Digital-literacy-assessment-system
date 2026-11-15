@@ -8,7 +8,7 @@ const path = require('node:path');
 
 const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'dlas-integration-'));
 process.env.NODE_ENV = 'test';
-for (const key of ['TURSO_DATABASE_URL', 'TURSO_AUTH_TOKEN', 'BACKUP_STRATEGY', 'DLAS_RESEARCH_ENABLED', 'SMTP_HOST', 'SMTP_FROM', 'SMTP_USER', 'SMTP_PASS']) process.env[key] = '';
+for (const key of ['TURSO_DATABASE_URL', 'TURSO_AUTH_TOKEN', 'BACKUP_STRATEGY', 'DLAS_RESEARCH_ENABLED', 'SMTP_HOST', 'SMTP_FROM', 'SMTP_USER', 'SMTP_PASS', 'BREVO_API_KEY', 'RESEND_API_KEY', 'MAIL_HOST', 'MAIL_FROM', 'MAIL_FROM_ADDRESS', 'MAIL_USER', 'MAIL_USERNAME', 'MAIL_PASS', 'MAIL_PASSWORD']) process.env[key] = '';
 process.env.EMAIL_PROVIDER = 'smtp';
 process.env.PORT = '0';
 process.env.DLAS_DB_PATH = path.join(temporaryDirectory, 'system-test.db');
@@ -124,6 +124,27 @@ async function run() {
     check(adminMfa.confirmation?.status === 200 && adminToken?.dlas_session && adminToken?.dlas_csrf, 'admin completes MFA setup and receives secure session and CSRF cookies');
     const readiness = await request(baseUrl, '/system/readiness', { token: adminToken });
     check(readiness.status === 200 && readiness.data.data.checks.some((item) => item.id === 'consent') && readiness.data.data.checks.some((item) => item.id === 'backup'), 'administrator can view the safe operational readiness checklist');
+    const publicStatus = await request(baseUrl, '/system/status');
+    check(Array.isArray(readiness.data.data.email?.configuredProviders) && !publicStatus.data.data.email && (await request(baseUrl, '/system/readiness')).status === 401, 'email provider status is limited to authenticated administrators');
+
+    // Exercise the real administrator route with simulated provider responses.
+    // Local HTTP requests still use fetch; no external mail is sent.
+    const actualFetch = global.fetch;
+    Object.assign(process.env, { BREVO_API_KEY: 'isolated-brevo-key', RESEND_API_KEY: 'isolated-resend-key', EMAIL_FROM_ADDRESS: 'school@example.test' });
+    try {
+      global.fetch = async (url, options) => {
+        if (String(url) === 'https://api.brevo.com/v3/smtp/email') return new Response('{}', { status: 503 });
+        if (String(url) === 'https://api.resend.com/emails') return new Response(JSON.stringify({ id: 'isolated-resend-message' }), { status: 201 });
+        return actualFetch(url, options);
+      };
+      const emailTest = await request(baseUrl, '/system/readiness/test-email', { token: adminToken, method: 'POST' });
+      const afterEmail = await request(baseUrl, '/system/readiness', { token: adminToken });
+      const emailStatus = afterEmail.data.data.email;
+      check(emailTest.status === 200 && emailTest.data.data.provider === 'resend' && emailStatus.lastAcceptedProvider === 'resend' && emailStatus.lastAttemptedProviders.join(',') === 'brevo,resend' && !/isolated-.*-key|school@example|token=/.test(JSON.stringify(emailStatus)), 'administrator email check reports the actual fallback provider without exposing credentials or links');
+    } finally {
+      global.fetch = actualFetch;
+      process.env.BREVO_API_KEY = ''; process.env.RESEND_API_KEY = '';
+    }
 
     const questions = await request(baseUrl, '/questions?active_only=true', { token: adminToken });
     const areas = await request(baseUrl, '/questions/areas', { token: adminToken });
@@ -144,6 +165,7 @@ async function run() {
     });
     const mariaToken = mariaLogin.session;
     check(mariaLogin.status === 200 && mariaLogin.data?.success && mariaToken.dlas_session && mariaToken.dlas_csrf, 'respondent login issues secure session and CSRF cookies');
+    check((await request(baseUrl, '/system/readiness', { token: mariaToken })).status === 403 && (await request(baseUrl, '/system/readiness/test-email', { token: mariaToken, method: 'POST' })).status === 403, 'students cannot inspect provider settings or trigger administrator email tests');
     const mariaAttempts = await request(baseUrl, '/attempts/my', { token: mariaToken });
     const sampleAttemptId = mariaAttempts.data?.data?.find((attempt) => attempt.status === 'completed')?.id;
     const sampleResults = await request(baseUrl, `/attempts/${sampleAttemptId}/results`, { token: mariaToken });

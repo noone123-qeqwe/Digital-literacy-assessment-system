@@ -20,8 +20,6 @@ services:
         value: libsql
       - key: BACKUP_STRATEGY
         value: turso-pitr
-      - key: EMAIL_PROVIDER
-        value: brevo
       - key: EMAIL_FROM_NAME
         value: Masbate Colleges DLAS
       - key: TRUST_PROXY
@@ -30,6 +28,8 @@ services:
         sync: false
       - key: TURSO_AUTH_TOKEN
         sync: false
+      # For Resend-only deployment, rename this key to RESEND_API_KEY.
+      # Add the other key privately in Render to enable API fallback.
       - key: BREVO_API_KEY
         sync: false
       - key: EMAIL_FROM_ADDRESS

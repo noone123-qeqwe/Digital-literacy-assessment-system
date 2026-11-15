@@ -1,5 +1,5 @@
 const { db, databaseConfig } = require('../db/database');
-const { mailConfigurationReady } = require('./email');
+const { mailConfigurationReady, mailHttpsConfigurationReady } = require('./email');
 const path = require('path');
 
 const consentConfiguration = [
@@ -46,8 +46,8 @@ function assertProductionReady() {
   const readiness = getStudyReadiness();
   if (readiness.demoMode) issues.push('The database is marked as containing demonstration data. Use a clean research database before deployment.');
   if (process.env.DLAS_RESEARCH_ENABLED !== 'false' && readiness.missing.length) issues.push(`Study consent and governance configuration is incomplete: ${readiness.missing.join('; ')}`);
-  if (!mailConfigurationReady()) issues.push('Configure account verification and recovery email: Brevo API with a verified sender, or a complete SMTP configuration.');
-  if (process.env.RENDER && process.env.EMAIL_PROVIDER !== 'brevo') issues.push('Render free hosting requires HTTPS email delivery. Set EMAIL_PROVIDER=brevo.');
+  if (!mailConfigurationReady()) issues.push('Configure verification and recovery email: Brevo or Resend with a verified sender, or complete Gmail/SMTP settings.');
+  if (process.env.RENDER && !mailHttpsConfigurationReady()) issues.push('Render free hosting requires a configured Brevo or Resend HTTPS API; Gmail SMTP on port 587 is blocked.');
   if (!/^[a-f0-9]{64}$/i.test(process.env.MFA_ENCRYPTION_KEY || '')) issues.push('MFA_ENCRYPTION_KEY must be 64 hexadecimal characters.');
   if (!/^[a-f0-9]{64}$/i.test(process.env.BACKUP_ENCRYPTION_KEY || '')) issues.push('BACKUP_ENCRYPTION_KEY must be 64 hexadecimal characters.');
   const backupDirectory = String(process.env.BACKUP_DIRECTORY || '').trim();

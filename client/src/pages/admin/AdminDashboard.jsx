@@ -105,6 +105,8 @@ export const AdminDashboard = () => {
     } catch (requestError) {
       toast.error(requestError.response?.data?.message || 'Could not send the test email.');
     } finally {
+      // Refresh the accepting provider even when the test had to use a fallback.
+      api.get('/system/readiness').then((response) => setReadiness(response.data?.data || null)).catch(() => {});
       setTestingEmail(false);
     }
   };

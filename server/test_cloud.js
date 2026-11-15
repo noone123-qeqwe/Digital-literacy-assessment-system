@@ -19,7 +19,7 @@ Object.assign(process.env, {
   BACKUP_ENCRYPTION_KEY: crypto.randomBytes(32).toString('hex'),
   CLIENT_URL: 'https://example.test', CORS_ORIGINS: 'https://example.test',
 });
-for (const key of ['TURSO_DATABASE_URL', 'TURSO_AUTH_TOKEN', 'RENDER', 'BACKUP_STRATEGY']) process.env[key] = '';
+for (const key of ['TURSO_DATABASE_URL', 'TURSO_AUTH_TOKEN', 'RENDER', 'BACKUP_STRATEGY', 'RESEND_API_KEY', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'MAIL_HOST', 'MAIL_USER', 'MAIL_USERNAME', 'MAIL_PASS', 'MAIL_PASSWORD']) process.env[key] = '';
 const { db, initializeDatabase } = require('./db/database');
 const { sendSecurityEmail, mailConfigurationReady } = require('./utils/email');
 const realFetch = global.fetch;
@@ -81,9 +81,9 @@ test('email refusal, timeout, and missing acknowledgments never report successfu
   global.fetch = async () => new Response('private provider error', { status: 429 });
   await assert.rejects(sendSecurityEmail({ to: 'student@example.test', subject: 'test', text: 'test', actionUrl: 'https://example.test' }), /HTTP 429/);
   global.fetch = async () => { throw new Error('private request details'); };
-  await assert.rejects(sendSecurityEmail({ to: 'student@example.test', subject: 'test', text: 'test', actionUrl: 'https://example.test' }), /could not be reached/);
+  await assert.rejects(sendSecurityEmail({ to: 'student@example.test', subject: 'test', text: 'test', actionUrl: 'https://example.test' }), /connection or delivery error/);
   global.fetch = async () => new Response('{}', { status: 201 });
-  await assert.rejects(sendSecurityEmail({ to: 'student@example.test', subject: 'test', text: 'test', actionUrl: 'https://example.test' }), /acknowledge/);
+  await assert.rejects(sendSecurityEmail({ to: 'student@example.test', subject: 'test', text: 'test', actionUrl: 'https://example.test' }), /acknowledgment/);
 });
 
 test('real-account startup provisions only one unverified administrator and preserves research gates', async () => {

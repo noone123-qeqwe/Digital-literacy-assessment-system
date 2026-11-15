@@ -31,7 +31,7 @@ Open the Vite URL printed by the client (normally `http://localhost:5173`). The 
 
 ## Render deployment
 
-For **real accounts on free hosting**, use the prepared [Turso + Brevo setup](docs/REAL_ACCOUNTS_SETUP.md) and `deploy/render-real-accounts.yaml`. It uses durable cloud storage, verified email, and a clean first-administrator workflow. Private provider settings must be connected before switching the existing public service out of demo mode. Accounts and scored quizzes can operate while research collection stays disabled pending its separate approvals and independent encrypted backups.
+For **real accounts on free hosting**, use the prepared [cloud database and email setup](docs/REAL_ACCOUNTS_SETUP.md) and `deploy/render-real-accounts.yaml`. It uses durable Turso storage, Brevo/Resend email, and a clean first-administrator workflow. Private provider settings must be connected before switching the existing public service out of demo mode. Accounts and scored quizzes can operate while research collection stays disabled pending its separate approvals and independent encrypted backups.
 
 The repository's `render.yaml` deploys a **free, read-only demo preview**. It builds the React client, serves it and the API from one Node service, seeds synthetic sample records on startup, and uses HTTPS with secure same-origin cookies. The demo supports signing in to view the student dashboard and existing sample results. Registration, profile changes, and assessment submissions are blocked.
 
@@ -54,7 +54,9 @@ Copy `server/.env.example` to `server/.env` and set a unique random `JWT_SECRET`
 - New respondent accounts and administrator-created accounts must verify their email before sign-in. Verification links expire and are stored only as hashes. Password reset links expire after 30 minutes and revoke existing sessions.
 - Administrator and teacher/assessor accounts must enroll in an authenticator app (TOTP) and enter a one-time code at sign-in. MFA recovery uses a separate, one-time email token and requires re-enrollment.
 - Access tokens are held in `HttpOnly`, `SameSite=Strict` cookies and are not written to browser storage. Mutating requests require a CSRF token. The **Security** page lists active sessions/devices and lets users revoke sessions and change their password.
-- For local development without SMTP, verification and recovery links are printed in the server terminal. Do not use those development links as a production mail setup.
+- Email tries configured providers in this order: **Brevo → Resend → Gmail/SMTP**. A rejection, connection failure, or missing acknowledgment advances to the next provider. Gmail uses `smtp.gmail.com:587` with required STARTTLS and a Google app password; legacy custom SMTP settings also work. Free Render requires at least one HTTPS API because it blocks SMTP port 587. API senders must be verified separately in each provider.
+- Administrators can see configured provider names and the last provider that accepted a message in the readiness checklist. This is reset on restart and does not prove inbox delivery. The email test reports the provider that accepted that test; keys, addresses, and tokens are excluded from status data.
+- For local development without configured email providers, verification and recovery links are printed in the server terminal. Production never falls back to development links. The same one-time link is reused across providers; a timed-out provider may still deliver a duplicate message.
 
 ## Website ping and wake-up checks
 
@@ -68,7 +70,7 @@ This reduces idle cold starts but cannot guarantee that the Render loading page 
 
 Do not use the demo seed for research. It creates synthetic users, completed attempts, and an active demonstration assessment, then marks the database as demo data. Production will refuse to start with that marker.
 
-For the first production deployment, configure SMTP and the environment values in `server/.env.example`, then provision the initial administrator from an empty production database. In PowerShell, set these values for the command without adding the password to source control:
+For the first production deployment, configure email delivery and the environment values in `server/.env.example`, then provision the initial administrator from an empty production database. In PowerShell, set these values for the command without adding the password to source control:
 
 ```powershell
 $env:NODE_ENV = 'production'

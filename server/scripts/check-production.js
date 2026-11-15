@@ -1,6 +1,6 @@
 require('dotenv').config({ path: require('node:path').join(__dirname, '..', '.env') });
 const { databaseConfiguration } = require('../db/connection');
-const { mailConfigurationReady } = require('../utils/email');
+const { mailHttpsConfigurationReady } = require('../utils/email');
 
 function checkConfiguration(env = process.env) {
   const checks = [];
@@ -8,7 +8,7 @@ function checkConfiguration(env = process.env) {
   try { database = databaseConfiguration(env); } catch (error) { checks.push({ name: 'Cloud database', ready: false, detail: error.message }); }
   if (database) checks.push({ name: 'Cloud database', ready: database.remote && database.isTurso, detail: database.remote ? 'Remote connection settings are present; live connectivity is checked at startup.' : 'Remote database settings are missing.' });
   checks.push({ name: 'Real accounts', ready: env.NODE_ENV === 'production' && env.DLAS_FREE_DEMO === 'false' });
-  checks.push({ name: 'Verification email', ready: mailConfigurationReady(env) && env.EMAIL_PROVIDER === 'brevo', detail: 'A verified Brevo sender and API key are required; this check does not send email.' });
+  checks.push({ name: 'Verification email', ready: mailHttpsConfigurationReady(env), detail: 'Render free hosting needs a Brevo or Resend API key with a verified sender. Providers are tried in that order; this check does not send email.' });
   checks.push({ name: 'Recovery policy', ready: env.BACKUP_STRATEGY === 'turso-pitr' && env.DLAS_RESEARCH_ENABLED === 'false', detail: 'Free cloud recovery is for accounts and quizzes. Research collection remains disabled.' });
   for (const key of ['MFA_ENCRYPTION_KEY', 'BACKUP_ENCRYPTION_KEY']) checks.push({ name: key, ready: /^[a-f0-9]{64}$/i.test(env[key] || '') });
   checks.push({ name: 'Session signing key', ready: (env.JWT_SECRET || '').length >= 32 && !/changeme|replace.?me|secret/i.test(env.JWT_SECRET || '') });

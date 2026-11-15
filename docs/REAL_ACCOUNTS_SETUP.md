@@ -1,6 +1,6 @@
 # Real accounts on free hosting
 
-The real-account configuration uses the existing Render free web service, a **Turso libSQL** cloud database, and **Brevo's HTTPS email API**. Accounts, saved answers, sessions, and results live in Turso rather than Render's temporary filesystem. New students verify their email; staff also enroll an authenticator. No demonstration users or results are created.
+The real-account configuration uses the existing Render free web service, a **Turso libSQL** cloud database, and **Brevo/Resend HTTPS email APIs**. Accounts, saved answers, sessions, and results live in Turso rather than Render's temporary filesystem. New students verify their email; staff also enroll an authenticator. No demonstration users or results are created.
 
 The application code is prepared, but the existing public service stays read-only until the provider accounts, verified sender, credentials, and first administrator are configured. Do not change only `DLAS_FREE_DEMO`: the preview currently runs `seed` and stores SQLite under `/tmp`.
 
@@ -8,8 +8,10 @@ The application code is prepared, but the existing public service stays read-onl
 
 1. Sign in at [Turso](https://app.turso.tech/), choose its **Free** plan, and create a **libSQL-compatible** database named `masbate-colleges-dlas` in a region near the Render service. Use a new, empty database, not an imported demonstration database. The newer beta Turso database engine is a different product; this application uses the stable libSQL API.
 2. Save its database URL and a read/write database token privately. Those become `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in Render. Keep administrative Turso account tokens out of the application.
-3. Sign in at [Brevo](https://app.brevo.com/), choose its **Free** plan, and complete its sender/domain verification and transactional-email activation requirements. Use the College's approved sender address and domain if available. The sender must be verified; an arbitrary `no-reply` address will not work.
-4. Create a Brevo API key for this app. Put it only in Render as `BREVO_API_KEY`. This is the **API key**, not an SMTP password.
+3. Sign in at [Brevo](https://app.brevo.com/) or [Resend](https://resend.com/), select a free plan, and complete the provider's sender/domain verification and transactional-email activation requirements. Use the College's approved sender address and domain if available. The sender must be verified; an arbitrary `no-reply` address will not work. Resend's testing sender cannot send verification messages to arbitrary students.
+4. Create an API key for this app. Put it only in Render as `BREVO_API_KEY` or `RESEND_API_KEY`. These are **API keys**, not SMTP passwords. Configure both providers if you want API fallback; one working API is enough to start.
+
+If you forgot which accounts you have, check **Render → your existing service → Environment** for variable names before creating replacements. Do not reveal their values. Saved keys may exist on Render even when your local computer has none. Sign in to the corresponding provider or use its account-recovery flow; never overwrite existing keys or recreate a live database just because you forgot the login.
 
 Do not send tokens, passwords, or API keys in chat, commit them to GitHub, or put them in React/Vite environment variables. The database URL without the token may be shared if needed; all credentials stay server-side.
 
@@ -37,9 +39,9 @@ Use the **existing** service to retain its `masbate-colleges-digital-literacy.on
 | `DLAS_DATABASE_DRIVER` | `libsql` |
 | `TURSO_DATABASE_URL` | Your secure `libsql://...turso.io` database URL |
 | `TURSO_AUTH_TOKEN` | Your private read/write database token |
-| `EMAIL_PROVIDER` | `brevo` |
-| `BREVO_API_KEY` | Your private Brevo API key |
-| `EMAIL_FROM_ADDRESS` | The sender address verified in Brevo |
+| `BREVO_API_KEY` | Your private Brevo API key, if using Brevo |
+| `RESEND_API_KEY` | Your private Resend API key, if using Resend; optional fallback when both are configured |
+| `EMAIL_FROM_ADDRESS` | The sender address verified in each configured API provider |
 | `EMAIL_FROM_NAME` | `Masbate Colleges DLAS` |
 | `BACKUP_STRATEGY` | `turso-pitr` |
 | `JWT_SECRET` | Key from the generated private file, or retain your existing secure key |
@@ -51,6 +53,10 @@ Use the **existing** service to retain its `masbate-colleges-digital-literacy.on
 | `BOOTSTRAP_ADMIN_LAST_NAME` | Your administrator's last name |
 | `BOOTSTRAP_ADMIN_PASSWORD` | A unique password of 12–128 characters |
 
+Email selection is automatic: **Brevo → Resend → Gmail/SMTP**. The old `EMAIL_PROVIDER` setting no longer pins one provider. Unconfigured providers are skipped; failures advance to the next configured provider, and a confirmed acceptance stops fallback. Use `BREVO_FROM_EMAIL` and `RESEND_FROM_EMAIL` if their verified sender addresses differ. A provider's HTTP acceptance is not proof of delivery to the inbox.
+
+On a host that allows SMTP, configure Gmail fallback with `MAIL_HOST=smtp.gmail.com`, `MAIL_PORT=587`, `MAIL_USER` (the full Gmail address), `MAIL_PASS` (a Google app password), and optionally `MAIL_FROM`/`MAIL_FROM_NAME`. `MAIL_USERNAME` and `MAIL_PASSWORD` aliases and legacy `SMTP_*` settings are accepted. Gmail always requires STARTTLS on port 587. **Render's free tier blocks port 587**, so Gmail is not a working fallback there; at least one HTTPS API must be configured. This app keeps the same verification/reset link across fallback attempts; a timed-out provider can still deliver a duplicate, but the link remains one-time.
+
 Remove `DLAS_DB_PATH=/tmp/dlas-free-demo.sqlite`. The cloud configuration never falls back to a local file if its URL or token is missing or invalid. Render's default hostname automatically supplies the HTTPS client URL and allowed origin; for a custom domain, set `CLIENT_URL` and `CORS_ORIGINS` to that exact HTTPS origin.
 
 Change **Start Command** to:
@@ -61,7 +67,7 @@ npm --prefix server run start:production
 
 Deploy the tested GitHub commit. The first launch initializes the schema and approved question banks, creates only the first administrator, and emails their verification link. Later launches preserve that account and all student data; they do not run the demonstration seed. After the administrator exists, remove `BOOTSTRAP_ADMIN_PASSWORD` from Render. The remaining bootstrap settings can also be removed. If an email is rejected during bootstrap, the unverified account is retained; after correcting email settings, use **resend verification** on the login page rather than recreating the account.
 
-`deploy/render-real-accounts.yaml` is the equivalent blueprint for a new deployment. Do not create a second service just to update the existing one. If the current service is managed by the repository's preview blueprint, update that blueprint connection/configuration at the same time so a later blueprint sync cannot restore demo flags or the seed command. `render.yaml` intentionally remains the existing preview configuration until the credentials are available.
+`deploy/render-real-accounts.yaml` is the equivalent blueprint for a new deployment. It prompts for a Brevo key by default; for a Resend-only setup, rename that entry to `RESEND_API_KEY` before applying it. Add any optional fallback credentials privately in Render. Do not create a second service just to update the existing one. If the current service is managed by the repository's preview blueprint, update that blueprint connection/configuration at the same time so a later blueprint sync cannot restore demo flags or the seed command. `render.yaml` intentionally remains the existing preview configuration until the credentials are available.
 
 An optional safe configuration check is available locally with the real production values loaded in private environment settings:
 
@@ -74,7 +80,7 @@ It prints only readiness indicators and does not contact providers or send email
 ## 4. Verify the live switch
 
 1. Confirm `/api/system/status` reports `demoMode: false` and `freeDemoReadOnly: false`. `/api/health` should report `dataProtectionReady: true`; `encryptedBackupReady: false` is accurate when using provider-managed recovery alone.
-2. Follow the administrator verification email, sign in, and enroll an authenticator. Use **Settings → readiness → test email** to confirm mailbox delivery. Provider acceptance alone does not prove inbox delivery.
+2. Follow the administrator verification email, sign in, and enroll an authenticator. Use **Settings → readiness → test email** to confirm mailbox delivery. The checklist shows configured provider order and the last provider that accepted a message since startup; the test result identifies its actual accepting provider. Provider acceptance alone does not prove inbox delivery. No keys, recipient addresses, or security links appear in provider status data.
 3. Create one student account using an address you control, verify the email, sign in, and check password recovery.
 4. Create and assign a scored quiz, complete it using that student, and verify its saved score and certificate rules. Research assessments remain unavailable.
 5. Restart the Render service and verify the administrator, student account, saved quiz, and result remain. Stop real onboarding if this verification fails.
