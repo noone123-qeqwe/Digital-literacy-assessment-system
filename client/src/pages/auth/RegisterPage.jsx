@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/useAuth';
 import { useDemoMode } from '../../contexts/useDemoMode';
-import { ArrowRight, CheckCircle2, Circle, Eye, EyeOff, Lock, Mail, MailCheck, ShieldCheck, Sparkles } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Circle, Eye, EyeOff, Lock, Mail, MailCheck, Sparkles } from 'lucide-react';
+import './LoginPage.css';
 
 const skillAreas = ['Information', 'Communication', 'Content creation', 'Safety', 'Problem solving'];
 
@@ -24,6 +25,7 @@ export const RegisterPage = () => {
   const [registrationComplete, setRegistrationComplete] = useState(false);
   const { register } = useAuth();
   const { available: demoStatusAvailable, freeDemoReadOnly, loading: demoStatusLoading } = useDemoMode();
+  const registrationPreview = demoStatusAvailable && freeDemoReadOnly;
   const navigate = useNavigate();
 
   const validate = (values) => {
@@ -53,6 +55,7 @@ export const RegisterPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (registrationPreview || demoStatusLoading) return;
     setSubmitted(true);
     setTouched({ first_name: true, last_name: true, email: true, password: true, confirmPassword: true });
     const errors = validate(formData);
@@ -142,11 +145,12 @@ export const RegisterPage = () => {
   );
 
   return (
-    <main className="relative isolate flex min-h-svh items-center justify-center overflow-x-hidden bg-slate-950 px-3 py-3 sm:px-5 sm:py-5 lg:px-6 lg:py-5">
+    <main className="school-login-theme relative isolate flex min-h-svh items-center justify-center overflow-x-hidden bg-slate-950 px-3 py-3 sm:px-5 sm:py-5 lg:px-6 lg:py-5">
       <img
         aria-hidden="true"
         alt=""
-        src="/masbate-colleges-campus.jpg"
+        src="/masbate-colleges-campus-login.webp"
+        decoding="async"
         fetchPriority="high"
         className="pointer-events-none fixed inset-0 z-0 h-screen w-screen object-cover object-[center_40%]"
       />
@@ -160,7 +164,7 @@ export const RegisterPage = () => {
 
           <div className="flex items-center gap-3">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1 shadow-lg shadow-black/20 ring-1 ring-white/25 sm:h-16 sm:w-16">
-              <img src="/masbate-colleges-logo.png" alt="Masbate Colleges seal" className="h-full w-full object-contain" />
+              <img src="/masbate-colleges-logo-login.webp" alt="Masbate Colleges seal" className="h-full w-full object-contain" />
             </div>
             <div>
               <p className="text-base font-bold tracking-tight text-white sm:text-lg">DLAS Portal</p>
@@ -204,7 +208,7 @@ export const RegisterPage = () => {
             <div className="mb-3 sm:mb-4">
               <div className="mb-4 flex items-center gap-3 sm:hidden">
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200">
-                  <img src="/masbate-colleges-logo.png" alt="Masbate Colleges seal" className="h-full w-full object-contain" />
+                  <img src="/masbate-colleges-logo-login.webp" alt="Masbate Colleges seal" className="h-full w-full object-contain" />
                 </div>
                 <div>
                   <p className="text-base font-bold text-slate-900">DLAS Portal</p>
@@ -212,8 +216,8 @@ export const RegisterPage = () => {
                 </div>
               </div>
               <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-green-800 sm:text-xs">College of Computer Studies</p>
-              <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">{demoStatusAvailable && freeDemoReadOnly ? 'Registration unavailable' : 'Create your account'}</h2>
-              <p className="mt-1 text-sm leading-5 text-slate-700">{demoStatusAvailable && freeDemoReadOnly ? 'This read-only demo uses sample accounts and does not accept new registrations.' : 'Register as a student to get started with your digital literacy assessment.'}</p>
+              <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Create your account</h2>
+              <p className="mt-1 text-sm leading-5 text-slate-700">{registrationPreview ? 'Preview student registration. New accounts are not saved in this public demo.' : 'Register as a student to get started with your digital literacy assessment.'}</p>
             </div>
 
             <div className="rounded-2xl border border-white/80 bg-white/95 p-4 shadow-xl shadow-slate-900/10 backdrop-blur-sm sm:p-5 lg:p-4">
@@ -221,19 +225,6 @@ export const RegisterPage = () => {
                 <div className="flex min-h-64 flex-col items-center justify-center text-center" role="status" aria-live="polite">
                   <div className="h-8 w-8 animate-spin rounded-full border-2 border-green-700/30 border-t-green-700" aria-hidden="true" />
                   <p className="mt-4 text-sm font-medium text-slate-700">Checking account options…</p>
-                </div>
-              ) : demoStatusAvailable && freeDemoReadOnly ? (
-                <div className="flex min-h-64 flex-col items-center justify-center text-center" role="status" aria-live="polite">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-800 ring-1 ring-amber-100">
-                    <ShieldCheck aria-hidden="true" className="h-8 w-8" />
-                  </div>
-                  <p className="mt-5 text-xs font-bold uppercase tracking-[0.14em] text-amber-800">Read-only demo</p>
-                  <h3 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Use a demo account</h3>
-                  <p className="mt-3 max-w-xl text-sm leading-6 text-slate-700 sm:text-base">Account creation is turned off so sample data stays separate from real study records.</p>
-                  <Link to="/login" className="group mt-6 flex min-h-12 w-full max-w-sm items-center justify-center gap-2 rounded-xl bg-green-800 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-green-900/15 transition hover:bg-green-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 sm:min-h-14 sm:text-base">
-                    Go to sign in
-                    <ArrowRight aria-hidden="true" className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                  </Link>
                 </div>
               ) : registrationComplete ? (
                 <div className="flex min-h-[24rem] flex-col items-center justify-center text-center" role="status" aria-live="polite">
@@ -265,6 +256,9 @@ export const RegisterPage = () => {
                 </div>
               ) : <>
               <form className="space-y-2.5 sm:space-y-3" onSubmit={handleSubmit} noValidate aria-busy={isLoading}>
+                {registrationPreview && <p id="registration-preview-note" role="status" className="rounded-xl border border-green-100 bg-green-50 px-4 py-3 text-sm leading-6 text-green-950">Registration preview only. Account creation is disabled on this demo.</p>}
+                <fieldset disabled={registrationPreview || isLoading} aria-describedby={registrationPreview ? 'registration-preview-note' : undefined} className="space-y-2.5 sm:space-y-3">
+                <legend className="sr-only">Create a student account</legend>
                 {serverError && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium leading-6 text-red-800" role="alert">{serverError}</p>}
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:gap-3">
                   <div>
@@ -385,11 +379,12 @@ export const RegisterPage = () => {
                     </>
                   ) : (
                     <>
-                      <span>Create account</span>
+                      <span>{registrationPreview ? 'Create account — preview only' : 'Create account'}</span>
                       <ArrowRight aria-hidden="true" className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                     </>
                   )}
                 </button>
+                </fieldset>
               </form>
 
               <div className="mt-3 border-t border-slate-200 pt-2 text-center">

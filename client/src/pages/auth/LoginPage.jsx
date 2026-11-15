@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/useAuth';
 import { useDemoMode } from '../../contexts/useDemoMode';
-import { Lock, Mail, ArrowRight, Sparkles, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import { Lock, Mail, ArrowRight, Sparkles, Eye, EyeOff, ShieldCheck, UserRoundPlus } from 'lucide-react';
 import LoginIntro from '../../components/auth/LoginIntro';
 import './LoginPage.css';
 
@@ -239,18 +239,14 @@ export const LoginPage = () => {
               </form>}
 
               {authStep === 'credentials' && <div className="mt-4 border-t border-slate-200 pt-3 text-center">
-                {demoStatusLoading ? (
-                  <p className="text-sm text-slate-600 sm:text-base" role="status">Checking account options…</p>
-                ) : demoStatusAvailable && freeDemoReadOnly ? (
-                  <p className="text-sm font-medium text-slate-600 sm:text-base" role="status">Registration is disabled in this read-only demo.</p>
-                ) : (
-                  <p className="text-sm text-slate-700 sm:text-base">
-                    New student?{' '}
-                    <Link to="/register" className="font-semibold text-green-700 underline-offset-4 hover:text-green-800 hover:underline">
-                      Register here
-                    </Link>
-                  </p>
-                )}
+                <p className="text-sm text-slate-700 sm:text-base">New to DLAS?</p>
+                <Link to="/register" className="login-create-account" aria-describedby={demoStatusAvailable && freeDemoReadOnly ? 'login-registration-note' : undefined}>
+                  <UserRoundPlus aria-hidden="true" size={19} />
+                  <span>Create account</span>
+                  <ArrowRight aria-hidden="true" size={17} />
+                </Link>
+                {demoStatusLoading && <p className="mt-2 text-xs text-slate-600" role="status">Checking account options…</p>}
+                {demoStatusAvailable && freeDemoReadOnly && <p id="login-registration-note" className="mt-2 text-xs leading-5 text-slate-600">Preview student registration. This demo does not save new accounts.</p>}
                 <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm sm:text-base">
                   <Link to="/forgot-password" className="font-semibold text-green-800 underline-offset-4 hover:text-green-900 hover:underline">Forgot password?</Link>
                   {verificationRequired && <Link to="/verify-email" className="font-semibold text-green-800 underline-offset-4 hover:text-green-900 hover:underline">Resend verification</Link>}
