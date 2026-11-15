@@ -83,7 +83,7 @@ export const RegisterPage = () => {
     }
   };
 
-  const inputClass = 'block min-h-12 w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-600 focus:bg-white focus:ring-4 focus:ring-green-600/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-14 sm:text-base';
+  const inputClass = 'block min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 pl-11 pr-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-600 focus:bg-white focus:ring-4 focus:ring-green-600/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-12 sm:text-sm';
   const labelClass = 'mb-2 block text-sm font-semibold text-slate-800 sm:text-base';
 
   const renderPasswordField = ({ id, name, label, value, visible, setVisible, autoComplete, placeholder }) => (
@@ -121,14 +121,14 @@ export const RegisterPage = () => {
         </button>
       </div>
       {name === 'password' ? (
-        <div id={`${id}-help`} className="mt-1.5 flex items-center gap-2 text-xs sm:text-sm" aria-live="polite">
+        <div id={`${id}-help`} className="mt-1 flex items-center gap-2 text-xs" aria-live="polite">
           {formData.password.length >= 10
             ? <CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0 text-green-700" />
             : <Circle aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-400" />}
           <span className={formData.password.length >= 10 ? 'font-medium text-green-800' : 'text-slate-600'}>At least 10 characters</span>
         </div>
       ) : formData.confirmPassword ? (
-        <div id={`${id}-help`} className={`mt-1.5 flex items-center gap-2 text-xs sm:text-sm ${formData.password === formData.confirmPassword ? 'font-medium text-green-800' : 'text-slate-600'}`} aria-live="polite">
+        <div id={`${id}-help`} className={`mt-1 flex items-center gap-2 text-xs ${formData.password === formData.confirmPassword ? 'font-medium text-green-800' : 'text-slate-600'}`} aria-live="polite">
           {formData.password === formData.confirmPassword
             ? <CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0 text-green-700" />
             : <Circle aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-400" />}
@@ -210,11 +210,11 @@ export const RegisterPage = () => {
                 </div>
               </div>
               <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-green-800 sm:text-xs">College of Computer Studies</p>
-              <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl lg:text-4xl xl:text-5xl">Create your account</h2>
-              <p className="mt-1 text-sm leading-5 text-slate-700 sm:text-base sm:leading-6">Register as a student to get started with your digital literacy assessment.</p>
+              <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Create your account</h2>
+              <p className="mt-1 text-sm leading-5 text-slate-700">Register as a student to get started with your digital literacy assessment.</p>
             </div>
 
-            <div className="rounded-2xl border border-white/80 bg-white/95 p-5 shadow-xl shadow-slate-900/10 backdrop-blur-sm sm:p-6 lg:p-7">
+            <div className="rounded-2xl border border-white/80 bg-white/95 p-4 shadow-xl shadow-slate-900/10 backdrop-blur-sm sm:p-5 lg:p-5">
               {registrationComplete ? (
                 <div className="flex min-h-[24rem] flex-col items-center justify-center text-center" role="status" aria-live="polite">
                   <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-green-50 text-green-800 ring-1 ring-green-100">
@@ -244,9 +244,9 @@ export const RegisterPage = () => {
                   </div>
                 </div>
               ) : <>
-              <form className="space-y-4 sm:space-y-5" onSubmit={handleSubmit} noValidate aria-busy={isLoading}>
+              <form className="space-y-3 sm:space-y-4" onSubmit={handleSubmit} noValidate aria-busy={isLoading}>
                 {serverError && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium leading-6 text-red-800" role="alert">{serverError}</p>}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
                   <div>
                     <label htmlFor="registration-first-name" className={labelClass}>First name</label>
                     <input
@@ -262,7 +262,7 @@ export const RegisterPage = () => {
                       placeholder="Juan"
                       aria-invalid={Boolean(visibleError('first_name'))}
                       aria-describedby={visibleError('first_name') ? 'registration-first-name-error' : undefined}
-                      className={`block min-h-12 w-full rounded-xl border bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:bg-white focus:ring-4 disabled:cursor-wait disabled:opacity-70 sm:min-h-14 sm:text-base ${visibleError('first_name') ? 'border-red-500 focus:border-red-600 focus:ring-red-500/10' : 'border-slate-200 focus:border-green-600 focus:ring-green-600/10'}`}
+                      className={`block min-h-11 w-full rounded-xl border bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:bg-white focus:ring-4 disabled:cursor-wait disabled:opacity-70 sm:min-h-12 ${visibleError('first_name') ? 'border-red-500 focus:border-red-600 focus:ring-red-500/10' : 'border-slate-200 focus:border-green-600 focus:ring-green-600/10'}`}
                     />
                     {visibleError('first_name') && <p id="registration-first-name-error" className="mt-1.5 text-sm font-medium text-red-700" role="alert">{visibleError('first_name')}</p>}
                   </div>
@@ -281,54 +281,56 @@ export const RegisterPage = () => {
                       placeholder="Dela Cruz"
                       aria-invalid={Boolean(visibleError('last_name'))}
                       aria-describedby={visibleError('last_name') ? 'registration-last-name-error' : undefined}
-                      className={`block min-h-12 w-full rounded-xl border bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:bg-white focus:ring-4 disabled:cursor-wait disabled:opacity-70 sm:min-h-14 sm:text-base ${visibleError('last_name') ? 'border-red-500 focus:border-red-600 focus:ring-red-500/10' : 'border-slate-200 focus:border-green-600 focus:ring-green-600/10'}`}
+                      className={`block min-h-11 w-full rounded-xl border bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:bg-white focus:ring-4 disabled:cursor-wait disabled:opacity-70 sm:min-h-12 ${visibleError('last_name') ? 'border-red-500 focus:border-red-600 focus:ring-red-500/10' : 'border-slate-200 focus:border-green-600 focus:ring-green-600/10'}`}
                     />
                     {visibleError('last_name') && <p id="registration-last-name-error" className="mt-1.5 text-sm font-medium text-red-700" role="alert">{visibleError('last_name')}</p>}
                   </div>
                 </div>
 
-                <div>
-                  <label htmlFor="registration-email" className={labelClass}>Email address</label>
-                  <div className="relative">
-                    <Mail aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-2">
+                  <div>
+                    <label htmlFor="registration-email" className={labelClass}>Email address</label>
+                    <div className="relative">
+                      <Mail aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        id="registration-email"
+                        type="email"
+                        autoComplete="email"
+                        required
+                        disabled={isLoading}
+                        name="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        placeholder="you@example.com"
+                        aria-invalid={Boolean(visibleError('email'))}
+                        aria-describedby={visibleError('email') ? 'registration-email-error' : undefined}
+                        className={`${inputClass} ${visibleError('email') ? 'border-red-500 focus:border-red-600 focus:ring-red-500/10' : ''}`}
+                      />
+                    </div>
+                    {visibleError('email') && <p id="registration-email-error" className="mt-1 text-xs font-medium text-red-700" role="alert">{visibleError('email')}</p>}
+                  </div>
+
+                  <div>
+                    <label htmlFor="registration-student-id" className={labelClass}>Student ID <span className="font-normal text-slate-500">(optional)</span></label>
                     <input
-                      id="registration-email"
-                      type="email"
-                      autoComplete="email"
-                      required
+                      id="registration-student-id"
+                      type="text"
+                      autoComplete="off"
+                      maxLength={64}
                       disabled={isLoading}
-                      name="email"
-                      value={formData.email}
+                      name="institutional_id"
+                      value={formData.institutional_id}
                       onChange={handleChange}
                       onBlur={handleBlur}
-                      placeholder="you@example.com"
-                      aria-invalid={Boolean(visibleError('email'))}
-                      aria-describedby={visibleError('email') ? 'registration-email-error' : undefined}
-                      className={`${inputClass} ${visibleError('email') ? 'border-red-500 focus:border-red-600 focus:ring-red-500/10' : ''}`}
+                      placeholder="School ID (if available)"
+                      className="block min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-600 focus:bg-white focus:ring-4 focus:ring-green-600/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-12"
                     />
+                    <p className="mt-1 text-[0.6875rem] leading-4 text-slate-500">Used to match your account to an official assessment roster.</p>
                   </div>
-                  {visibleError('email') && <p id="registration-email-error" className="mt-1.5 text-sm font-medium text-red-700" role="alert">{visibleError('email')}</p>}
                 </div>
 
-                <div>
-                  <label htmlFor="registration-student-id" className={labelClass}>Student ID <span className="font-normal text-slate-500">(optional)</span></label>
-                  <input
-                    id="registration-student-id"
-                    type="text"
-                    autoComplete="off"
-                    maxLength={64}
-                    disabled={isLoading}
-                    name="institutional_id"
-                    value={formData.institutional_id}
-                    onChange={handleChange}
-                    onBlur={handleBlur}
-                    placeholder="Enter your school ID if available"
-                    className="block min-h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-600 focus:bg-white focus:ring-4 focus:ring-green-600/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-14 sm:text-base"
-                  />
-                  <p className="mt-1.5 text-xs leading-5 text-slate-500">Only used to match your account to an official assessment roster.</p>
-                </div>
-
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
                   {renderPasswordField({
                     id: 'registration-password',
                     name: 'password',
@@ -354,7 +356,7 @@ export const RegisterPage = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="group flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-800 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-green-900/15 transition hover:bg-green-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-wait disabled:opacity-60 sm:min-h-14 sm:text-base"
+                  className="group flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-green-800 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-green-900/15 transition hover:bg-green-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-wait disabled:opacity-60 sm:min-h-12 sm:text-sm"
                 >
                   {isLoading ? (
                     <>
