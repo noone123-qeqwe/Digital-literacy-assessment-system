@@ -83,8 +83,8 @@ export const RegisterPage = () => {
     }
   };
 
-  const inputClass = 'block min-h-14 w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-11 pr-3.5 text-base text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-600 focus:bg-white focus:ring-4 focus:ring-green-600/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-16 sm:text-lg lg:min-h-[4.5rem] lg:text-xl';
-  const labelClass = 'mb-2.5 block text-base font-semibold text-slate-800 sm:text-lg';
+  const inputClass = 'block min-h-12 w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-600 focus:bg-white focus:ring-4 focus:ring-green-600/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-14 sm:text-base';
+  const labelClass = 'mb-2 block text-sm font-semibold text-slate-800 sm:text-base';
 
   const renderPasswordField = ({ id, name, label, value, visible, setVisible, autoComplete, placeholder }) => (
     <div>
@@ -121,26 +121,26 @@ export const RegisterPage = () => {
         </button>
       </div>
       {name === 'password' ? (
-        <div id={`${id}-help`} className="mt-2.5 flex items-center gap-2 text-sm" aria-live="polite">
+        <div id={`${id}-help`} className="mt-1.5 flex items-center gap-2 text-xs sm:text-sm" aria-live="polite">
           {formData.password.length >= 10
             ? <CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0 text-green-700" />
             : <Circle aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-400" />}
           <span className={formData.password.length >= 10 ? 'font-medium text-green-800' : 'text-slate-600'}>At least 10 characters</span>
         </div>
       ) : formData.confirmPassword ? (
-        <div id={`${id}-help`} className={`mt-2.5 flex items-center gap-2 text-sm ${formData.password === formData.confirmPassword ? 'font-medium text-green-800' : 'text-slate-600'}`} aria-live="polite">
+        <div id={`${id}-help`} className={`mt-1.5 flex items-center gap-2 text-xs sm:text-sm ${formData.password === formData.confirmPassword ? 'font-medium text-green-800' : 'text-slate-600'}`} aria-live="polite">
           {formData.password === formData.confirmPassword
             ? <CheckCircle2 aria-hidden="true" className="h-4 w-4 shrink-0 text-green-700" />
             : <Circle aria-hidden="true" className="h-4 w-4 shrink-0 text-slate-400" />}
           <span>{formData.password === formData.confirmPassword ? 'Passwords match' : 'Enter the same password in both fields'}</span>
         </div>
       ) : <span id={`${id}-help`} className="sr-only">Re-enter the password above.</span>}
-      {visibleError(name) && <p id={`${id}-error`} className="mt-1.5 text-sm font-medium text-red-700" role="alert">{visibleError(name)}</p>}
+      {visibleError(name) && <p id={`${id}-error`} className="mt-1.5 text-xs font-medium text-red-700 sm:text-sm" role="alert">{visibleError(name)}</p>}
     </div>
   );
 
   return (
-    <main className="relative isolate flex min-h-screen items-center justify-center overflow-x-hidden bg-slate-950 px-3 py-3 sm:px-6 sm:py-6">
+    <main className="relative isolate flex min-h-svh items-center justify-center overflow-x-hidden bg-slate-950 px-3 py-3 sm:px-5 sm:py-5 lg:px-6 lg:py-5">
       <img
         aria-hidden="true"
         alt=""
@@ -152,91 +152,91 @@ export const RegisterPage = () => {
       <div aria-hidden="true" className="pointer-events-none absolute -left-32 -top-36 h-96 w-96 rounded-full bg-green-200/50 blur-3xl" />
       <div aria-hidden="true" className="pointer-events-none absolute -bottom-40 -right-28 h-96 w-96 rounded-full bg-amber-200/50 blur-3xl" />
 
-      <div className="relative z-10 grid w-full max-w-7xl overflow-hidden rounded-[1.25rem] border border-white/35 bg-white/10 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.42)] lg:min-h-[min(58rem,calc(100svh-2rem))] lg:grid-cols-[0.76fr_1.24fr] lg:rounded-[1.75rem]">
-        <section className="relative isolate order-2 hidden flex-col justify-between overflow-hidden bg-green-950/50 px-8 py-8 text-white sm:flex lg:order-1 lg:px-10 lg:py-10 xl:px-12">
+      <div className="relative z-10 grid w-full max-w-6xl overflow-hidden rounded-[1.25rem] border border-white/35 bg-white/10 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.42)] lg:min-h-[calc(100svh-2.5rem)] lg:grid-cols-[0.9fr_1.1fr] lg:rounded-[1.75rem]">
+        <section className="relative isolate order-2 hidden flex-col justify-between overflow-hidden bg-green-950/50 px-6 py-6 text-white sm:flex lg:order-1 lg:px-8 lg:py-6 xl:px-9">
           <div aria-hidden="true" className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_15%_10%,rgba(0,107,60,0.52),transparent_45%),radial-gradient(ellipse_at_90%_90%,rgba(241,212,0,0.16),transparent_42%)]" />
 
-          <div className="flex items-center gap-4">
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white p-1.5 shadow-lg shadow-black/20 ring-1 ring-white/25 sm:h-24 sm:w-24">
+          <div className="flex items-center gap-3">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1 shadow-lg shadow-black/20 ring-1 ring-white/25 sm:h-16 sm:w-16">
               <img src="/masbate-colleges-logo.png" alt="Masbate Colleges seal" className="h-full w-full object-contain" />
             </div>
             <div>
-              <p className="text-2xl font-bold tracking-tight text-white sm:text-3xl">DLAS Portal</p>
-              <p className="mt-1 text-base text-slate-100 sm:text-lg">Masbate Colleges · CCS</p>
+              <p className="text-base font-bold tracking-tight text-white sm:text-lg">DLAS Portal</p>
+              <p className="mt-0.5 text-xs text-slate-100 sm:text-sm">Masbate Colleges · CCS</p>
             </div>
           </div>
 
-          <div className="my-8 max-w-lg lg:my-0 lg:py-8">
-            <p className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-amber-200 sm:text-sm">
+          <div className="my-5 max-w-lg lg:my-0 lg:py-4">
+            <p className="mb-2 inline-flex items-center gap-2 text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-amber-200 sm:text-xs">
               <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-green-400" />
               Digital Literacy Assessment System
             </p>
-            <h1 className="max-w-md text-3xl font-bold leading-tight tracking-tight sm:text-4xl xl:text-5xl">
+            <h1 className="max-w-md text-2xl font-bold leading-tight tracking-tight sm:text-3xl lg:text-4xl xl:text-5xl">
               Start your digital literacy journey.
             </h1>
-            <p className="mt-4 max-w-md text-base leading-7 text-white/95 sm:text-lg">
+            <p className="mt-3 max-w-md text-sm leading-5 text-white/95 sm:text-base sm:leading-6">
               Create your student account to complete assessments and understand your digital strengths.
             </p>
-            <div className="mt-7 flex flex-wrap gap-2">
+            <div className="mt-5 flex flex-wrap gap-2">
               {skillAreas.map((area) => (
-                <span key={area} className="rounded-full border border-white/30 bg-white/15 px-3.5 py-2 text-sm font-semibold text-white sm:text-base">
+                <span key={area} className="rounded-full border border-white/30 bg-white/15 px-3.5 py-1.5 text-xs font-semibold text-white sm:text-sm">
                   {area}
                 </span>
               ))}
             </div>
           </div>
 
-          <div className="hidden items-center gap-3 border-t border-white/15 pt-4 lg:flex">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-400/10 text-amber-300">
+          <div className="hidden items-center gap-3 border-t border-white/15 pt-3 lg:flex">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-400/10 text-amber-300">
               <Sparkles aria-hidden="true" className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-white">Aligned with DigComp 2.1</p>
-              <p className="mt-0.5 text-sm text-white/85">A five-area framework for digital competence.</p>
+              <p className="text-xs font-semibold text-white sm:text-sm">Aligned with DigComp 2.1</p>
+              <p className="mt-0.5 text-xs text-white/85 sm:text-sm">A five-area framework for digital competence.</p>
             </div>
           </div>
         </section>
 
-        <section className="relative isolate order-1 flex min-h-[calc(100svh-1.5rem)] flex-col justify-center overflow-hidden bg-white/75 px-4 py-6 backdrop-blur-sm sm:min-h-[calc(100svh-3rem)] sm:px-8 sm:py-8 lg:order-2 lg:min-h-0 lg:px-12 lg:py-12 xl:px-16 xl:py-14">
-          <div className="relative z-10 mx-auto w-full max-w-3xl">
-            <div className="mb-6 sm:mb-8 lg:mb-9">
-              <div className="mb-5 flex items-center gap-3 sm:hidden">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200">
+        <section className="relative isolate order-1 flex min-h-[calc(100svh-1.5rem)] flex-col justify-center overflow-hidden bg-white/75 px-4 py-5 backdrop-blur-sm sm:min-h-[calc(100svh-2.5rem)] sm:px-7 sm:py-7 lg:order-2 lg:min-h-0 lg:px-8 lg:py-6 xl:px-10">
+          <div className="relative z-10 mx-auto w-full max-w-xl">
+            <div className="mb-4 sm:mb-5">
+              <div className="mb-4 flex items-center gap-3 sm:hidden">
+                <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1 shadow-sm ring-1 ring-slate-200">
                   <img src="/masbate-colleges-logo.png" alt="Masbate Colleges seal" className="h-full w-full object-contain" />
                 </div>
                 <div>
-                  <p className="text-xl font-bold text-slate-900">DLAS Portal</p>
-                  <p className="text-base text-slate-600">Masbate Colleges · CCS</p>
+                  <p className="text-base font-bold text-slate-900">DLAS Portal</p>
+                  <p className="text-sm text-slate-600">Masbate Colleges · CCS</p>
                 </div>
               </div>
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-green-800 sm:text-sm">College of Computer Studies</p>
-              <h2 className="mt-1 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl xl:text-6xl">Create your account</h2>
-              <p className="mt-2 text-lg leading-7 text-slate-700 sm:text-xl sm:leading-8">Register as a student to get started with your digital literacy assessment.</p>
+              <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-green-800 sm:text-xs">College of Computer Studies</p>
+              <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl lg:text-4xl xl:text-5xl">Create your account</h2>
+              <p className="mt-1 text-sm leading-5 text-slate-700 sm:text-base sm:leading-6">Register as a student to get started with your digital literacy assessment.</p>
             </div>
 
-            <div className="rounded-2xl border border-white/80 bg-white/95 p-6 shadow-xl shadow-slate-900/10 backdrop-blur-sm sm:p-9 lg:min-h-[42rem] lg:p-10 xl:p-12">
+            <div className="rounded-2xl border border-white/80 bg-white/95 p-5 shadow-xl shadow-slate-900/10 backdrop-blur-sm sm:p-6 lg:p-7">
               {registrationComplete ? (
-                <div className="flex min-h-[38rem] flex-col items-center justify-center text-center" role="status" aria-live="polite">
-                  <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-green-50 text-green-800 ring-1 ring-green-100">
-                    <MailCheck aria-hidden="true" className="h-10 w-10" />
+                <div className="flex min-h-[24rem] flex-col items-center justify-center text-center" role="status" aria-live="polite">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-green-50 text-green-800 ring-1 ring-green-100">
+                    <MailCheck aria-hidden="true" className="h-8 w-8" />
                   </div>
-                  <p className="mt-7 text-sm font-bold uppercase tracking-[0.14em] text-green-800">One last step</p>
-                  <h3 className="mt-2 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">Check your inbox</h3>
-                  <p className="mt-3 max-w-xl text-base leading-7 text-slate-700 sm:text-lg">
+                  <p className="mt-5 text-xs font-bold uppercase tracking-[0.14em] text-green-800">One last step</p>
+                  <h3 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Check your inbox</h3>
+                  <p className="mt-3 max-w-xl text-sm leading-6 text-slate-700 sm:text-base">
                     We sent a verification link to the email address below. Open it to activate your account before signing in.
                   </p>
-                  <p className="mt-5 max-w-full break-all rounded-xl border border-green-100 bg-green-50 px-5 py-3 text-base font-semibold text-green-950 sm:text-lg">{formData.email}</p>
-                  <p className="mt-4 max-w-xl text-sm leading-6 text-slate-600 sm:text-base">If it does not arrive soon, check your spam folder or request another verification email.</p>
-                  <div className="mt-8 flex w-full max-w-lg flex-col gap-3 sm:flex-row">
+                  <p className="mt-4 max-w-full break-all rounded-xl border border-green-100 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-950 sm:text-base">{formData.email}</p>
+                  <p className="mt-3 max-w-xl text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">If it does not arrive soon, check your spam folder or request another verification email.</p>
+                  <div className="mt-6 flex w-full max-w-lg flex-col gap-3 sm:flex-row">
                     <Link
                       to={`/verify-email?email=${encodeURIComponent(formData.email)}`}
-                      className="flex min-h-14 flex-1 items-center justify-center rounded-xl border border-green-800 px-5 py-3 text-base font-semibold text-green-900 transition hover:bg-green-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700"
+                      className="flex min-h-12 flex-1 items-center justify-center rounded-xl border border-green-800 px-4 py-3 text-sm font-semibold text-green-900 transition hover:bg-green-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 sm:min-h-14 sm:text-base"
                     >
                       Resend verification email
                     </Link>
                     <Link
                       to="/login"
-                      className="group flex min-h-14 flex-1 items-center justify-center gap-2 rounded-xl bg-green-800 px-5 py-3 text-base font-semibold text-white shadow-md shadow-green-900/15 transition hover:bg-green-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700"
+                      className="group flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-green-800 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-green-900/15 transition hover:bg-green-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 sm:min-h-14 sm:text-base"
                     >
                       Go to sign in
                       <ArrowRight aria-hidden="true" className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
@@ -244,9 +244,9 @@ export const RegisterPage = () => {
                   </div>
                 </div>
               ) : <>
-              <form className="space-y-6 sm:space-y-7 lg:space-y-8" onSubmit={handleSubmit} noValidate aria-busy={isLoading}>
+              <form className="space-y-4 sm:space-y-5" onSubmit={handleSubmit} noValidate aria-busy={isLoading}>
                 {serverError && <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium leading-6 text-red-800" role="alert">{serverError}</p>}
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-5">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-4">
                   <div>
                     <label htmlFor="registration-first-name" className={labelClass}>First name</label>
                     <input
@@ -262,7 +262,7 @@ export const RegisterPage = () => {
                       placeholder="Juan"
                       aria-invalid={Boolean(visibleError('first_name'))}
                       aria-describedby={visibleError('first_name') ? 'registration-first-name-error' : undefined}
-                      className={`block min-h-14 w-full rounded-xl border bg-slate-50 px-4 py-3.5 text-base text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:bg-white focus:ring-4 disabled:cursor-wait disabled:opacity-70 sm:min-h-16 sm:text-lg lg:min-h-[4.5rem] lg:text-xl ${visibleError('first_name') ? 'border-red-500 focus:border-red-600 focus:ring-red-500/10' : 'border-slate-200 focus:border-green-600 focus:ring-green-600/10'}`}
+                      className={`block min-h-12 w-full rounded-xl border bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:bg-white focus:ring-4 disabled:cursor-wait disabled:opacity-70 sm:min-h-14 sm:text-base ${visibleError('first_name') ? 'border-red-500 focus:border-red-600 focus:ring-red-500/10' : 'border-slate-200 focus:border-green-600 focus:ring-green-600/10'}`}
                     />
                     {visibleError('first_name') && <p id="registration-first-name-error" className="mt-1.5 text-sm font-medium text-red-700" role="alert">{visibleError('first_name')}</p>}
                   </div>
@@ -281,7 +281,7 @@ export const RegisterPage = () => {
                       placeholder="Dela Cruz"
                       aria-invalid={Boolean(visibleError('last_name'))}
                       aria-describedby={visibleError('last_name') ? 'registration-last-name-error' : undefined}
-                      className={`block min-h-14 w-full rounded-xl border bg-slate-50 px-4 py-3.5 text-base text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:bg-white focus:ring-4 disabled:cursor-wait disabled:opacity-70 sm:min-h-16 sm:text-lg lg:min-h-[4.5rem] lg:text-xl ${visibleError('last_name') ? 'border-red-500 focus:border-red-600 focus:ring-red-500/10' : 'border-slate-200 focus:border-green-600 focus:ring-green-600/10'}`}
+                      className={`block min-h-12 w-full rounded-xl border bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:bg-white focus:ring-4 disabled:cursor-wait disabled:opacity-70 sm:min-h-14 sm:text-base ${visibleError('last_name') ? 'border-red-500 focus:border-red-600 focus:ring-red-500/10' : 'border-slate-200 focus:border-green-600 focus:ring-green-600/10'}`}
                     />
                     {visibleError('last_name') && <p id="registration-last-name-error" className="mt-1.5 text-sm font-medium text-red-700" role="alert">{visibleError('last_name')}</p>}
                   </div>
@@ -323,12 +323,12 @@ export const RegisterPage = () => {
                     onChange={handleChange}
                     onBlur={handleBlur}
                     placeholder="Enter your school ID if available"
-                    className="block min-h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3.5 text-base text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-600 focus:bg-white focus:ring-4 focus:ring-green-600/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-16 sm:text-lg lg:min-h-[4.5rem] lg:text-xl"
+                    className="block min-h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-600 focus:bg-white focus:ring-4 focus:ring-green-600/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-14 sm:text-base"
                   />
                   <p className="mt-1.5 text-xs leading-5 text-slate-500">Only used to match your account to an official assessment roster.</p>
                 </div>
 
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-5">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-4">
                   {renderPasswordField({
                     id: 'registration-password',
                     name: 'password',
@@ -354,7 +354,7 @@ export const RegisterPage = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="group flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-green-800 px-5 py-4 text-lg font-semibold text-white shadow-md shadow-green-900/15 transition hover:bg-green-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-wait disabled:opacity-60 sm:min-h-16 sm:text-xl lg:min-h-[4.5rem]"
+                  className="group flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-800 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-green-900/15 transition hover:bg-green-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-wait disabled:opacity-60 sm:min-h-14 sm:text-base"
                 >
                   {isLoading ? (
                     <>
@@ -370,8 +370,8 @@ export const RegisterPage = () => {
                 </button>
               </form>
 
-              <div className="mt-7 border-t border-slate-200 pt-6 text-center">
-                <p className="text-lg text-slate-700 sm:text-xl">
+              <div className="mt-4 border-t border-slate-200 pt-3 text-center">
+                <p className="text-sm text-slate-700 sm:text-base">
                   Already registered?{' '}
                   <Link to="/login" className="font-semibold text-green-800 underline-offset-4 hover:text-green-900 hover:underline">Sign in</Link>
                 </p>
@@ -379,7 +379,7 @@ export const RegisterPage = () => {
               </>}
             </div>
 
-            <p className="mt-8 pb-2 text-center text-base font-bold text-slate-800 sm:mt-10 sm:text-lg">Digital Literacy Assessment System · Masbate Colleges</p>
+            <p className="mt-3 pb-2 text-center text-[0.6875rem] font-semibold text-slate-800 sm:text-xs">Digital Literacy Assessment System · Masbate Colleges</p>
           </div>
         </section>
       </div>
