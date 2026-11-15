@@ -13,11 +13,20 @@ function shouldPlayIntro(skipIntro) {
   }
 }
 
+async function decodeIntroImage(image) {
+  if (!image || typeof image.decode !== 'function') throw new Error('Image decoding is unavailable');
+  await image.decode();
+}
+
 export default function LoginIntro({ children, skipIntro = false }) {
-  const [phase, setPhase] = useState(() => shouldPlayIntro(skipIntro) ? 'playing' : 'idle');
-  const isPlaying = phase === 'playing';
+  const [phase, setPhase] = useState(() => shouldPlayIntro(skipIntro) ? 'preparing' : 'idle');
+  const isActive = !['idle', 'finished'].includes(phase);
+  const isReady = isActive && phase !== 'preparing';
+  const isCovered = phase === 'preparing' || phase === 'playing';
   const pageRef = useRef(null);
   const skipRef = useRef(null);
+  const campusRef = useRef(null);
+  const logoRef = useRef(null);
   const shouldMoveFocus = useRef(false);
 
   const finishIntro = useCallback(() => {
@@ -27,7 +36,7 @@ export default function LoginIntro({ children, skipIntro = false }) {
   }, []);
 
   useEffect(() => {
-    if (!isPlaying) {
+    if (!isActive) {
       if (shouldMoveFocus.current) {
         pageRef.current?.querySelector('[data-login-heading]')?.focus({ preventScroll: true });
         shouldMoveFocus.current = false;
@@ -42,21 +51,60 @@ export default function LoginIntro({ children, skipIntro = false }) {
     const onMotionChange = (event) => { if (event.matches) finishIntro(); };
     motionPreference.addEventListener('change', onMotionChange);
     // Always release the login page even if an animation-end event is missed.
-    const timeout = window.setTimeout(finishIntro, 3600);
+    const timeout = window.setTimeout(finishIntro, 5000);
 
     return () => {
       document.body.style.overflow = previousOverflow;
       motionPreference.removeEventListener('change', onMotionChange);
       window.clearTimeout(timeout);
     };
-  }, [isPlaying, finishIntro]);
+  }, [isActive, finishIntro]);
+
+  useEffect(() => {
+    let cancelled = false;
+    let frame;
+    let timeout;
+
+    if (phase === 'preparing') {
+      // Start the timeline only after both images are downloaded, decoded and
+      // given a paint opportunity. A slow/failed image must never block sign-in.
+      timeout = window.setTimeout(finishIntro, 1500);
+      Promise.all([decodeIntroImage(campusRef.current), decodeIntroImage(logoRef.current)])
+        .then(() => {
+          if (cancelled) return;
+          frame = window.requestAnimationFrame(() => {
+            frame = window.requestAnimationFrame(() => {
+              if (!cancelled) setPhase('playing');
+            });
+          });
+        })
+        .catch(() => { if (!cancelled) finishIntro(); });
+    } else if (phase === 'playing') {
+      timeout = window.setTimeout(() => setPhase('revealing'), 2350);
+    } else if (phase === 'revealing') {
+      // Paint the login page underneath the opaque intro before the fade.
+      frame = window.requestAnimationFrame(() => {
+        frame = window.requestAnimationFrame(() => setPhase('leaving'));
+      });
+      timeout = window.setTimeout(() => setPhase('leaving'), 150);
+    } else if (phase === 'leaving') {
+      timeout = window.setTimeout(finishIntro, 350);
+    }
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+    };
+  }, [phase, finishIntro]);
 
   return <>
-    <div ref={pageRef} className={`login-intro-page${phase === 'finished' ? ' login-intro-page--revealed' : ''}`} inert={isPlaying} aria-hidden={isPlaying ? true : undefined}>
+    <div ref={pageRef} className={`login-intro-page${isCovered ? ' login-intro-page--covered' : ''}`} inert={isActive} aria-hidden={isActive ? true : undefined}>
       {children}
     </div>
-    {isPlaying && <section
-      className="login-intro"
+    {isActive && <section
+      className={`login-intro login-intro--${phase}${isReady ? ' login-intro--ready' : ''}`}
+      data-phase={phase}
       role="dialog"
       aria-modal="true"
       aria-labelledby="login-intro-title"
@@ -70,7 +118,7 @@ export default function LoginIntro({ children, skipIntro = false }) {
       }}
     >
       <div className="login-intro-scene" aria-hidden="true">
-        <img src="/masbate-colleges-campus.jpg" alt="" className="login-intro-campus" />
+        <img ref={campusRef} src="/masbate-colleges-campus-login.webp" alt="" decoding="async" fetchPriority="high" className="login-intro-campus" />
         <div className="login-intro-grid" />
         <div className="login-intro-light" />
         <div className="login-intro-horizon" />
@@ -83,7 +131,7 @@ export default function LoginIntro({ children, skipIntro = false }) {
         <div className="login-intro-emblem" aria-hidden="true">
           <span className="login-intro-orbit" />
           <span className="login-intro-orbit login-intro-orbit--outer" />
-          <img src="/masbate-colleges-logo.png" alt="" />
+          <img ref={logoRef} src="/masbate-colleges-logo-login.webp" alt="" decoding="async" fetchPriority="high" />
         </div>
         <p className="login-intro-eyebrow">Learn with purpose. Lead with confidence.</p>
         <h1 id="login-intro-title">Masbate Colleges</h1>
