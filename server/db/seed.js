@@ -1,9 +1,10 @@
 const bcrypt = require('bcryptjs');
-const { db, initializeDatabase, logActivity } = require('./database');
+const { db, initializeDatabase, logActivity, databaseConfig } = require('./database');
 const { initializeInstrument } = require('./instrument');
 const { ensureDigCompSatQuestionBank } = require('./digcompsat');
 
 function seed() {
+  if (databaseConfig.remote) throw new Error('Sample records cannot be seeded into a cloud database. Use an isolated local test database.');
   if (process.env.NODE_ENV === 'production' && process.env.DLAS_FREE_DEMO !== 'true') {
     throw new Error('The demonstration seed is disabled in production. Use the documented bootstrap-admin command on a clean production database.');
   }

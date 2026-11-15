@@ -37,7 +37,7 @@ if (process.env.NODE_ENV === 'production') {
 try {
   initializeDatabase();
   ensureDigCompSatQuestionBank(db);
-  require('./db/knowledgeDemo').seedKnowledgeDemo(db);
+  if (process.env.NODE_ENV !== 'production' || freeDemoMode) require('./db/knowledgeDemo').seedKnowledgeDemo(db);
   if (!freeDemoMode) assertProductionReady();
   console.log('Database initialized successfully.');
 } catch (err) {
@@ -77,7 +77,8 @@ app.get('/api/health', (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     service: 'Digital Literacy Assessment System API',
-    encryptedBackupReady: process.env.NODE_ENV !== 'production' || getBackupStatus().isReady,
+    encryptedBackupReady: process.env.NODE_ENV !== 'production' || getBackupStatus().encryptedBackupReady,
+    dataProtectionReady: process.env.NODE_ENV !== 'production' || getBackupStatus().isReady,
   });
 });
 
@@ -94,7 +95,7 @@ app.use('/api', (req, res, next) => {
     return next();
   }
   if (process.env.NODE_ENV === 'production' && !getBackupStatus().isReady) {
-    return res.status(503).json({ success: false, message: 'A recent encrypted database backup is required before study data can be accessed. The system will reopen after backup recovery.' });
+    return res.status(503).json({ success: false, message: 'Database recovery protection is not ready. Please try again shortly.' });
   }
   next();
 });
@@ -138,7 +139,7 @@ app.use((err, req, res, next) => {
 });
 
 function startServer(port = PORT) {
-  if (process.env.BACKUP_ENCRYPTION_KEY) {
+  if (process.env.BACKUP_ENCRYPTION_KEY || process.env.BACKUP_STRATEGY === 'turso-pitr') {
     startAutomaticBackups()
       .catch((error) => console.error('Initial encrypted backup failed; API remains unavailable until a retry succeeds:', error.message));
   } else if (process.env.NODE_ENV === 'production' && !freeDemoMode) {

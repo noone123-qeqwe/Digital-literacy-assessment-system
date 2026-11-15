@@ -8,6 +8,8 @@ const jwt = require('jsonwebtoken');
 const ExcelJS = require('exceljs');
 const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'dlas-knowledge-test-'));
 process.env.NODE_ENV = 'test';
+for (const key of ['TURSO_DATABASE_URL', 'TURSO_AUTH_TOKEN', 'BACKUP_STRATEGY', 'DLAS_RESEARCH_ENABLED', 'SMTP_HOST', 'SMTP_FROM', 'SMTP_USER', 'SMTP_PASS']) process.env[key] = '';
+process.env.EMAIL_PROVIDER = 'smtp';
 process.env.DLAS_FREE_DEMO = 'false';
 process.env.DLAS_DB_PATH = path.join(temporaryDirectory, 'knowledge.sqlite');
 process.env.JWT_SECRET = crypto.randomBytes(32).toString('hex');
@@ -148,9 +150,12 @@ async function run() {
     console.log(`\nKnowledge checks: ${checks} passed, 0 failed`);
   } finally {
     await new Promise((resolve) => server.close(resolve)); db.close();
-    const resolved = path.resolve(temporaryDirectory);
-    if (!resolved.startsWith(path.resolve(os.tmpdir()) + path.sep)) throw new Error('Unexpected temporary path.');
-    fs.rmSync(resolved, { recursive: true, force: true });
   }
 }
-run().catch((error) => { console.error(error); process.exitCode = 1; });
+run().catch((error) => { console.error(error); process.exitCode = 1; }).finally(async () => {
+  if (process.env.DLAS_TEST_PARENT_CLEANUP === 'true' && process.send) { process.send({ cleanupDirectory: temporaryDirectory }); return; }
+  if (global.gc) { global.gc(); await new Promise(setImmediate); }
+  const resolved = path.resolve(temporaryDirectory);
+  if (!resolved.startsWith(path.resolve(os.tmpdir()) + path.sep)) throw new Error('Unexpected temporary test path.');
+  fs.rmSync(resolved, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+});

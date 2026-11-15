@@ -1,0 +1,50 @@
+# Apply only after the external database and verified email sender are ready.
+# For an existing service, use docs/REAL_ACCOUNTS_SETUP.md to keep its URL.
+services:
+  - type: web
+    name: masbate-colleges-digital-literacy-assessment-system
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: npm --prefix server ci --omit=dev && npm --prefix client ci --include=dev && npm --prefix client run build
+    startCommand: npm --prefix server run start:production
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DLAS_FREE_DEMO
+        value: "false"
+      - key: DLAS_RESEARCH_ENABLED
+        value: "false"
+      - key: DLAS_DATABASE_DRIVER
+        value: libsql
+      - key: BACKUP_STRATEGY
+        value: turso-pitr
+      - key: EMAIL_PROVIDER
+        value: brevo
+      - key: EMAIL_FROM_NAME
+        value: Masbate Colleges DLAS
+      - key: TRUST_PROXY
+        value: "1"
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: MFA_ENCRYPTION_KEY
+        sync: false
+      - key: BACKUP_ENCRYPTION_KEY
+        sync: false
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        sync: false
+      - key: BOOTSTRAP_ADMIN_FIRST_NAME
+        sync: false
+      - key: BOOTSTRAP_ADMIN_LAST_NAME
+        sync: false
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false

@@ -2,10 +2,10 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { pipeline } = require('stream/promises');
-const { db, dbPath } = require('./database');
+const { db, databaseConfig } = require('./database');
 
 const MAGIC = Buffer.from('DLASBK01');
-const backupStatus = { lastSuccessAt: null, lastFailureAt: null, lastError: null, isRunning: false };
+const backupStatus = { lastSuccessAt: null, lastFailureAt: null, lastError: null, isRunning: false, providerCheckedAt: null };
 
 function getEncryptionKey() {
   const value = process.env.BACKUP_ENCRYPTION_KEY || '';
@@ -47,7 +47,8 @@ async function createEncryptedBackup() {
   const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
 
   try {
-    db.exec(`VACUUM INTO ${quoteSqlString(snapshotPath)}`);
+    if (databaseConfig.remote) require('./snapshot').writeDatabaseSnapshot(db, snapshotPath);
+    else db.exec(`VACUUM INTO ${quoteSqlString(snapshotPath)}`);
     fs.chmodSync(snapshotPath, 0o600);
     const output = fs.createWriteStream(temporaryPath, { flags: 'wx', mode: 0o600 });
     output.write(Buffer.concat([MAGIC, iv]));
@@ -64,6 +65,18 @@ async function createEncryptedBackup() {
 }
 
 function startAutomaticBackups() {
+  if (process.env.BACKUP_STRATEGY === 'turso-pitr') {
+    if (!databaseConfig.remote || !databaseConfig.isTurso) return Promise.reject(new Error('Turso recovery requires a remote Turso database.'));
+    try {
+      db.prepare('SELECT 1 AS connected').get();
+      backupStatus.providerCheckedAt = new Date().toISOString();
+      console.info('Cloud database connected. Recovery uses Turso-managed point-in-time history; no independent encrypted backup is claimed.');
+      return Promise.resolve(true);
+    } catch (error) {
+      backupStatus.lastError = 'Cloud database connection check failed.';
+      return Promise.reject(error);
+    }
+  }
   const intervalHours = Math.max(1, Number.parseInt(process.env.BACKUP_INTERVAL_HOURS || '6', 10) || 6);
   let running = false;
   let retryTimer = null;
@@ -106,9 +119,12 @@ function startAutomaticBackups() {
 }
 
 function getBackupStatus() {
+  if (process.env.BACKUP_STRATEGY === 'turso-pitr') {
+    return { ...backupStatus, strategy: 'turso-pitr', isReady: Boolean(databaseConfig.remote && databaseConfig.isTurso && backupStatus.providerCheckedAt), encryptedBackupReady: false };
+  }
   const isReady = Boolean(backupStatus.lastSuccessAt)
     && (!backupStatus.lastFailureAt || Date.parse(backupStatus.lastSuccessAt) >= Date.parse(backupStatus.lastFailureAt));
-  return { ...backupStatus, isReady };
+  return { ...backupStatus, strategy: 'encrypted-files', isReady, encryptedBackupReady: isReady };
 }
 
 module.exports = { createEncryptedBackup, startAutomaticBackups, getBackupStatus, MAGIC };

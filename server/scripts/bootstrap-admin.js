@@ -53,7 +53,9 @@ async function bootstrapAdmin() {
   console.info(`Initial administrator ${userId} created. Email verification is required before first sign-in; authenticator enrollment is required at sign-in.`);
 }
 
-bootstrapAdmin().catch((error) => {
+if (require.main === module) bootstrapAdmin().catch((error) => {
   console.error('Administrator bootstrap failed:', error.message);
   process.exitCode = 1;
 });
+
+module.exports = { bootstrapAdmin };

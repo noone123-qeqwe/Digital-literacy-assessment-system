@@ -8,10 +8,16 @@
   },
   "scripts": {
     "start": "node server.js",
+    "start:production": "node scripts/start-production.js",
+    "check:production": "node scripts/check-production.js",
+    "generate:production-keys": "node scripts/generate-production-keys.js",
+    "backup": "node scripts/backup-once.js",
     "dev": "node --watch server.js",
     "seed": "node db/seed.js",
     "bootstrap-admin": "node scripts/bootstrap-admin.js",
-    "test": "node test_system.js && node test_knowledge.js",
+    "test": "node test_system.js && node test_knowledge.js && npm run test:cloud",
+    "test:cloud": "node --expose-gc --test test_cloud.js",
+    "test:libsql": "node scripts/test-libsql.js",
     "verify-backup": "node db/verify-backup.js",
     "ping-site": "node scripts/ping-site.js"
   },
@@ -25,6 +31,7 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "jstat": "^1.9.6",
+    "libsql": "0.5.29",
     "morgan": "^1.10.0",
     "nodemailer": "^10.4.0",
     "pdfkit": "^0.14.0"

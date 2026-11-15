@@ -4,7 +4,7 @@ DLAS is a role-based digital literacy platform with scored knowledge quizzes, th
 
 ## Stack
 
-- Node.js 24 or newer (the server uses the built-in `node:sqlite` module), Express, SQLite, JWT, and bcryptjs
+- Node.js 24, Express, SQLite (local) or Turso libSQL (cloud), JWT, and bcryptjs
 - React 19, Vite, React Router, Tailwind CSS, Chart.js, and Axios
 - PDFKit and ExcelJS for result and cohort downloads
 
@@ -31,9 +31,11 @@ Open the Vite URL printed by the client (normally `http://localhost:5173`). The 
 
 ## Render deployment
 
+For **real accounts on free hosting**, use the prepared [Turso + Brevo setup](docs/REAL_ACCOUNTS_SETUP.md) and `deploy/render-real-accounts.yaml`. It uses durable cloud storage, verified email, and a clean first-administrator workflow. Private provider settings must be connected before switching the existing public service out of demo mode. Accounts and scored quizzes can operate while research collection stays disabled pending its separate approvals and independent encrypted backups.
+
 The repository's `render.yaml` deploys a **free, read-only demo preview**. It builds the React client, serves it and the API from one Node service, seeds synthetic sample records on startup, and uses HTTPS with secure same-origin cookies. The demo supports signing in to view the student dashboard and existing sample results. Registration, profile changes, and assessment submissions are blocked.
 
-Use the demonstration student account `maria.santos@example.com` with password `User@123`. Do not use the public demo for real participants, personal information, or research results. Its visible demo banner and server-side read-only guard are intentional.
+Use the demonstration student account `maria.santos@example.com` with password `User@123`. Do not use the public demo for real participants, personal information, or research results. Its server-side read-only guard remains in place until durable storage and email have been connected.
 
 Render free web services cannot attach persistent disks. Their local SQLite database is lost on redeploy, restart, or idle spin-down; the service can also take about a minute to wake after inactivity. The seed command recreates only the synthetic preview dataset. Free services cannot send email over the common SMTP ports, so account registration and email workflows are disabled in the demo. See Render's current [free service limits](https://render.com/docs/free).
 
@@ -43,7 +45,7 @@ Database migrations preserve existing records while adding the new research prof
 
 ## Configuration
 
-Copy `server/.env.example` to `server/.env` and set a unique random `JWT_SECRET` of at least 32 characters. In production, set `NODE_ENV=production`, configure `CORS_ORIGINS` to the exact frontend origins, use HTTPS, and provide a persistent location for `DLAS_DB_PATH`. Keep `.env` and database files private. Production startup refuses demo databases, missing institutional research approvals, missing email/security configuration, or missing encrypted-backup configuration.
+Copy `server/.env.example` to `server/.env` and set a unique random `JWT_SECRET` of at least 32 characters. In production, set `NODE_ENV=production`, configure `CORS_ORIGINS` to the exact frontend origins, use HTTPS, and configure either a persistent SQLite location or the remote Turso connection. Keep `.env`, tokens, and database files private. Production startup refuses demo databases or missing email/security/recovery configuration. Research collection additionally requires institutional approvals and independent encrypted backups; `DLAS_RESEARCH_ENABLED=false` keeps research collection disabled while real accounts and scored quizzes operate.
 
 `PORT` defaults to `3000`. `JWT_EXPIRES_IN` defaults to `12h`. `DLAS_DB_PATH` defaults to `server/db/dlas.db`; it can point to a separate SQLite file for isolated development or deployment.
 

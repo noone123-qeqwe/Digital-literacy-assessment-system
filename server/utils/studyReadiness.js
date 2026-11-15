@@ -1,4 +1,5 @@
-const { db } = require('../db/database');
+const { db, databaseConfig } = require('../db/database');
+const { mailConfigurationReady } = require('./email');
 const path = require('path');
 
 const consentConfiguration = [
@@ -19,6 +20,8 @@ function getStudyReadiness() {
   if (process.env.RESEARCH_CONSENT_APPROVED !== 'true') missing.push('College approval of online consent wording');
   if (process.env.GUARDIAN_PROCESS_APPROVED !== 'true') missing.push('College approval of the guardian identity and consent process');
   if (process.env.RESEARCHER_EMAIL && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(process.env.RESEARCHER_EMAIL)) missing.push('A valid researcher contact email');
+  if (process.env.DLAS_RESEARCH_ENABLED === 'false') missing.push('Research collection is disabled for this deployment');
+  if (process.env.BACKUP_STRATEGY === 'turso-pitr') missing.push('Independent encrypted off-host backups for research collection');
   const demoMode = db.prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'demo_mode'").get()?.setting_value === '1';
   return {
     demoMode,
@@ -42,12 +45,18 @@ function assertProductionReady() {
   if (process.env.NODE_ENV !== 'production') return;
   const readiness = getStudyReadiness();
   if (readiness.demoMode) issues.push('The database is marked as containing demonstration data. Use a clean research database before deployment.');
-  if (readiness.missing.length) issues.push(`Study consent and governance configuration is incomplete: ${readiness.missing.join('; ')}`);
-  if (!process.env.SMTP_HOST || !process.env.SMTP_FROM || !process.env.SMTP_USER || !process.env.SMTP_PASS) issues.push('SMTP_HOST, SMTP_FROM, SMTP_USER, and SMTP_PASS are required for account verification and recovery.');
+  if (process.env.DLAS_RESEARCH_ENABLED !== 'false' && readiness.missing.length) issues.push(`Study consent and governance configuration is incomplete: ${readiness.missing.join('; ')}`);
+  if (!mailConfigurationReady()) issues.push('Configure account verification and recovery email: Brevo API with a verified sender, or a complete SMTP configuration.');
+  if (process.env.RENDER && process.env.EMAIL_PROVIDER !== 'brevo') issues.push('Render free hosting requires HTTPS email delivery. Set EMAIL_PROVIDER=brevo.');
   if (!/^[a-f0-9]{64}$/i.test(process.env.MFA_ENCRYPTION_KEY || '')) issues.push('MFA_ENCRYPTION_KEY must be 64 hexadecimal characters.');
   if (!/^[a-f0-9]{64}$/i.test(process.env.BACKUP_ENCRYPTION_KEY || '')) issues.push('BACKUP_ENCRYPTION_KEY must be 64 hexadecimal characters.');
   const backupDirectory = String(process.env.BACKUP_DIRECTORY || '').trim();
-  if (!backupDirectory || !path.isAbsolute(backupDirectory)) {
+  const backupStrategy = process.env.BACKUP_STRATEGY || 'encrypted-files';
+  if (!['encrypted-files', 'turso-pitr'].includes(backupStrategy)) issues.push('BACKUP_STRATEGY must be encrypted-files or turso-pitr.');
+  if (backupStrategy === 'turso-pitr') {
+    if (!databaseConfig.remote || !databaseConfig.isTurso) issues.push('Turso-managed recovery requires a remote .turso.io database.');
+    if (process.env.DLAS_RESEARCH_ENABLED !== 'false') issues.push('Managed one-day recovery alone cannot enable research collection.');
+  } else if (!backupDirectory || !path.isAbsolute(backupDirectory)) {
     issues.push('BACKUP_DIRECTORY must be an absolute path to a protected persistent backup volume.');
   } else {
     const databaseDirectory = path.dirname(path.resolve(process.env.DLAS_DB_PATH || path.join(__dirname, '..', 'db', 'dlas.db')));

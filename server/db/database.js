@@ -1,32 +1,7 @@
-const path = require('path');
-const fs = require('fs');
-const { DatabaseSync } = require('node:sqlite');
-
-// Tests and deployments can keep their data outside the source tree. The default
-// remains the bundled SQLite file for local development.
-const dbPath = path.resolve(process.env.DLAS_DB_PATH || path.join(__dirname, 'dlas.db'));
-fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-const db = new DatabaseSync(dbPath);
-
-// Enable foreign keys
-db.exec('PRAGMA foreign_keys = ON;');
-db.exec('PRAGMA busy_timeout = 5000;');
-db.exec('PRAGMA journal_mode = WAL;');
-
-// Polyfill transaction method for compatibility
-db.transaction = function (fn) {
-  return function (...args) {
-    db.exec('BEGIN TRANSACTION;');
-    try {
-      const result = fn(...args);
-      db.exec('COMMIT;');
-      return result;
-    } catch (err) {
-      db.exec('ROLLBACK;');
-      throw err;
-    }
-  };
-};
+const { databaseConfiguration, openDatabase } = require('./connection');
+const databaseConfig = databaseConfiguration();
+const dbPath = databaseConfig.dbPath;
+const db = openDatabase(databaseConfig);
 
 const SCORING_VERSION = 'dlas-mean-1.0';
 const DIGCOMPSAT_SCORING_VERSION = 'digcompsat-self-reflection-0-3.1';
@@ -593,6 +568,7 @@ function logActivity(userId, action, details = null) {
 module.exports = {
   db,
   dbPath,
+  databaseConfig,
   initializeDatabase,
   logActivity,
   buildAssessmentSnapshot,

@@ -8,6 +8,8 @@ const path = require('node:path');
 
 const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'dlas-integration-'));
 process.env.NODE_ENV = 'test';
+for (const key of ['TURSO_DATABASE_URL', 'TURSO_AUTH_TOKEN', 'BACKUP_STRATEGY', 'DLAS_RESEARCH_ENABLED', 'SMTP_HOST', 'SMTP_FROM', 'SMTP_USER', 'SMTP_PASS']) process.env[key] = '';
+process.env.EMAIL_PROVIDER = 'smtp';
 process.env.PORT = '0';
 process.env.DLAS_DB_PATH = path.join(temporaryDirectory, 'system-test.db');
 process.env.JWT_SECRET = 'test-only-secret-for-isolated-dlas-suite-2026';
@@ -456,12 +458,6 @@ async function run() {
   } finally {
     await new Promise((resolve) => server.close(resolve));
     db.close();
-    const resolvedTemp = path.resolve(temporaryDirectory);
-    const resolvedPrefix = path.resolve(os.tmpdir());
-    if (!resolvedTemp.startsWith(`${resolvedPrefix}${path.sep}`)) {
-      throw new Error('Refusing to remove a path outside the temporary test directory');
-    }
-    fs.rmSync(resolvedTemp, { recursive: true, force: true });
   }
 
   console.log(`\nResults: ${passed} passed, ${failed} failed`);
@@ -471,4 +467,12 @@ async function run() {
 run().catch((error) => {
   console.error(error);
   process.exitCode = 1;
+}).finally(async () => {
+  if (process.env.DLAS_TEST_PARENT_CLEANUP === 'true' && process.send) { process.send({ cleanupDirectory: temporaryDirectory }); return; }
+  // Native libSQL statements release their file handles after their enclosing
+  // test scope ends and the native finalizers run (important on Windows).
+  if (global.gc) { global.gc(); await new Promise(setImmediate); }
+  const resolvedTemp = path.resolve(temporaryDirectory);
+  if (!resolvedTemp.startsWith(path.resolve(os.tmpdir()) + path.sep)) throw new Error('Unexpected temporary test path.');
+  fs.rmSync(resolvedTemp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
 });

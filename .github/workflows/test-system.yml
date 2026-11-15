@@ -1,0 +1,32 @@
+name: Test application
+
+on:
+  push:
+    branches: [main]
+    paths: ["server/**", "client/**", ".github/workflows/test-system.yml"]
+  pull_request:
+    paths: ["server/**", "client/**", ".github/workflows/test-system.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            server/package-lock.json
+            client/package-lock.json
+      - run: npm --prefix server ci
+      - run: npm --prefix client ci
+      - run: npm --prefix server test
+      - run: npm --prefix server run test:libsql
+      - run: npm --prefix client run lint
+      - run: npm --prefix client run build
