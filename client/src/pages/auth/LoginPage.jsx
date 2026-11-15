@@ -72,7 +72,7 @@ export const LoginPage = () => {
   };
 
   return (
-    <main className="relative isolate flex min-h-screen items-center justify-center overflow-x-hidden bg-slate-950 px-3 py-3 sm:px-6 sm:py-6 lg:py-6">
+    <main className="relative isolate flex min-h-svh items-center justify-center overflow-x-hidden bg-slate-950 px-3 py-3 sm:px-5 sm:py-5 lg:px-6 lg:py-5">
       <img
         aria-hidden="true"
         alt=""
@@ -84,65 +84,65 @@ export const LoginPage = () => {
       <div aria-hidden="true" className="pointer-events-none absolute -left-32 -top-36 h-96 w-96 rounded-full bg-green-200/50 blur-3xl" />
       <div aria-hidden="true" className="pointer-events-none absolute -bottom-40 -right-28 h-96 w-96 rounded-full bg-amber-200/50 blur-3xl" />
 
-      <div className="relative z-10 grid w-full max-w-7xl overflow-hidden rounded-[1.25rem] border border-white/35 bg-white/10 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.42)] xl:max-w-[128rem] lg:min-h-[calc(100svh-3rem)] lg:grid-cols-[0.8fr_1.2fr] lg:rounded-[1.75rem]">
-        <section className="relative isolate order-2 flex flex-col justify-between overflow-hidden bg-green-950/45 px-5 py-5 text-white sm:px-8 sm:py-7 lg:order-1 lg:px-10 lg:py-8 xl:px-12">
+      <div className="relative z-10 grid w-full max-w-6xl overflow-hidden rounded-[1.25rem] border border-white/35 bg-white/10 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.42)] lg:min-h-[calc(100svh-2.5rem)] lg:grid-cols-[0.9fr_1.1fr] lg:rounded-[1.75rem]">
+        <section className="relative isolate order-2 flex flex-col justify-between overflow-hidden bg-green-950/45 px-5 py-5 text-white sm:px-7 sm:py-6 lg:order-1 lg:px-8 lg:py-6 xl:px-9">
           <div aria-hidden="true" className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_15%_10%,rgba(0,107,60,0.52),transparent_45%),radial-gradient(ellipse_at_90%_90%,rgba(241,212,0,0.16),transparent_42%)]" />
           <div aria-hidden="true" className="absolute -right-24 top-28 -z-10 h-72 w-72 rounded-full border border-white/[0.08]" />
 
-          <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white p-1 shadow-lg shadow-black/20 ring-1 ring-white/25 sm:h-[4.5rem] sm:w-[4.5rem] 2xl:h-20 2xl:w-20">
+          <div className="flex items-center gap-3">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1 shadow-lg shadow-black/20 ring-1 ring-white/25 sm:h-16 sm:w-16">
               <img src="/masbate-colleges-logo.png" alt="Masbate Colleges seal" className="h-full w-full object-contain" />
             </div>
             <div>
-              <p className="text-lg font-bold tracking-tight text-white sm:text-xl 2xl:text-2xl">DLAS Portal</p>
-              <p className="mt-0.5 text-sm text-slate-200 sm:text-base 2xl:text-lg">Masbate Colleges · CCS</p>
+              <p className="text-base font-bold tracking-tight text-white sm:text-lg">DLAS Portal</p>
+              <p className="mt-0.5 text-xs text-slate-200 sm:text-sm">Masbate Colleges · CCS</p>
             </div>
           </div>
 
-          <div className="my-3 max-w-lg sm:my-6 lg:my-0 lg:py-8 2xl:max-w-2xl">
-            <p className="mb-3 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-amber-200 sm:text-sm lg:text-base 2xl:text-lg">
+          <div className="my-4 max-w-lg sm:my-6 lg:my-0 lg:py-4">
+            <p className="mb-2 inline-flex items-center gap-2 text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-amber-200 sm:text-xs lg:text-sm">
               <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-green-400" />
               Digital Literacy Assessment System
             </p>
-            <h1 className="max-w-md text-2xl font-bold leading-tight tracking-tight sm:text-3xl lg:text-5xl xl:text-6xl 2xl:max-w-xl 2xl:text-7xl">
+            <h1 className="max-w-md text-2xl font-bold leading-tight tracking-tight sm:text-3xl lg:text-4xl xl:text-5xl">
               Know your skills. Grow your confidence.
             </h1>
-            <p className="mt-3 max-w-md text-base leading-6 text-white/95 sm:mt-4 sm:text-lg sm:leading-7 lg:text-lg xl:text-xl 2xl:max-w-xl 2xl:text-2xl">
+            <p className="mt-3 max-w-md text-sm leading-5 text-white/95 sm:text-base sm:leading-6 lg:text-base">
               Sign in to take your assessment or review your results.
             </p>
 
-            <div className="mt-7 hidden flex-wrap gap-2 sm:flex">
+            <div className="mt-5 hidden flex-wrap gap-2 sm:flex">
               {skillAreas.map((area) => (
-                <span key={area.name} className={`rounded-full border border-white/30 bg-white/15 px-5 py-2.5 text-lg font-bold ${area.color} sm:text-xl xl:px-6 xl:py-3 xl:text-2xl 2xl:px-7 2xl:py-3.5 2xl:text-3xl`}>
+                <span key={area.name} className={`rounded-full border border-white/30 bg-white/15 px-3.5 py-1.5 text-sm font-semibold ${area.color} sm:text-base`}>
                   {area.name}
                 </span>
               ))}
             </div>
           </div>
 
-          <div className="hidden items-center gap-3 border-t border-white/10 pt-4 sm:flex">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-400/10 text-amber-300">
+          <div className="hidden items-center gap-3 border-t border-white/10 pt-3 sm:flex">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-400/10 text-amber-300">
               <Sparkles aria-hidden="true" className="h-4 w-4" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-white lg:text-base 2xl:text-lg">Aligned with DigComp 2.1</p>
-              <p className="mt-0.5 text-sm text-white/85 2xl:text-base">A five-area framework for digital competence.</p>
+              <p className="text-xs font-semibold text-white sm:text-sm">Aligned with DigComp 2.1</p>
+              <p className="mt-0.5 text-xs text-white/85 sm:text-sm">A five-area framework for digital competence.</p>
             </div>
           </div>
         </section>
 
-        <section className="relative isolate order-1 flex min-h-[calc(100svh-1.5rem)] flex-col justify-center overflow-hidden bg-white/65 px-4 py-5 backdrop-blur-sm sm:min-h-[calc(100svh-3rem)] sm:px-8 sm:py-8 lg:order-2 lg:min-h-0 lg:px-10 lg:py-8 xl:px-12 2xl:px-16">
-          <div className="relative z-10 mx-auto w-full max-w-2xl 2xl:max-w-4xl">
-            <div className="mb-4 sm:mb-6 lg:mb-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-green-700 sm:text-sm lg:text-base xl:text-lg 2xl:text-xl">{authStep === 'credentials' ? 'College of Computer Studies' : 'Account security'}</p>
-              <h2 className="mt-1 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl lg:text-5xl xl:text-6xl 2xl:text-7xl">{authStep === 'credentials' ? 'Welcome back' : authStep === 'mfa-setup' ? 'Secure your account' : 'Verify it’s you'}</h2>
-              <p className="mt-1 text-base leading-6 text-slate-600 sm:mt-2 sm:text-lg sm:leading-7 xl:text-xl 2xl:text-2xl">{authStep === 'credentials' ? 'Sign in with the email linked to your account.' : authStep === 'mfa-setup' ? 'Administrators and teachers must set up an authenticator app before using the system.' : 'Enter the current six-digit code from your authenticator app.'}</p>
+        <section className="relative isolate order-1 flex min-h-[calc(100svh-1.5rem)] flex-col justify-center overflow-hidden bg-white/65 px-4 py-5 backdrop-blur-sm sm:min-h-[calc(100svh-2.5rem)] sm:px-7 sm:py-7 lg:order-2 lg:min-h-0 lg:px-8 lg:py-6 xl:px-10">
+          <div className="relative z-10 mx-auto w-full max-w-xl">
+            <div className="mb-4 sm:mb-5">
+              <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-green-700 sm:text-xs">{authStep === 'credentials' ? 'College of Computer Studies' : 'Account security'}</p>
+              <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl lg:text-4xl xl:text-5xl">{authStep === 'credentials' ? 'Welcome back' : authStep === 'mfa-setup' ? 'Secure your account' : 'Verify it’s you'}</h2>
+              <p className="mt-1 text-sm leading-5 text-slate-600 sm:text-base sm:leading-6">{authStep === 'credentials' ? 'Sign in with the email linked to your account.' : authStep === 'mfa-setup' ? 'Administrators and teachers must set up an authenticator app before using the system.' : 'Enter the current six-digit code from your authenticator app.'}</p>
             </div>
 
-            <div className="flex flex-col justify-center rounded-2xl border border-white/70 bg-white/95 p-5 shadow-lg shadow-slate-900/10 backdrop-blur-sm sm:p-7 lg:min-h-[38rem] lg:border-slate-200 lg:p-9 xl:min-h-[40rem] xl:p-10 2xl:min-h-[42rem] 2xl:p-12 lg:shadow-xl">
-              {authStep === 'credentials' ? <form className="space-y-7 sm:space-y-8" onSubmit={handleSubmit} aria-busy={isLoading}>
+            <div className="flex flex-col justify-center rounded-2xl border border-white/70 bg-white/95 p-5 shadow-lg shadow-slate-900/10 backdrop-blur-sm sm:p-6 lg:border-slate-200 lg:p-7 lg:shadow-xl">
+              {authStep === 'credentials' ? <form className="space-y-5 sm:space-y-6" onSubmit={handleSubmit} aria-busy={isLoading}>
                 <div>
-                  <label htmlFor="login-email" className="mb-3 block text-base font-semibold text-slate-800 sm:text-lg xl:text-xl 2xl:text-2xl">
+                  <label htmlFor="login-email" className="mb-2 block text-sm font-semibold text-slate-800 sm:text-base">
                     Email address
                   </label>
                   <div className="relative">
@@ -157,13 +157,13 @@ export const LoginPage = () => {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="you@example.com"
-                      className="block min-h-14 w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-3.5 text-base text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-500/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-16 sm:py-4 sm:text-lg lg:min-h-20 xl:text-xl 2xl:text-2xl"
+                      className="block min-h-12 w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-500/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-14 sm:text-base"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="login-password" className="mb-3 block text-base font-semibold text-slate-800 sm:text-lg xl:text-xl 2xl:text-2xl">
+                  <label htmlFor="login-password" className="mb-2 block text-sm font-semibold text-slate-800 sm:text-base">
                     Password
                   </label>
                   <div className="relative">
@@ -178,14 +178,14 @@ export const LoginPage = () => {
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Enter your password"
-                      className="block min-h-14 w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-12 text-base text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-500/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-16 sm:py-4 sm:text-lg lg:min-h-20 xl:text-xl 2xl:text-2xl"
+                      className="block min-h-12 w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-12 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-500/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-14 sm:text-base"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((visible) => !visible)}
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                       aria-pressed={showPassword}
-                      className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-green-600 sm:h-12 sm:w-12"
+                      className="absolute right-1.5 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-green-600 sm:h-11 sm:w-11"
                     >
                       {showPassword ? <EyeOff aria-hidden="true" className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={2.75} /> : <Eye aria-hidden="true" className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={2.75} />}
                     </button>
@@ -195,7 +195,7 @@ export const LoginPage = () => {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="group flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-3 text-base font-semibold text-white shadow-md shadow-green-900/15 transition hover:bg-green-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-wait disabled:opacity-60 sm:min-h-16 sm:py-4 sm:text-lg lg:min-h-20 xl:text-xl 2xl:text-2xl"
+                  className="group flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-green-900/15 transition hover:bg-green-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-wait disabled:opacity-60 sm:min-h-14 sm:text-base"
                 >
                   {isLoading ? (
                     <>
@@ -232,14 +232,14 @@ export const LoginPage = () => {
                 <button type="button" onClick={() => { setAuthStep('credentials'); setMfaCode(''); }} className="w-full text-center text-sm font-semibold text-green-800 hover:underline">Back to sign in</button>
               </form>}
 
-              {authStep === 'credentials' && <div className="mt-5 border-t border-slate-200 pt-4 text-center lg:mt-5">
-                <p className="text-base text-slate-700 sm:text-lg xl:text-xl 2xl:text-2xl">
+              {authStep === 'credentials' && <div className="mt-4 border-t border-slate-200 pt-3 text-center">
+                <p className="text-sm text-slate-700 sm:text-base">
                   New student?{' '}
                   <Link to="/register" className="font-semibold text-green-700 underline-offset-4 hover:text-green-800 hover:underline">
                     Register here
                   </Link>
                 </p>
-                <div className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2 text-lg sm:text-xl">
+                <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm sm:text-base">
                   <Link to="/forgot-password" className="font-semibold text-green-800 underline-offset-4 hover:text-green-900 hover:underline">Forgot password?</Link>
                   {verificationRequired && <Link to="/verify-email" className="font-semibold text-green-800 underline-offset-4 hover:text-green-900 hover:underline">Resend verification</Link>}
                 </div>
@@ -247,7 +247,7 @@ export const LoginPage = () => {
             </div>
 
             {searchParams.get('registered') === '1' && <p role="status" className="mt-3 text-center text-sm font-medium text-green-900">Your account is ready. Verify the email we sent before signing in.</p>}
-            <p className="mt-4 text-center text-xs text-slate-700 sm:text-sm 2xl:text-base">Digital Literacy Assessment System · Masbate Colleges</p>
+            <p className="mt-3 text-center text-[0.6875rem] text-slate-700 sm:text-xs">Digital Literacy Assessment System · Masbate Colleges</p>
           </div>
         </section>
       </div>
