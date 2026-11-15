@@ -17,6 +17,9 @@ const { sendSecurityEmail, clientUrl } = require('../utils/email');
 const loginLimit = rateLimit({ id: 'auth-login', windowMs: 15 * 60 * 1000, max: 10, message: 'Too many sign-in attempts. Try again in 15 minutes.' });
 const registrationLimit = rateLimit({ id: 'auth-register', windowMs: 60 * 60 * 1000, max: 10, message: 'Too many registration attempts. Try again later.' });
 const tokenRequestLimit = rateLimit({ id: 'auth-token-request', windowMs: 60 * 60 * 1000, max: 5, message: 'Too many requests. Try again later.' });
+// Redeeming a one-time link must not spend the email-request quota. Several
+// students can share a network, and account setup may use both link types.
+const tokenUseLimit = rateLimit({ id: 'auth-token-use', windowMs: 15 * 60 * 1000, max: 30, message: 'Too many link verification attempts. Try again in 15 minutes.' });
 const mfaLimit = rateLimit({ id: 'auth-mfa', windowMs: 15 * 60 * 1000, max: 10, message: 'Too many verification attempts. Try again later.' });
 const MAX_PROFILE_PICTURE_BYTES = 700 * 1024;
 
@@ -212,7 +215,7 @@ router.post('/register', registrationLimit, [
 });
 
 // Email verification and password recovery use one-time, expiring tokens stored only as hashes.
-router.post('/verify-email', tokenRequestLimit, [body('token').isString().isLength({ min: 20, max: 200 })], (req, res) => {
+router.post('/verify-email', tokenUseLimit, [body('token').isString().isLength({ min: 20, max: 200 })], (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ success: false, message: 'Verification link is invalid or expired.' });
   const token = verifiedUserForToken(req.body.token, 'email_verification');
@@ -273,7 +276,7 @@ router.post('/mfa/recovery-request', tokenRequestLimit, [body('email').isEmail()
   } catch (err) { return next(err); }
 });
 
-router.post('/mfa/recover', tokenRequestLimit, [body('token').isString().isLength({ min: 20, max: 200 })], (req, res) => {
+router.post('/mfa/recover', tokenUseLimit, [body('token').isString().isLength({ min: 20, max: 200 })], (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ success: false, message: 'MFA recovery link is invalid or expired.' });
   const token = verifiedMfaRecoveryToken(req.body.token);
@@ -288,7 +291,7 @@ router.post('/mfa/recover', tokenRequestLimit, [body('token').isString().isLengt
   return res.json({ success: true, message: 'Authenticator access was reset. Sign in with your password to set up MFA again.' });
 });
 
-router.post('/reset-password', tokenRequestLimit, [
+router.post('/reset-password', tokenUseLimit, [
   body('token').isString().isLength({ min: 20, max: 200 }),
   body('new_password').isLength({ min: 10, max: 128 }),
 ], async (req, res, next) => {

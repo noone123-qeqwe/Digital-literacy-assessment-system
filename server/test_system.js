@@ -469,6 +469,23 @@ async function run() {
     preservedDatabase?.close();
     check(restoredUsers > 0 && preservedSentinel === 'previous database', 'restore rehearsal recovers the snapshot and preserves the prior database in an isolated temporary folder');
 
+    // Email requests retain a tight quota without blocking one-time link use.
+    let emailLimited = false;
+    for (let count = 0; count < 6; count += 1) {
+      const response = await request(baseUrl, '/auth/forgot-password', { method: 'POST', body: { email: 'nonexistent@example.test' } });
+      if (response.status === 429) emailLimited = true;
+    }
+    const unusedToken = crypto.randomBytes(32).toString('base64url');
+    const invalidVerification = await request(baseUrl, '/auth/verify-email', { method: 'POST', body: { token: unusedToken } });
+    const invalidReset = await request(baseUrl, '/auth/reset-password', { method: 'POST', body: { token: unusedToken, new_password: 'Isolated-test-password-2026' } });
+    check(emailLimited && invalidVerification.status === 400 && invalidReset.status === 400, 'email request limits stay enforced without blocking verification and reset link validation');
+    let linkUseLimited = false;
+    for (let count = 0; count < 31; count += 1) {
+      const response = await request(baseUrl, '/auth/verify-email', { method: 'POST', body: { token: unusedToken } });
+      if (response.status === 429) linkUseLimited = true;
+    }
+    check(linkUseLimited, 'one-time link validation has its own enforced rate limit');
+
     // Exhaust the isolated login limiter after all valid logins have completed.
     let rateLimited = false;
     for (let attempt = 0; attempt < 12; attempt += 1) {
