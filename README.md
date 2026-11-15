@@ -54,6 +54,14 @@ Copy `server/.env.example` to `server/.env` and set a unique random `JWT_SECRET`
 - Access tokens are held in `HttpOnly`, `SameSite=Strict` cookies and are not written to browser storage. Mutating requests require a CSRF token. The **Security** page lists active sessions/devices and lets users revoke sessions and change their password.
 - For local development without SMTP, verification and recovery links are printed in the server terminal. Do not use those development links as a production mail setup.
 
+## Website ping and wake-up checks
+
+The repository's **Ping website** GitHub Actions workflow requests `https://masbate-colleges-digital-literacy.onrender.com/api/health` every ten minutes from outside Render. It also supports **Actions → Ping website → Run workflow** for a manual wake-up/check. No server sign-in or additional monitoring account is needed. The script retries up to four times with a 20-second timeout per request, checks for the application's healthy JSON response, and fails if it receives only an error page or Render's starting screen. It never logs in, submits an assessment, or changes stored data.
+
+For a manual check from this project, run `npm --prefix server run ping-site`. If the website address changes, set the GitHub Actions repository variable `DLAS_SITE_URL` to its HTTPS origin; for a local command, set the environment variable of the same name. Review workflow results in the repository's Actions tab; GitHub workflow notifications follow the account's notification settings. You can pause checks using **Actions → Ping website → Disable workflow**.
+
+This reduces idle cold starts but cannot guarantee that the Render loading page will never appear. Render free services sleep after 15 minutes without traffic, may restart, and share a 750-hour monthly free allowance across the workspace. GitHub schedules can run late or be skipped, and public-repository schedules are disabled after 60 days without repository activity. A timer inside this app cannot wake its own stopped server. References: [Render free service limits](https://render.com/docs/free) and [GitHub scheduled workflows](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#schedule).
+
 ## Production database setup
 
 Do not use the demo seed for research. It creates synthetic users, completed attempts, and an active demonstration assessment, then marks the database as demo data. Production will refuse to start with that marker.

@@ -72,6 +72,7 @@ app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Health Check
 app.get('/api/health', (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   res.json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
