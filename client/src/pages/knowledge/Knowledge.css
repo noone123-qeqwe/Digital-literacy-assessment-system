@@ -1,6 +1,8 @@
 .kq-page { display: grid; min-width: 0; gap: 22px; color: #17243a; }
 .kq-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
 .kq-heading h1 { font-size: clamp(26px, 2.8vw, 36px); font-weight: 750; letter-spacing: -.035em; line-height: 1.15; }
+.kq-heading > div { min-width: 0; }
+.kq-heading h1 { overflow-wrap: anywhere; }
 .kq-heading > div > p:last-child { max-width: 720px; margin-top: 10px; color: #64748b; font-size: 14px; line-height: 1.6; }
 .kq-eyebrow { margin-bottom: 7px; font-size: 10px; font-weight: 750; text-transform: uppercase; letter-spacing: .13em; color: #2563eb; }
 .kq-card { min-width: 0; padding: 24px; border: 1px solid #e0e8f3; border-radius: 18px; background: #fff; box-shadow: 0 4px 18px #17345d04; }
@@ -79,15 +81,15 @@
 .kq-assessment-card { display: flex; flex-direction: column; gap: 16px; }
 .kq-assessment-card > p { color: #64748b; font-size: 13px; line-height: 1.65; }
 .kq-assessment-card .kq-actions { margin-top: auto; }
-.kq-take { max-width: 1000px; margin-inline: auto; }
+.kq-take { width: 100%; min-width: 0; max-width: 1000px; margin-inline: auto; }
 .kq-timer { font-family: ui-monospace, monospace; color: #1d4ed8; font-size: 19px; font-weight: 700; }
 .kq-progress { height: 6px; overflow: hidden; border-radius: 6px; background: #e8effa; }
 .kq-progress > div { height: 100%; background: #2563eb; transition: width 180ms ease; }
-.kq-options { display: grid; gap: 12px; margin-top: 24px; }
-.kq-options label { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 16px; border: 1px solid #dbe4f0; border-radius: 12px; background: #fff; font-size: 14px; line-height: 1.6; cursor: pointer; }
-.kq-options label:has(input:checked) { border-color: #2563eb; background: #eff6ff; }
-.kq-options label:focus-within { outline: 2px solid #2563eb; outline-offset: 2px; }
-.kq-options input { width: 18px; height: 18px; accent-color: #2563eb; flex-shrink: 0; }
+.kq-options { display: grid; min-width: 0; gap: 12px; margin-top: 24px; }
+.kq-options > label:not(.kq-field) { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 16px; border: 1px solid #dbe4f0; border-radius: 12px; background: #fff; font-size: 14px; line-height: 1.6; cursor: pointer; }
+.kq-options > label:not(.kq-field):has(input:checked) { border-color: #2563eb; background: #eff6ff; }
+.kq-options > label:not(.kq-field):focus-within { outline: 2px solid #2563eb; outline-offset: 2px; }
+.kq-options input[type="radio"] { width: 18px; height: 18px; accent-color: #2563eb; flex-shrink: 0; }
 .kq-question-navigation { display: flex; flex-wrap: wrap; gap: 7px; }
 .kq-question-navigation button { display: grid; min-width: 44px; min-height: 44px; place-items: center; border: 1px solid #dbe4f0; border-radius: 9px; font-size: 12px; background: #fff; }
 .kq-question-navigation button[data-answered="true"] { background: #eff6ff; color: #1d4ed8; }
