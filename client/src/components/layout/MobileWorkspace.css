@@ -1,0 +1,145 @@
+.student-mobile-nav {
+  display: none;
+}
+
+@media (max-width: 1023px) {
+  .workspace-sidebar {
+    width: min(320px, calc(100vw - 32px));
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@media (max-width: 639px) {
+  .dlas-student-workspace .workspace-navbar {
+    min-height: calc(64px + env(safe-area-inset-top));
+    padding: calc(8px + env(safe-area-inset-top)) 12px 8px;
+  }
+
+  .dlas-student-workspace .workspace-navbar > div {
+    min-width: 0;
+    gap: 8px;
+  }
+
+  .dlas-student-workspace .workspace-navbar > div:first-child {
+    flex: 1;
+  }
+  .dlas-student-workspace .workspace-navbar > div:first-child > div {
+    min-width: 0;
+  }
+
+  .dlas-student-workspace .workspace-navbar h2 {
+    font-size: 16px;
+    line-height: 1.25;
+  }
+
+  .dlas-student-workspace .workspace-navbar > div:last-child > div {
+    padding-left: 8px;
+  }
+
+  .dlas-student-workspace .dlas-workspace-main {
+    padding: 16px 12px 20px;
+  }
+
+  .dlas-student-workspace.dlas-dashboard-shell .dlas-workspace-main {
+    padding-top: 0;
+  }
+
+  .has-student-mobile-nav .dlas-workspace-content {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom));
+  }
+
+  .student-mobile-nav:not([hidden]) {
+    position: fixed;
+    z-index: 35;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    padding: 7px max(8px, env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+    border-top: 1px solid #dfe7e1;
+    background: #fffffffa;
+    box-shadow: 0 -4px 20px #20372b0a;
+    backdrop-filter: blur(12px);
+  }
+
+  .student-mobile-link {
+    display: flex;
+    min-height: 52px;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border-radius: 12px;
+    color: #647268;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .student-mobile-link.is-active {
+    color: #005a32;
+    background: #eaf5ee;
+  }
+
+  .dlas-student-workspace:has(:is(
+    textarea, input:not([type]), input[type="text"], input[type="email"],
+    input[type="password"], input[type="search"], input[type="number"],
+    input[type="tel"], input[type="url"]
+  ):focus) .student-mobile-nav {
+    display: none;
+  }
+
+  .dlas-student-workspace .student-assessment-progress {
+    top: calc(72px + env(safe-area-inset-top));
+  }
+
+  .dlas-student-workspace input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  .dlas-student-workspace select,
+  .dlas-student-workspace textarea {
+    font-size: 16px;
+  }
+
+  .dlas-student-workspace .dlas-page-title { font-size: 24px; }
+  .dlas-student-workspace .dlas-page-description { font-size: 14px; line-height: 1.5; }
+  .dlas-student-workspace .dlas-workspace-footer { font-size: 11px; }
+
+  .dlas-respondent-assessments .dlas-page-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    align-items: start;
+    gap: 12px;
+  }
+
+  .dlas-respondent-assessments .dlas-page-header > div:last-child button {
+    width: 44px;
+    padding: 8px;
+  }
+
+  .assessment-refresh-label { display: none; }
+  .dlas-respondent-assessments .dlas-page-eyebrow { display: none; }
+  .dlas-respondent-assessments [aria-label="Assessment summary"] { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .dlas-respondent-assessments [aria-label="Assessment summary"] article { min-height: 78px; padding: 10px 6px; text-align: center; justify-content: center; }
+  .dlas-respondent-assessments [aria-label="Assessment summary"] article > span { display: none; }
+  .dlas-respondent-assessments [aria-label="Assessment summary"] article p:first-child { min-height: 28px; font-size: 11px; line-height: 14px; }
+
+  .dlas-assessment-results > div,
+  .dlas-assessment-results > section,
+  .dlas-respondent-profile > div {
+    min-width: 0;
+  }
+
+  .dlas-assessment-results .p-6,
+  .dlas-respondent-profile > .p-6 {
+    padding: 16px;
+  }
+
+  .dlas-assessment-results .text-xl { font-size: 18px; }
+  .dlas-assessment-results .text-xs { line-height: 1.5; }
+  .dlas-respondent-profile .profile-save-actions button { width: 100%; justify-content: center; padding: 12px; }
+  .dlas-respondent-profile { padding-bottom: 8px; }
+  .dlas-student-workspace .dlas-workspace-main button,
+  .dlas-student-workspace .dlas-workspace-main a[class~="min-h-10"] { min-height: 44px; }
+}

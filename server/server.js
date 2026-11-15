@@ -4,6 +4,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const { initializeDatabase } = require('./db/database');
+const { db } = require('./db/database');
+const { ensureDigCompSatQuestionBank } = require('./db/digcompsat');
 const { assertProductionReady } = require('./utils/studyReadiness');
 const { startAutomaticBackups, getBackupStatus } = require('./db/backup');
 
@@ -34,6 +36,7 @@ if (process.env.NODE_ENV === 'production') {
 // Initialize Database Schema
 try {
   initializeDatabase();
+  ensureDigCompSatQuestionBank(db);
   if (!freeDemoMode) assertProductionReady();
   console.log('Database initialized successfully.');
 } catch (err) {
@@ -83,7 +86,7 @@ app.use('/api', (req, res, next) => {
     if (!safeMethod && !allowedAuthAction) {
       return res.status(403).json({
         success: false,
-        message: 'This free demo is read-only. Registration, profile changes, and assessment submissions are disabled. Do not enter real study data.',
+        message: 'This free demo is read-only. Registration, profile changes, assessment submissions, withdrawals, and other data changes are disabled. Do not enter real study data.',
       });
     }
     return next();

@@ -40,7 +40,7 @@ router.get('/', authenticate, (req, res) => {
     } else {
       // Respondent - only assigned assessments
       query = `
-        SELECT a.id, a.title, a.description, a.status, a.time_limit_minutes, a.max_attempts, a.start_date, a.end_date,
+      SELECT a.id, a.title, a.description, a.status, a.time_limit_minutes, a.max_attempts, a.start_date, a.end_date, a.scoring_version,
                aa.assigned_at,
                (SELECT COUNT(*) FROM assessment_questions aq WHERE aq.assessment_id = a.id) as question_count,
                at.id as attempt_id, at.status as attempt_status, at.overall_mean, at.overall_level, at.completed_at,
@@ -74,6 +74,7 @@ router.post('/', authenticate, authorize('admin', 'assessor'), [
   body('max_attempts').optional().isInt({ min: 1, max: 10 }),
   body('question_ids').isArray({ min: 1 }).withMessage('At least one question must be selected'),
   body('question_ids.*').isInt({ min: 1 }),
+  body('instrument_code').optional().isIn(['dlas-thesis-v1', 'digcompsat-2020']),
   body('assigned_user_ids').optional().isArray(),
   body('assigned_user_ids.*').optional().isInt({ min: 1 }),
   body('start_date').optional({ nullable: true }).isISO8601(),
@@ -86,6 +87,7 @@ router.post('/', authenticate, authorize('admin', 'assessor'), [
   }
 
   const { title, description, time_limit_minutes, start_date, end_date, question_ids, assigned_user_ids } = req.body;
+  const instrumentCode = req.body.instrument_code || 'dlas-thesis-v1';
   const maxAttempts = Number(req.body.max_attempts || 1);
   const consentRequired = process.env.NODE_ENV === 'production'
     || req.body.consent_required === undefined
@@ -99,10 +101,18 @@ router.post('/', authenticate, authorize('admin', 'assessor'), [
     return res.status(400).json({ success: false, message: 'Question IDs must be unique' });
   }
   const validQuestions = db.prepare(`
-    SELECT id FROM questions WHERE is_active = 1 AND id IN (${questionIds.map(() => '?').join(',')})
-  `).all(...questionIds);
+    SELECT id FROM questions WHERE is_active = 1 AND instrument_code = ? AND id IN (${questionIds.map(() => '?').join(',')})
+  `).all(instrumentCode, ...questionIds);
   if (validQuestions.length !== questionIds.length) {
     return res.status(400).json({ success: false, message: 'Every selected question must exist and be active' });
+  }
+  if (instrumentCode === 'digcompsat-2020') {
+    const bankQuestionIds = db.prepare(`
+      SELECT id FROM questions WHERE instrument_code = ? AND is_active = 1 ORDER BY question_number
+    `).all(instrumentCode).map((question) => question.id);
+    if (bankQuestionIds.length !== 82 || bankQuestionIds.some((id) => !questionIds.includes(id))) {
+      return res.status(400).json({ success: false, message: 'The DigCompSAT assessment must include the complete 82-item published bank.' });
+    }
   }
   const userIds = [...new Set((assigned_user_ids || []).map(Number))];
   if (userIds.length !== (assigned_user_ids || []).length) {
@@ -137,7 +147,7 @@ router.post('/', authenticate, authorize('admin', 'assessor'), [
       start_date || null,
       end_date || null,
       JSON.stringify(instrumentSnapshot),
-      SCORING_VERSION
+      instrumentSnapshot.scoringVersion
     );
 
     const assessmentId = result.lastInsertRowid;

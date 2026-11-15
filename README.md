@@ -1,6 +1,6 @@
 # Digital Literacy Assessment System
 
-DLAS is a role-based assessment app for administering the thesis's 30-item scored digital literacy questionnaire and an unscored open-ended skills-development question, collecting respondent profiles, scoring completed attempts, and reviewing cohort results.
+DLAS is a role-based assessment app for administering the thesis's 30-item scored digital literacy questionnaire and a separate DigCompSAT self-reflection instrument, collecting respondent profiles, scoring completed attempts, and reviewing cohort results.
 
 ## Stack
 
@@ -122,6 +122,16 @@ Research consent can be enabled for an assessment during creation; it is enabled
 The supplied thesis methods specify a Part III open-ended question, but the supplied questionnaire appendix ends after the 30 Part II statements. The system follows the thesis methods and includes the unscored question; reconcile the appendix before final print or ethics submission. The study profile captures exact monthly family income as in the questionnaire and derives the thesis's three reporting bands. It also captures junior and senior high school type, as specified in the thesis methods.
 
 The overall proficiency score and domain scores retain the existing 1–4 arithmetic-mean calculation and DigComp 2.1 proficiency cutoffs. For research comparisons, use the standard 30-item instrument with its full domain coverage; custom subsets should be interpreted only within their own assessment.
+
+### Optional DigCompSAT self-reflection instrument
+
+Assessment creation also offers the complete 82-item English DigCompSAT item bank. It includes separate knowledge, skills, and attitude response scales scored 0–3 across the five DigComp competence areas. The full bank is required for each DigCompSAT assessment; its published items are read-only, while the thesis questionnaire remains unchanged. Reports and exports retain the item version and framework competence IDs. DigCompSAT is a self-reflection tool, not a right-or-wrong quiz or an official proficiency classification. Keep its scores and analyses separate from the thesis instrument, and treat local findings as exploratory until the College approves and completes local validation. The system imports the source wording in English and maps its competence statements to the system’s five local competence-area codes; the European Commission is not responsible for or endorsing this local implementation.
+
+Source: Clifford et al. (2020), *DigCompSAT: A Self-reflection Tool for the European Digital Competence Framework for Citizens*, JRC123226, doi:10.2760/77437. European Union, 2020, CC BY 4.0. The Joint Research Centre states that the existing DigCompSAT item bank may be used and adapted; indicate changes and do not imply Commission endorsement.
+
+### Assessment completion awards
+
+After submitting an assessment, a signed-in respondent can download a personalized PDF completion award from the results page. Each award is named after its specific assessment, uses a color theme for its instrument, and has its own attempt reference. The award recognizes completion only; it does not certify a score, proficiency level, or academic credit. Awards are disabled for the public free demo so synthetic records cannot be presented as real participant credentials.
 
 Rate-limit counters are stored in the configured SQLite database and use keyed hashes of client addresses, so limits survive server restarts and are shared by app processes using the same database. When running behind a reverse proxy, set `TRUST_PROXY` to the trusted hop count or trusted proxy address list so Express reads the client address correctly. Do not trust arbitrary proxy headers from untrusted networks. SQLite is suited to a single-host deployment; use a managed shared database and shared rate-limit store before scaling across independent hosts.
 

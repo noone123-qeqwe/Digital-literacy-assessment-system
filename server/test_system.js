@@ -261,7 +261,10 @@ async function run() {
     const crossPdf = await request(baseUrl, `/export/results/${attemptId}/pdf`, { token: secondStudentToken });
     check([crossAttempt.status, crossResult.status, crossExcel.status, crossPdf.status].every((status) => status === 403), 'respondents cannot read another person’s attempt, results, or exports');
 
-    const partialSubmission = await request(baseUrl, `/attempts/${attemptId}/submit`, { method: 'POST', token: studentToken });
+    const unconfirmedSubmission = await request(baseUrl, `/attempts/${attemptId}/submit`, { method: 'POST', token: studentToken });
+    const unconfirmedAttempt = db.prepare('SELECT status, overall_mean, integrity_confirmed_at FROM assessment_attempts WHERE id = ?').get(attemptId);
+    check(unconfirmedSubmission.status === 400 && unconfirmedSubmission.data.message.includes('your own') && unconfirmedAttempt.status === 'in_progress' && unconfirmedAttempt.overall_mean === null && unconfirmedAttempt.integrity_confirmed_at === null, 'submission requires the participant honesty confirmation and preserves an unconfirmed attempt');
+    const partialSubmission = await request(baseUrl, `/attempts/${attemptId}/submit`, { method: 'POST', token: studentToken, body: { integrity_confirmed: true } });
     check(partialSubmission.status === 400 && partialSubmission.data.answeredCount === 2 && partialSubmission.data.totalCount === 30, 'partial submissions remain in progress and cannot produce a score');
     const remainingResponses = start.data.data.questions.slice(2).map((question) => ({ question_id: question.id, rating: 3 }));
     const completeBatch = await request(baseUrl, `/attempts/${attemptId}/respond`, {
@@ -276,8 +279,10 @@ async function run() {
     });
     check(historicalQuestionEdit.status === 409, 'question meaning cannot change after an attempt has started');
     check(timerChangeDuringAttempt.status === 409, 'time limit cannot change while participants have active attempts');
-    const submission = await request(baseUrl, `/attempts/${attemptId}/submit`, { method: 'POST', token: studentToken });
+    const submission = await request(baseUrl, `/attempts/${attemptId}/submit`, { method: 'POST', token: studentToken, body: { integrity_confirmed: true } });
     check(submission.status === 200 && submission.data.data.overallMean === 3 && submission.data.data.overallLevel === 'High', 'complete responses preserve the approved proficiency calculation');
+    const confirmedAttempt = db.prepare('SELECT integrity_confirmed_at, integrity_statement_version FROM assessment_attempts WHERE id = ?').get(attemptId);
+    check(confirmedAttempt.integrity_confirmed_at && confirmedAttempt.integrity_statement_version === 'respondent-self-reflection-v1', 'completed assessment records the honesty confirmation and statement version');
     const detailedResult = await request(baseUrl, `/attempts/${attemptId}/results`, { token: studentToken });
     check(detailedResult.status === 200 && detailedResult.data.data.areaResults.every((area) => area.weighted_mean === 3), 'complete results include valid means for each represented domain');
     const repeatSubmission = await request(baseUrl, `/attempts/${attemptId}/submit`, { method: 'POST', token: studentToken });
@@ -316,7 +321,7 @@ async function run() {
     const nextAttemptId = nextAttempt.data?.data?.attempt?.id;
     const nextAttemptAnswers = nextAttempt.data?.data?.questions?.map((question) => ({ question_id: question.id, rating: 4 })) || [];
     const nextAttemptSave = await request(baseUrl, `/attempts/${nextAttemptId}/respond`, { method: 'PUT', token: studentToken, body: { responses: nextAttemptAnswers } });
-    const nextAttemptSubmit = await request(baseUrl, `/attempts/${nextAttemptId}/submit`, { method: 'POST', token: studentToken });
+    const nextAttemptSubmit = await request(baseUrl, `/attempts/${nextAttemptId}/submit`, { method: 'POST', token: studentToken, body: { integrity_confirmed: true } });
     const exhaustedAttempt = await request(baseUrl, '/attempts', { method: 'POST', token: studentToken, body: { assessment_id: assessmentId } });
     check(nextAttempt.status === 200 && nextAttemptId && nextAttemptId !== attemptId && nextAttemptSave.status === 200 && nextAttemptSubmit.status === 200, `configured assessment limits allow a second snapshotted attempt (${nextAttempt.status}/${nextAttemptId || 'no id'}, save ${nextAttemptSave.status}, submit ${nextAttemptSubmit.status})`);
     check(exhaustedAttempt.status === 200 && exhaustedAttempt.data.data.alreadyCompleted && exhaustedAttempt.data.data.attempt.id === nextAttemptId, `assessment attempt limit returns the latest result after the final attempt (${exhaustedAttempt.status}/${exhaustedAttempt.data?.data?.alreadyCompleted})`);

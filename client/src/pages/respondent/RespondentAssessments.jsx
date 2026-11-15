@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowRight,
+  Award,
   CalendarClock,
   CheckCircle2,
   ClipboardList,
@@ -9,11 +10,13 @@ import {
   PlayCircle,
   RefreshCw,
   Search,
+  ShieldCheck,
   Timer,
 } from 'lucide-react';
 import api from '../../api/axios';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import PageHeader from '../../components/common/PageHeader';
+import { useDemoMode } from '../../contexts/useDemoMode';
 import { formatDateTime, parseStoredDate } from '../../utils/helpers';
 
 const getAssessmentState = (assessment, now) => {
@@ -64,9 +67,12 @@ const filterOptions = [
   { id: 'available', label: 'Ready' },
   { id: 'in_progress', label: 'In progress' },
   { id: 'completed', label: 'Completed' },
+  { id: 'scheduled', label: 'Scheduled' },
+  { id: 'closed', label: 'Closed' },
 ];
 
 export const RespondentAssessments = () => {
+  const { available: demoStatusAvailable, freeDemoReadOnly, loading: demoModeLoading } = useDemoMode();
   const [assessments, setAssessments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -93,8 +99,24 @@ export const RespondentAssessments = () => {
   }, []);
 
   useEffect(() => {
-    fetchAssessments();
-  }, [fetchAssessments]);
+    let active = true;
+    const loadAssessments = async () => {
+      try {
+        const response = await api.get('/assessments');
+        if (!active) return;
+        if (response.data.success) setAssessments(response.data.data || []);
+        setError('');
+      } catch (requestError) {
+        if (!active) return;
+        console.error('Failed to load respondent assessments:', requestError);
+        setError(requestError.response?.data?.message || 'We could not load your assessments. Please try again.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void loadAssessments();
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
@@ -110,16 +132,21 @@ export const RespondentAssessments = () => {
     all: assessedItems.length,
     available: assessedItems.filter((item) => item.displayState === 'available').length,
     in_progress: assessedItems.filter((item) => item.displayState === 'in_progress').length,
-    completed: assessedItems.filter((item) => item.displayState === 'completed').length,
+    completed: assessedItems.filter((item) => item.attempt_status === 'completed').length,
+    scheduled: assessedItems.filter((item) => item.displayState === 'scheduled').length,
+    closed: assessedItems.filter((item) => item.displayState === 'closed').length,
   }), [assessedItems]);
 
   const filteredAssessments = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase();
+    const priority = { in_progress: 0, available: 1, scheduled: 2, completed: 3, closed: 4 };
     return assessedItems.filter((assessment) => {
-      const matchesFilter = activeFilter === 'all' || assessment.displayState === activeFilter;
+      const matchesFilter = activeFilter === 'completed'
+        ? assessment.attempt_status === 'completed'
+        : activeFilter === 'all' || assessment.displayState === activeFilter;
       const searchableText = `${assessment.title || ''} ${assessment.description || ''}`.toLocaleLowerCase();
       return matchesFilter && (!normalizedQuery || searchableText.includes(normalizedQuery));
-    });
+    }).sort((first, second) => (priority[first.displayState] ?? 5) - (priority[second.displayState] ?? 5));
   }, [activeFilter, assessedItems, query]);
 
   if (loading) return <LoadingSpinner text="Loading your assessments..." />;
@@ -130,22 +157,25 @@ export const RespondentAssessments = () => {
     { label: 'In progress', value: counts.in_progress, Icon: Timer, tone: 'bg-sky-50 text-sky-700' },
     { label: 'Completed', value: counts.completed, Icon: CheckCircle2, tone: 'bg-emerald-50 text-emerald-700' },
   ];
+  const canDownloadAward = demoStatusAvailable && !demoModeLoading && !freeDemoReadOnly;
 
   return (
-    <div className="dlas-respondent-assessments space-y-6 sm:space-y-7">
+    <div className="dlas-respondent-assessments mx-auto max-w-[1440px] space-y-5 sm:space-y-6">
       <PageHeader
         eyebrow="Student workspace · Learning path"
         title="My Assessments"
-        description="Browse every assessment assigned to you, continue in-progress work, or review completed results."
+        description="Continue an assessment or review your completed results."
         action={(
           <button
             type="button"
             onClick={() => fetchAssessments(true)}
             disabled={refreshing}
+            aria-label={refreshing ? 'Refreshing assessments' : 'Refresh assessments'}
+            title="Refresh assessments"
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-green-200 hover:bg-green-50 hover:text-green-800 disabled:cursor-wait disabled:opacity-60"
           >
             <RefreshCw aria-hidden="true" className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-            {refreshing ? 'Refreshing…' : 'Refresh'}
+            <span className="assessment-refresh-label">{refreshing ? 'Refreshing…' : 'Refresh'}</span>
           </button>
         )}
       />
@@ -159,26 +189,49 @@ export const RespondentAssessments = () => {
         </div>
       )}
 
-      <section aria-label="Assessment summary" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 xl:gap-4">
+      {(!error || assessedItems.length > 0) && <>
+      <section aria-label="Assessment summary" className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
         {summaryCards.map(({ label, value, Icon, tone }) => (
-          <article key={label} className="flex min-h-24 items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5 xl:min-h-28 xl:gap-5 xl:p-6">
-            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl xl:h-12 xl:w-12 ${tone}`}>
-              <Icon aria-hidden="true" className="h-5 w-5 xl:h-6 xl:w-6" />
+          <article key={label} className="flex min-h-20 min-w-0 items-center gap-2.5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-4">
+            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg sm:h-11 sm:w-11 ${tone}`}>
+              <Icon aria-hidden="true" className="h-4 w-4 sm:h-5 sm:w-5" />
             </span>
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">{label}</p>
+              <p className="text-xs font-semibold text-slate-600">{label}</p>
               <p className="mt-0.5 text-2xl font-bold tracking-tight text-slate-950 xl:text-3xl">{value}</p>
             </div>
           </article>
         ))}
       </section>
 
+      {counts.all > 0 && <section aria-label="Assessment completion" className="rounded-2xl border border-green-100 bg-green-50 px-4 py-3 sm:flex sm:items-center sm:gap-6 sm:px-5">
+        <div className="flex shrink-0 items-center justify-between gap-3 sm:block">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.1em] text-slate-500">Overall progress</p>
+            <p className="mt-0.5 text-sm font-semibold text-slate-900">{counts.completed} of {counts.all} assessments completed</p>
+          </div>
+          <span className="text-lg font-extrabold tabular-nums text-green-800 sm:hidden">{counts.all ? Math.round((counts.completed / counts.all) * 100) : 0}%</span>
+        </div>
+        <div className="mt-3 flex-1 sm:mt-0">
+          <div
+            className="h-2.5 overflow-hidden rounded-full bg-slate-100"
+            role="progressbar"
+            aria-label="Overall assessment completion"
+            aria-valuemin={0}
+            aria-valuemax={Math.max(counts.all, 1)}
+            aria-valuenow={counts.completed}
+          >
+            <div className="h-full rounded-full bg-gradient-to-r from-green-700 to-emerald-500 transition-[width] duration-500" style={{ width: `${counts.all ? (counts.completed / counts.all) * 100 : 0}%` }} />
+          </div>
+        </div>
+        <span className="hidden shrink-0 text-lg font-extrabold tabular-nums text-green-800 sm:block">{counts.all ? Math.round((counts.completed / counts.all) * 100) : 0}%</span>
+      </section>}
+
       <section aria-labelledby="assessment-list-heading" className="space-y-4">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-green-700">Your learning path</p>
             <h2 id="assessment-list-heading" className="mt-1 text-xl font-bold tracking-tight text-slate-950">Assigned assessments</h2>
-            <p className="mt-1 text-sm text-slate-600">{assessments.length} {assessments.length === 1 ? 'assessment' : 'assessments'} assigned</p>
+            <p className="mt-1 text-sm text-slate-600" role="status">{filteredAssessments.length} of {assessments.length} {assessments.length === 1 ? 'assessment' : 'assessments'} shown</p>
           </div>
 
           <label className="relative block w-full xl:max-w-sm">
@@ -194,7 +247,13 @@ export const RespondentAssessments = () => {
           </label>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter assessments by status">
+        <label className="block sm:hidden">
+          <span className="mb-1.5 block text-sm font-semibold text-slate-700">Assessment status</span>
+          <select value={activeFilter} onChange={(event) => setActiveFilter(event.target.value)} className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-slate-900">
+            {filterOptions.map((option) => <option key={option.id} value={option.id}>{option.label} ({counts[option.id]})</option>)}
+          </select>
+        </label>
+        <div className="hidden flex-wrap gap-2 sm:flex" role="group" aria-label="Filter assessments by status">
           {filterOptions.map((option) => {
             const selected = activeFilter === option.id;
             return (
@@ -203,7 +262,7 @@ export const RespondentAssessments = () => {
                 type="button"
                 onClick={() => setActiveFilter(option.id)}
                 aria-pressed={selected}
-                className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 ${selected ? 'border-green-700 bg-green-700 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-600 hover:border-green-200 hover:bg-green-50 hover:text-green-800'}`}
+                className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition ${selected ? 'border-green-700 bg-green-700 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-green-200 hover:bg-green-50 hover:text-green-800'}`}
               >
                 {option.label}
                 <span className={`rounded-full px-2 py-0.5 text-xs ${selected ? 'bg-white/15 text-white' : 'bg-slate-100 text-slate-600'}`}>{counts[option.id]}</span>
@@ -214,40 +273,58 @@ export const RespondentAssessments = () => {
 
         {filteredAssessments.length ? (
           <div className="space-y-3">
-            {filteredAssessments.map((assessment) => {
+            {filteredAssessments.map((assessment, index) => {
               const status = statusDetails[assessment.displayState];
               const StatusIcon = status.Icon;
               const isCompleted = assessment.displayState === 'completed';
+              const hasResult = assessment.attempt_status === 'completed' && Boolean(assessment.attempt_id);
               const isUnavailable = assessment.displayState === 'scheduled' || assessment.displayState === 'closed';
+              const isDigCompSat = assessment.scoring_version === 'digcompsat-self-reflection-0-3.1';
+              const maxAttempts = Math.max(1, Number(assessment.max_attempts || 1));
+              const usedAttempts = Number(assessment.attempt_count || 0);
               const opensAt = assessment.start_date ? parseStoredDate(assessment.start_date)?.getTime() : null;
               const closesAt = assessment.end_date ? parseStoredDate(assessment.end_date)?.getTime() : null;
 
               return (
-                <article key={assessment.id} className="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-green-200 hover:shadow-md sm:p-6 xl:flex-row xl:items-center xl:justify-between xl:gap-7 xl:p-7">
+                <article key={assessment.id} className={`flex flex-col gap-4 rounded-2xl border bg-white p-4 shadow-sm sm:p-6 xl:flex-row xl:items-center xl:justify-between xl:gap-7 ${assessment.displayState === 'in_progress' ? 'border-l-4 border-l-sky-600' : assessment.displayState === 'available' && index === 0 ? 'border-l-4 border-l-green-600' : 'border-slate-200'}`}>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2.5">
                       <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ring-1 ${status.tone}`}>
                         <StatusIcon aria-hidden="true" className="h-3.5 w-3.5" />
                         {status.label}
                       </span>
-                      <span className="text-sm text-slate-500">{assessment.question_count || 30} questions</span>
+                      {hasResult && canDownloadAward && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200"><Award aria-hidden="true" className="h-3.5 w-3.5" />Award ready</span>}
                     </div>
-                    <h3 className="mt-2.5 break-words text-lg font-bold tracking-tight text-slate-950">{assessment.title}</h3>
+                    <h3 className="mt-3 break-words text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">{assessment.title}</h3>
+                    <p className={`mt-1 text-xs font-semibold ${isDigCompSat ? 'text-teal-800' : 'text-slate-600'}`}>
+                      {isDigCompSat ? 'DigCompSAT · self-reflection · 0–3 scale' : 'Masbate Colleges · research questionnaire · 1–4 scale'}
+                    </p>
                     {assessment.description && <p className="mt-1.5 max-w-4xl text-sm leading-6 text-slate-600">{assessment.description}</p>}
+                    {hasResult && assessment.overall_mean !== null && assessment.overall_mean !== undefined && (
+                      <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-green-100 bg-green-50/70 px-3 py-2 text-sm">
+                        <CheckCircle2 aria-hidden="true" className="h-4 w-4 text-green-700" />
+                        <span className="font-bold text-slate-900">{Number(assessment.overall_mean).toFixed(2)} / {isDigCompSat ? '3.00' : '4.00'}</span>
+                        <span className="text-slate-600">{isDigCompSat ? 'self-rating' : assessment.overall_level || 'result'}</span>
+                      </div>
+                    )}
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-600 ring-1 ring-slate-200"><ClipboardList aria-hidden="true" className="h-3.5 w-3.5 text-slate-500" />{assessment.question_count ?? 30} questions</span>
+                      {assessment.time_limit_minutes && <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-600 ring-1 ring-slate-200"><Timer aria-hidden="true" className="h-3.5 w-3.5 text-slate-500" />{assessment.time_limit_minutes} min</span>}
+                      <span className="inline-flex items-center gap-1.5 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs font-medium text-slate-600 ring-1 ring-slate-200"><ShieldCheck aria-hidden="true" className="h-3.5 w-3.5 text-slate-500" />{usedAttempts} of {maxAttempts} attempts used</span>
+                    </div>
                     {(assessment.start_date || assessment.end_date) && (
-                      <p className="mt-2 text-xs leading-5 text-slate-500">
-                        {assessment.start_date && <>Opens {formatDateTime(assessment.start_date)}</>}
-                        {assessment.start_date && assessment.end_date && ' · '}
-                        {assessment.end_date && <>Closes {formatDateTime(assessment.end_date)}</>}
-                      </p>
+                      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-600">
+                        {assessment.start_date && <span className="inline-flex items-center gap-1.5"><CalendarClock aria-hidden="true" className="h-4 w-4 shrink-0" /> Opens {formatDateTime(assessment.start_date)}</span>}
+                        {assessment.end_date && <span className="inline-flex items-center gap-1.5"><CalendarClock aria-hidden="true" className="h-4 w-4 shrink-0" /> Closes {formatDateTime(assessment.end_date)}</span>}
+                      </div>
                     )}
                   </div>
 
                   <div className="shrink-0 xl:pl-4">
-                    {isCompleted ? (
-                      <Link to={`/respondent/assessments/${assessment.attempt_id}/results`} className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-green-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 xl:w-auto">
+                    {(isCompleted || isUnavailable) && hasResult ? (
+                      <Link to={`/respondent/assessments/${assessment.attempt_id}/results`} className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-green-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 xl:w-auto">
                         <FileCheck aria-hidden="true" className="mr-2 h-4 w-4" />
-                        View results
+                        {canDownloadAward ? 'View results & award' : 'View results'}
                       </Link>
                     ) : isUnavailable ? (
                       <button type="button" disabled className="inline-flex min-h-11 w-full cursor-not-allowed items-center justify-center rounded-xl bg-slate-100 px-5 py-3 text-sm font-semibold text-slate-500 xl:w-auto">
@@ -259,7 +336,11 @@ export const RespondentAssessments = () => {
                         <ArrowRight aria-hidden="true" className="ml-2 h-4 w-4" />
                       </Link>
                     )}
-                    {!isUnavailable && assessment.attempt_status === 'completed' && assessment.displayState !== 'completed' && <p className="mt-2 text-center text-xs text-slate-500">{Math.max(0, Number(assessment.max_attempts || 1) - Number(assessment.attempt_count || 1))} attempt(s) remaining</p>}
+                    {!isUnavailable && !isCompleted && hasResult && (
+                      <Link to={`/respondent/assessments/${assessment.attempt_id}/results`} className="mt-1 flex min-h-11 items-center justify-center rounded-xl px-3 text-sm font-semibold text-green-800 hover:bg-green-50">
+                        {canDownloadAward ? 'Previous result & award' : 'Previous result'}
+                      </Link>
+                    )}
                   </div>
                   <span className="sr-only">
                     {opensAt && now < opensAt ? 'This assessment has not opened yet.' : closesAt && now > closesAt ? 'This assessment is closed.' : ''}
@@ -285,6 +366,7 @@ export const RespondentAssessments = () => {
           </div>
         )}
       </section>
+      </>}
     </div>
   );
 };

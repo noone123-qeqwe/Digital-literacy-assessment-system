@@ -73,8 +73,23 @@ export const AdminDashboard = () => {
   }, []);
 
   useEffect(() => {
-    fetchDashboard();
-  }, [fetchDashboard]);
+    let active = true;
+    const loadDashboard = async () => {
+      try {
+        const response = await api.get('/analytics/dashboard');
+        if (!response.data?.success) throw new Error('Dashboard information is unavailable.');
+        if (!active) return;
+        setData(response.data.data);
+        setError('');
+      } catch (requestError) {
+        if (active) setError(requestError.response?.data?.message || requestError.message || 'Unable to load dashboard information.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void loadDashboard();
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     api.get('/system/readiness').then((response) => setReadiness(response.data?.data || null)).catch(() => setReadiness(null));
@@ -106,6 +121,7 @@ export const AdminDashboard = () => {
   const completionRate = Math.min(100, Math.max(0, Number(summary.completionRate || 0)));
   const hasScores = Number(summary.scoredAttempts || 0) > 0;
   const averageScore = Number(summary.averageScore);
+  const scoreScaleMax = Number(data?.scoreScaleMax) === 3 ? 3 : 4;
 
   return (
     <div className="space-y-6 sm:space-y-7">
@@ -204,8 +220,8 @@ export const AdminDashboard = () => {
           />
           <StatCard
             title="Cohort mean"
-            value={hasScores && Number.isFinite(averageScore) ? averageScore.toFixed(2) + ' / 4' : '—'}
-            subtitle={hasScores ? 'Average across scored submissions' : 'Appears after the first submission'}
+            value={hasScores && Number.isFinite(averageScore) ? averageScore.toFixed(2) + ` / ${scoreScaleMax}` : '—'}
+            subtitle={hasScores ? 'Research questionnaire mean' : 'Appears after the first submission'}
             icon={Award}
             color="amber"
           />
@@ -344,7 +360,9 @@ export const AdminDashboard = () => {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {recentSubmissions.map((submission) => {
-                    const level = getProficiencyLevel(submission.overall_mean);
+                    const isDigCompSat = submission.scoring_version === 'digcompsat-self-reflection-0-3.1';
+                    const resultScale = isDigCompSat ? 3 : 4;
+                    const level = isDigCompSat ? { label: 'Self-reflection', badgeColor: 'bg-emerald-100 text-emerald-900' } : getProficiencyLevel(submission.overall_mean);
                     return (
                       <tr key={submission.id} className="transition-colors hover:bg-slate-50/70">
                         <td className="py-3 pr-4">
@@ -358,7 +376,7 @@ export const AdminDashboard = () => {
                         </td>
                         <td className="max-w-52 truncate py-3 pr-4 text-slate-600">{submission.assessment_title}</td>
                         <td className="whitespace-nowrap py-3 pr-4 text-slate-500">{formatDateTime(submission.completed_at)}</td>
-                        <td className="whitespace-nowrap py-3 pr-4 font-bold tabular-nums text-slate-800">{Number(submission.overall_mean).toFixed(2)} / 4</td>
+                        <td className="whitespace-nowrap py-3 pr-4 font-bold tabular-nums text-slate-800">{Number(submission.overall_mean).toFixed(2)} / {resultScale}</td>
                         <td className="py-3 pr-4"><span className={'inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ' + level.badgeColor}>{level.label}</span></td>
                         <td className="py-3 text-right">
                           <Link to={'/respondent/assessments/' + submission.id + '/results'} className="inline-flex items-center gap-1 font-semibold text-green-800 hover:text-green-950 hover:underline">
@@ -373,7 +391,9 @@ export const AdminDashboard = () => {
             </div>
             <ul className="divide-y divide-slate-100 md:hidden">
               {recentSubmissions.map((submission) => {
-                const level = getProficiencyLevel(submission.overall_mean);
+                const isDigCompSat = submission.scoring_version === 'digcompsat-self-reflection-0-3.1';
+                const resultScale = isDigCompSat ? 3 : 4;
+                const level = isDigCompSat ? { label: 'Self-reflection', badgeColor: 'bg-emerald-100 text-emerald-900' } : getProficiencyLevel(submission.overall_mean);
                 return (
                   <li key={submission.id} className="py-4 first:pt-0 last:pb-0">
                     <div className="flex items-start gap-3">
@@ -385,7 +405,7 @@ export const AdminDashboard = () => {
                         </div>
                         <p className="mt-1 truncate text-xs text-slate-500">{submission.assessment_title}</p>
                         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-slate-500">
-                          <span className="font-semibold text-slate-700">{Number(submission.overall_mean).toFixed(2)} / 4</span>
+                          <span className="font-semibold text-slate-700">{Number(submission.overall_mean).toFixed(2)} / {resultScale}</span>
                           <span className="inline-flex items-center gap-1"><Clock3 aria-hidden="true" className="h-3 w-3" />{formatDateTime(submission.completed_at)}</span>
                         </div>
                         <Link to={'/respondent/assessments/' + submission.id + '/results'} className="mt-2 inline-flex min-h-8 items-center gap-1 text-xs font-semibold text-green-800 hover:underline">

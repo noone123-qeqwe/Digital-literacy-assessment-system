@@ -93,8 +93,29 @@ export const UsersManagement = () => {
   }, [page, roleFilter, search, statusFilter]);
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    let active = true;
+    const loadUsers = async () => {
+      let url = `/users?page=${page}&limit=20`;
+      if (roleFilter) url += `&role=${roleFilter}`;
+      if (statusFilter) url += `&status=${statusFilter}`;
+      if (search) url += `&search=${encodeURIComponent(search)}`;
+
+      try {
+        const response = await api.get(url);
+        if (!active) return;
+        if (response.data.success) {
+          setUsers(response.data.data.users);
+          setPagination(response.data.data.pagination);
+        }
+      } catch {
+        if (active) toast.error('Failed to load users');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void loadUsers();
+    return () => { active = false; };
+  }, [page, roleFilter, search, statusFilter]);
 
   useEffect(() => {
     api.get('/assessments').then((response) => {

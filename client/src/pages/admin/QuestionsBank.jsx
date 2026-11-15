@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Modal from '../../components/common/Modal';
@@ -34,24 +34,26 @@ export const QuestionsBank = () => {
     PS: Wrench,
   };
 
-  const fetchData = useCallback(async () => {
-    try {
-      const [qRes, aRes] = await Promise.all([
-        api.get('/questions'),
-        api.get('/questions/areas'),
-      ]);
-      if (qRes.data.success) setQuestions(qRes.data.data);
-      if (aRes.data.success) setAreas(aRes.data.data);
-    } catch {
-      toast.error('Failed to load questions bank');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    let active = true;
+    const fetchData = async () => {
+      try {
+        const [qRes, aRes] = await Promise.all([
+          api.get('/questions'),
+          api.get('/questions/areas'),
+        ]);
+        if (!active) return;
+        if (qRes.data.success) setQuestions(qRes.data.data);
+        if (aRes.data.success) setAreas(aRes.data.data);
+      } catch {
+        if (active) toast.error('Failed to load questions bank');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void fetchData();
+    return () => { active = false; };
+  }, []);
 
   const filteredQuestions =
     activeArea === 'ALL'
@@ -115,9 +117,9 @@ export const QuestionsBank = () => {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="DigComp 2.1 · Competency framework"
-        title="Validated question bank"
-        description="Review the standardized self-assessment items across five competence domains and a four-point scale."
+        eyebrow="Masbate Colleges · Research instrument"
+        title="Question bank"
+        description="Review and manage the 30-item thesis questionnaire and its original 1–4 scale. The separate read-only 82-item DigCompSAT self-reflection bank is available when creating an assessment."
         action={(
           <button
             type="button"

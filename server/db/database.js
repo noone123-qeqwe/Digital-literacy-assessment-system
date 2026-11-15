@@ -29,12 +29,17 @@ db.transaction = function (fn) {
 };
 
 const SCORING_VERSION = 'dlas-mean-1.0';
+const DIGCOMPSAT_SCORING_VERSION = 'digcompsat-self-reflection-0-3.1';
+const DLAS_INSTRUMENT_CODE = 'dlas-thesis-v1';
+const DIGCOMPSAT_INSTRUMENT_CODE = 'digcompsat-2020';
 
 function buildAssessmentSnapshot(questionIds) {
   if (!Array.isArray(questionIds) || questionIds.length === 0) return null;
   const uniqueIds = [...new Set(questionIds.map(Number))];
   const items = db.prepare(`
     SELECT q.id AS id, q.id AS question_id, q.question_number, q.question_text,
+           q.instrument_code, q.response_type, q.proficiency_level,
+           q.framework_competence_id,
            ca.id AS competence_area_id, ca.name AS area_name, ca.code AS area_code,
            ca.sort_order AS area_sort_order
     FROM questions q JOIN competence_areas ca ON ca.id = q.competence_area_id
@@ -42,10 +47,39 @@ function buildAssessmentSnapshot(questionIds) {
     ORDER BY ca.sort_order ASC, q.question_number ASC
   `).all(...uniqueIds);
   if (items.length !== uniqueIds.length) return null;
+  const instrumentCodes = new Set(items.map((item) => item.instrument_code || DLAS_INSTRUMENT_CODE));
+  if (instrumentCodes.size !== 1) return null;
+  const instrumentCode = [...instrumentCodes][0];
+  if (![DLAS_INSTRUMENT_CODE, DIGCOMPSAT_INSTRUMENT_CODE].includes(instrumentCode)) return null;
+  if (instrumentCode === DIGCOMPSAT_INSTRUMENT_CODE && items.some((item) => !['knowledge', 'skills', 'attitude'].includes(item.response_type))) return null;
+  const isDigCompSat = instrumentCode === DIGCOMPSAT_INSTRUMENT_CODE;
   return {
-    instrumentVersion: 1,
-    scoringVersion: SCORING_VERSION,
-    proficiencyCutoffs: [
+    instrumentCode,
+    instrumentVersion: isDigCompSat ? 'DigCompSAT-2020-final-english' : 1,
+    instrumentName: isDigCompSat ? 'DigCompSAT self-reflection item bank (English)' : 'Masbate Colleges Digital Literacy Assessment',
+    scoringVersion: isDigCompSat ? DIGCOMPSAT_SCORING_VERSION : SCORING_VERSION,
+    scoreScale: isDigCompSat ? { min: 0, max: 3, description: 'Self-reported knowledge, skill, or attitude; higher values indicate greater self-reported confidence or capability.' } : { min: 1, max: 4, description: 'Thesis questionnaire mean-rating scale.' },
+    responseScales: isDigCompSat ? {
+      knowledge: [
+        { value: 0, label: 'I have no knowledge of this / I never heard of this.' },
+        { value: 1, label: 'I have only a limited understanding of this and need more explanations.' },
+        { value: 2, label: 'I have a good understanding of this.' },
+        { value: 3, label: 'I fully master this topic or issue and could explain it to others.' },
+      ],
+      skills: [
+        { value: 0, label: 'I don’t know how to do it.' },
+        { value: 1, label: 'I can do it with help.' },
+        { value: 2, label: 'I can do it on my own.' },
+        { value: 3, label: 'I can do it with confidence and, if needed, I can support or guide others.' },
+      ],
+      attitude: [
+        { value: 0, label: 'Not at all.' },
+        { value: 1, label: 'Not much / very little.' },
+        { value: 2, label: 'Yes / Yes, I am / Yes, I do.' },
+        { value: 3, label: 'Very much.' },
+      ],
+    } : null,
+    proficiencyCutoffs: isDigCompSat ? [] : [
       { min: 1, max: 1.75, level: 'Low' },
       { min: 1.76, max: 2.5, level: 'Moderate' },
       { min: 2.51, max: 3.25, level: 'High' },
@@ -111,6 +145,10 @@ function initializeDatabase() {
       competence_area_id INTEGER REFERENCES competence_areas(id),
       question_number INTEGER NOT NULL,
       question_text TEXT NOT NULL,
+      instrument_code TEXT NOT NULL DEFAULT 'dlas-thesis-v1',
+      response_type TEXT,
+      proficiency_level TEXT,
+      framework_competence_id TEXT,
       is_active INTEGER DEFAULT 1,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -172,14 +210,16 @@ function initializeDatabase() {
       completed_at DATETIME,
       overall_mean REAL,
       overall_level TEXT,
-      desired_skills TEXT
+      desired_skills TEXT,
+      integrity_confirmed_at DATETIME,
+      integrity_statement_version TEXT
     );
 
     CREATE TABLE IF NOT EXISTS responses (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       attempt_id INTEGER REFERENCES assessment_attempts(id),
       question_id INTEGER REFERENCES questions(id),
-      rating INTEGER CHECK(rating >= 1 AND rating <= 4),
+      rating INTEGER CHECK(rating >= 0 AND rating <= 4),
       answered_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -465,6 +505,78 @@ function initializeDatabase() {
     db.exec(`UPDATE learning_modules SET published_by = COALESCE(published_by, created_by), published_at = COALESCE(published_at, updated_at, created_at) WHERE is_published = 1;`);
     db.prepare('INSERT INTO schema_migrations (version) VALUES (7)').run();
   }
+
+  const digCompSatMigration = db.prepare('SELECT version FROM schema_migrations WHERE version = 8').get();
+  if (!digCompSatMigration) {
+    const questionColumns = new Set(db.prepare('PRAGMA table_info(questions)').all().map((column) => column.name));
+    for (const [name, definition] of [
+      ['instrument_code', "TEXT NOT NULL DEFAULT 'dlas-thesis-v1'"],
+      ['response_type', 'TEXT'],
+      ['proficiency_level', 'TEXT'],
+      ['framework_competence_id', 'TEXT'],
+    ]) {
+      if (!questionColumns.has(name)) db.exec(`ALTER TABLE questions ADD COLUMN ${name} ${definition};`);
+    }
+    db.exec(`
+      DROP INDEX IF EXISTS uq_questions_area_number;
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_questions_instrument_area_number
+        ON questions(instrument_code, competence_area_id, question_number);
+      CREATE INDEX IF NOT EXISTS idx_questions_instrument_active ON questions(instrument_code, is_active);
+    `);
+    const responseTableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'responses'").get()?.sql || '';
+    if (!/rating\s*>=\s*0/i.test(responseTableSql)) {
+      db.exec(`
+        DROP INDEX IF EXISTS idx_responses_attempt;
+        DROP INDEX IF EXISTS uq_responses_attempt_question;
+        ALTER TABLE responses RENAME TO responses_before_scale_update;
+        CREATE TABLE responses (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          attempt_id INTEGER REFERENCES assessment_attempts(id),
+          question_id INTEGER REFERENCES questions(id),
+          rating INTEGER CHECK(rating >= 0 AND rating <= 4),
+          answered_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO responses (id, attempt_id, question_id, rating, answered_at)
+          SELECT id, attempt_id, question_id, rating, answered_at FROM responses_before_scale_update;
+        DROP TABLE responses_before_scale_update;
+        CREATE INDEX IF NOT EXISTS idx_responses_attempt ON responses(attempt_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_responses_attempt_question ON responses(attempt_id, question_id);
+      `);
+    }
+    db.prepare('INSERT INTO schema_migrations (version) VALUES (8)').run();
+  }
+  // The legacy natural key does not include the instrument and must not be
+  // recreated by the compatibility index pass above on later startups.
+  db.exec('DROP INDEX IF EXISTS uq_questions_area_number');
+
+  const frameworkCompetenceMigration = db.prepare('SELECT version FROM schema_migrations WHERE version = 9').get();
+  if (!frameworkCompetenceMigration) {
+    const questionColumns = new Set(db.prepare('PRAGMA table_info(questions)').all().map((column) => column.name));
+    if (!questionColumns.has('framework_competence_id')) db.exec('ALTER TABLE questions ADD COLUMN framework_competence_id TEXT;');
+    db.prepare('INSERT INTO schema_migrations (version) VALUES (9)').run();
+  }
+
+  const integrityConfirmationMigration = db.prepare('SELECT version FROM schema_migrations WHERE version = 10').get();
+  if (!integrityConfirmationMigration) {
+    const attemptColumns = new Set(db.prepare('PRAGMA table_info(assessment_attempts)').all().map((column) => column.name));
+    if (!attemptColumns.has('integrity_confirmed_at')) db.exec('ALTER TABLE assessment_attempts ADD COLUMN integrity_confirmed_at DATETIME;');
+    if (!attemptColumns.has('integrity_statement_version')) db.exec('ALTER TABLE assessment_attempts ADD COLUMN integrity_statement_version TEXT;');
+    db.prepare('INSERT INTO schema_migrations (version) VALUES (10)').run();
+  }
+
+  const dashboardCharacterMigration = db.prepare('SELECT version FROM schema_migrations WHERE version = 11').get();
+  if (!dashboardCharacterMigration) {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS dashboard_characters (
+          user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+          settings_json TEXT NOT NULL,
+          updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (11)').run();
+    })();
+  }
 }
 
 function logActivity(userId, action, details = null) {
@@ -476,4 +588,14 @@ function logActivity(userId, action, details = null) {
   }
 }
 
-module.exports = { db, dbPath, initializeDatabase, logActivity, buildAssessmentSnapshot, SCORING_VERSION };
+module.exports = {
+  db,
+  dbPath,
+  initializeDatabase,
+  logActivity,
+  buildAssessmentSnapshot,
+  SCORING_VERSION,
+  DIGCOMPSAT_SCORING_VERSION,
+  DLAS_INSTRUMENT_CODE,
+  DIGCOMPSAT_INSTRUMENT_CODE,
+};

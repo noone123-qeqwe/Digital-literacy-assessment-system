@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
-const { db, logActivity } = require('../db/database');
+const { db, logActivity, SCORING_VERSION, DIGCOMPSAT_SCORING_VERSION, DLAS_INSTRUMENT_CODE, DIGCOMPSAT_INSTRUMENT_CODE } = require('../db/database');
 const { authenticate, authorize, canAccessAssessment } = require('../middleware/auth');
 const { getProficiencyLevel, roundTo } = require('../utils/scoring');
 const { buildInferentialComparisons } = require('../utils/inference');
@@ -43,6 +43,19 @@ function getAssessmentFilter(req, res) {
   return assessmentId;
 }
 
+function scoreContext(assessmentId) {
+  const scoringVersion = assessmentId === null
+    ? SCORING_VERSION
+    : db.prepare('SELECT scoring_version FROM assessments WHERE id = ?').get(assessmentId)?.scoring_version || SCORING_VERSION;
+  const isSelfReflection = scoringVersion === DIGCOMPSAT_SCORING_VERSION;
+  return {
+    scoringVersion,
+    instrumentCode: isSelfReflection ? DIGCOMPSAT_INSTRUMENT_CODE : DLAS_INSTRUMENT_CODE,
+    scoreScaleMax: isSelfReflection ? 3 : 4,
+    isSelfReflection,
+  };
+}
+
 function cronbachAlpha(itemRows, questionIds) {
   const byAttempt = new Map();
   for (const row of itemRows) {
@@ -67,6 +80,9 @@ router.get('/dashboard', authenticate, authorize('admin', 'assessor'), (req, res
     const assessmentId = getAssessmentFilter(req, res);
     if (assessmentId === false) return;
     const scope = assessmentScope(req.user, 'asm', assessmentId);
+    const score = scoreContext(assessmentId);
+    const scoreScope = `at.scoring_version = ? AND ${scope.sql}`;
+    const scoreScopeParams = [score.scoringVersion, ...scope.params];
     const totalParticipants = assessmentId !== null
       ? db.prepare(`
           SELECT COUNT(DISTINCT aa.user_id) AS count
@@ -96,13 +112,13 @@ router.get('/dashboard', authenticate, authorize('admin', 'assessor'), (req, res
     const avgScoreRow = db.prepare(`
       SELECT ROUND(AVG(at.overall_mean), 2) AS avg_score FROM assessment_attempts at
       JOIN assessments asm ON asm.id = at.assessment_id
-      WHERE at.status = 'completed' AND ${scope.sql}
-    `).get(...scope.params);
+      WHERE at.status = 'completed' AND ${scoreScope}
+    `).get(...scoreScopeParams);
     const scoreRows = db.prepare(`
       SELECT at.overall_mean FROM assessment_attempts at
       JOIN assessments asm ON asm.id = at.assessment_id
-      WHERE at.status = 'completed' AND ${scope.sql}
-    `).all(...scope.params);
+      WHERE at.status = 'completed' AND ${scoreScope}
+    `).all(...scoreScopeParams);
     const rawAverage = scoreRows.length
       ? scoreRows.reduce((sum, row) => sum + row.overall_mean, 0) / scoreRows.length
       : 0;
@@ -112,10 +128,12 @@ router.get('/dashboard', authenticate, authorize('admin', 'assessor'), (req, res
     const distributionRows = db.prepare(`
       SELECT at.overall_level, COUNT(*) AS count FROM assessment_attempts at
       JOIN assessments asm ON asm.id = at.assessment_id
-      WHERE at.status = 'completed' AND ${scope.sql} GROUP BY at.overall_level
-    `).all(...scope.params);
+      WHERE at.status = 'completed' AND ${scoreScope} GROUP BY at.overall_level
+    `).all(...scoreScopeParams);
 
-    const proficiencyDistribution = { Low: 0, Moderate: 0, High: 0, 'Very High': 0 };
+    const proficiencyDistribution = score.isSelfReflection
+      ? { 'Self-reflection profile': 0 }
+      : { Low: 0, Moderate: 0, High: 0, 'Very High': 0 };
     for (const row of distributionRows) {
       if (Object.hasOwn(proficiencyDistribution, row.overall_level)) {
         proficiencyDistribution[row.overall_level] = row.count;
@@ -127,8 +145,8 @@ router.get('/dashboard', authenticate, authorize('admin', 'assessor'), (req, res
       FROM area_results ar
       JOIN assessment_attempts at ON at.id = ar.attempt_id AND at.status = 'completed'
       JOIN assessments asm ON asm.id = at.assessment_id
-      WHERE ${scope.sql} AND ar.weighted_mean IS NOT NULL
-    `).all(...scope.params);
+      WHERE ${scoreScope} AND ar.weighted_mean IS NOT NULL
+    `).all(...scoreScopeParams);
     const areaStats = new Map();
     for (const score of areaScores) {
       const scores = areaStats.get(score.competence_area_id) || [];
@@ -146,7 +164,7 @@ router.get('/dashboard', authenticate, authorize('admin', 'assessor'), (req, res
           ...area,
           weighted_mean: mean === null ? null : roundTo(mean),
           sd: sd === null ? null : roundTo(sd),
-          descriptive_level: getProficiencyLevel(mean),
+          descriptive_level: score.isSelfReflection ? (mean === null ? 'N/A' : 'Self-reflection') : getProficiencyLevel(mean),
           response_count: scores.length,
         };
       });
@@ -159,9 +177,9 @@ router.get('/dashboard', authenticate, authorize('admin', 'assessor'), (req, res
       JOIN responses r ON r.question_id = q.id
       JOIN assessment_attempts at ON at.id = r.attempt_id AND at.status = 'completed'
       JOIN assessments asm ON asm.id = at.assessment_id
-      WHERE ${scope.sql}
+      WHERE ${scoreScope}
       GROUP BY q.id HAVING COUNT(r.id) >= ? ORDER BY mean_rating ASC, q.question_number ASC LIMIT 5
-    `).all(...scope.params, MIN_REPORT_GROUP_SIZE);
+    `).all(...scoreScopeParams, MIN_REPORT_GROUP_SIZE);
 
     const recentActivity = req.user.role === 'admin' ? db.prepare(`
       SELECT al.*, u.first_name, u.last_name, u.email, u.role
@@ -174,7 +192,7 @@ router.get('/dashboard', authenticate, authorize('admin', 'assessor'), (req, res
     `).all(req.user.id);
 
     const recentSubmissions = db.prepare(`
-      SELECT at.id, at.completed_at, at.overall_mean, at.overall_level,
+      SELECT at.id, at.completed_at, at.overall_mean, at.overall_level, at.scoring_version,
              u.first_name, u.last_name, u.email, asm.title AS assessment_title
       FROM assessment_attempts at
       JOIN users u ON u.id = at.user_id
@@ -199,6 +217,8 @@ router.get('/dashboard', authenticate, authorize('admin', 'assessor'), (req, res
             : 0,
         },
         proficiencyDistribution,
+        scoreScaleMax: score.scoreScaleMax,
+        isSelfReflection: score.isSelfReflection,
         areaPerformance,
         lowestRatedSkills,
         recentActivity,
@@ -217,6 +237,7 @@ router.get('/demographics', authenticate, authorize('admin', 'assessor'), (req, 
     const assessmentId = getAssessmentFilter(req, res);
     if (assessmentId === false) return;
     const scope = assessmentScope(req.user, 'asm', assessmentId);
+    const score = scoreContext(assessmentId);
     const population = req.user.role === 'admin' && assessmentId === null
       ? "SELECT id AS user_id FROM users WHERE role = 'respondent'"
       : `SELECT DISTINCT aa.user_id FROM assessment_assignments aa
@@ -228,7 +249,7 @@ router.get('/demographics', authenticate, authorize('admin', 'assessor'), (req, 
       scoped_attempts AS (
         SELECT at.user_id, at.overall_mean FROM assessment_attempts at
         JOIN scoped_assessments sa ON sa.id = at.assessment_id
-        WHERE at.status = 'completed'
+        WHERE at.status = 'completed' AND at.scoring_version = ?
       )
     `;
     const byCategory = (category, groupBy) => db.prepare(`${ctes}
@@ -239,7 +260,7 @@ router.get('/demographics', authenticate, authorize('admin', 'assessor'), (req, 
       LEFT JOIN respondent_profiles p ON p.user_id = u.id
       LEFT JOIN scoped_attempts at ON at.user_id = u.id
       GROUP BY ${groupBy} HAVING COUNT(DISTINCT u.id) >= ? ORDER BY category
-    `).all(...scope.params, MIN_REPORT_GROUP_SIZE);
+    `).all(...scope.params, score.scoringVersion, MIN_REPORT_GROUP_SIZE);
 
     const bySex = byCategory("COALESCE(p.sex, 'Unspecified')", 'COALESCE(p.sex, \'Unspecified\')');
     const ageGroup = `CASE
@@ -270,7 +291,7 @@ router.get('/demographics', authenticate, authorize('admin', 'assessor'), (req, 
     const byInternetAccess = byCategory("COALESCE(p.internet_access_type, 'Unspecified')", "COALESCE(p.internet_access_type, 'Unspecified')");
     const byIncome = byCategory("COALESCE(p.monthly_family_income, 'Unspecified')", 'COALESCE(p.monthly_family_income, \'Unspecified\')');
     const byStrand = byCategory("COALESCE(p.shs_strand, 'Unspecified')", "COALESCE(p.shs_strand, 'Unspecified')");
-    return res.json({ success: true, minimumReportGroupSize: MIN_REPORT_GROUP_SIZE, data: {
+    return res.json({ success: true, minimumReportGroupSize: MIN_REPORT_GROUP_SIZE, scoreScaleMax: score.scoreScaleMax, isSelfReflection: score.isSelfReflection, data: {
       bySex, byAge, byMunicipality, byMunicipalityGroup, byJuniorSchoolType,
       bySeniorSchoolType, byHomeAccess, byPcInternet, byInternetAccess, byIncome, byStrand,
     } });
@@ -286,6 +307,7 @@ router.get('/inferential', authenticate, authorize('admin', 'assessor'), (req, r
     const assessmentId = getAssessmentFilter(req, res);
     if (assessmentId === false) return;
     const scope = assessmentScope(req.user, 'asm', assessmentId);
+    const score = scoreContext(assessmentId);
     const records = db.prepare(`
       SELECT at.overall_mean,
              p.sex,
@@ -315,8 +337,8 @@ router.get('/inferential', authenticate, authorize('admin', 'assessor'), (req, r
       FROM assessment_attempts at
       JOIN assessments asm ON asm.id = at.assessment_id
       JOIN respondent_profiles p ON p.user_id = at.user_id
-      WHERE at.status = 'completed' AND at.overall_mean IS NOT NULL AND ${scope.sql}
-    `).all(...scope.params);
+      WHERE at.status = 'completed' AND at.overall_mean IS NOT NULL AND at.scoring_version = ? AND ${scope.sql}
+    `).all(score.scoringVersion, ...scope.params);
     const comparisons = buildInferentialComparisons(records);
     return res.json({
       success: true,
@@ -324,7 +346,9 @@ router.get('/inferential', authenticate, authorize('admin', 'assessor'), (req, r
         alpha: 0.05,
         observationCount: records.length,
         comparisons,
-        note: 'Parametric tests are used only when the normality and equal-variance checks pass. Otherwise rank-based tests are used. Results describe the selected cohort and should be reviewed with the approved thesis adviser.',
+        note: score.isSelfReflection
+          ? 'These comparisons use the separate DigCompSAT self-reflection scale (0–3), not the thesis questionnaire. They are exploratory for this local cohort and require adviser review before research interpretation.'
+          : 'Parametric tests are used only when the normality and equal-variance checks pass. Otherwise rank-based tests are used. Results describe the selected cohort and should be reviewed with the approved thesis adviser.',
       },
     });
   } catch (err) {
@@ -374,17 +398,17 @@ router.get('/desired-skills', authenticate, authorize('admin', 'assessor'), (req
              at.completed_at
       FROM assessment_attempts at
       JOIN assessments asm ON asm.id = at.assessment_id
-      WHERE at.status = 'completed' AND at.desired_skills_reviewed_at IS NOT NULL
+      WHERE at.status = 'completed' AND at.scoring_version = ? AND at.desired_skills_reviewed_at IS NOT NULL
         AND TRIM(COALESCE(at.desired_skills_redacted, '')) != '' AND ${scope.sql}
       ORDER BY at.completed_at ASC, at.id ASC
-    `).all(...scope.params);
+    `).all(SCORING_VERSION, ...scope.params);
     const pendingReviewCount = req.user.role === 'admin' ? db.prepare(`
       SELECT COUNT(*) AS count FROM assessment_attempts at
       JOIN assessments asm ON asm.id = at.assessment_id
-      WHERE at.status = 'completed' AND TRIM(COALESCE(at.desired_skills, '')) != ''
+      WHERE at.status = 'completed' AND at.scoring_version = ? AND TRIM(COALESCE(at.desired_skills, '')) != ''
         AND at.desired_skills_reviewed_at IS NULL AND ${scope.sql}
-    `).get(...scope.params).count : null;
-    const cohortSize = db.prepare(`SELECT COUNT(*) AS count FROM assessment_attempts at JOIN assessments asm ON asm.id = at.assessment_id WHERE at.status = 'completed' AND ${scope.sql}`).get(...scope.params).count;
+    `).get(SCORING_VERSION, ...scope.params).count : null;
+    const cohortSize = db.prepare(`SELECT COUNT(*) AS count FROM assessment_attempts at JOIN assessments asm ON asm.id = at.assessment_id WHERE at.status = 'completed' AND at.scoring_version = ? AND ${scope.sql}`).get(SCORING_VERSION, ...scope.params).count;
     return res.json({ success: true, data: cohortSize >= MIN_REPORT_GROUP_SIZE ? responses : [], pendingReviewCount, minimumReportGroupSize: MIN_REPORT_GROUP_SIZE, suppressedForSmallCohort: cohortSize < MIN_REPORT_GROUP_SIZE });
   } catch (err) {
     console.error('Error retrieving desired-skills responses:', err);
@@ -402,10 +426,10 @@ router.get('/desired-skills/review-queue', authenticate, authorize('admin'), (re
       SELECT at.id AS attempt_id, at.desired_skills AS raw_response,
              at.desired_skills_redacted AS redacted_response, at.completed_at, asm.title AS assessment_title
       FROM assessment_attempts at JOIN assessments asm ON asm.id = at.assessment_id
-      WHERE at.status = 'completed' AND TRIM(COALESCE(at.desired_skills, '')) != ''
+      WHERE at.status = 'completed' AND at.scoring_version = ? AND TRIM(COALESCE(at.desired_skills, '')) != ''
         AND at.desired_skills_reviewed_at IS NULL AND ${scope.sql}
       ORDER BY at.completed_at ASC, at.id ASC
-    `).all(...scope.params);
+    `).all(SCORING_VERSION, ...scope.params);
     return res.json({ success: true, data: queue });
   } catch (err) {
     console.error('Error loading free-text privacy review queue:', err);
@@ -420,8 +444,9 @@ router.put('/desired-skills/:attemptId/review', authenticate, authorize('admin')
   if (!errors.isEmpty()) return res.status(400).json({ success: false, message: 'Reviewed response must be 1,200 characters or fewer.' });
   const attemptId = Number.parseInt(req.params.attemptId, 10);
   if (!Number.isInteger(attemptId) || attemptId <= 0) return res.status(400).json({ success: false, message: 'Invalid response ID.' });
-  const attempt = db.prepare(`SELECT id, assessment_id FROM assessment_attempts WHERE id = ? AND status = 'completed'`).get(attemptId);
+  const attempt = db.prepare(`SELECT id, assessment_id, scoring_version FROM assessment_attempts WHERE id = ? AND status = 'completed'`).get(attemptId);
   if (!attempt) return res.status(404).json({ success: false, message: 'Response not found.' });
+  if (attempt.scoring_version !== SCORING_VERSION) return res.status(409).json({ success: false, message: 'This instrument does not collect the open-ended Part III response.' });
   if (!canAccessAssessment(req.user, attempt.assessment_id)) return res.status(403).json({ success: false, message: 'Access denied.' });
   const redacted = req.body.redacted_response.trim();
   db.prepare(`UPDATE assessment_attempts SET desired_skills_redacted = ?, desired_skills_reviewed_by = ?, desired_skills_reviewed_at = datetime('now') WHERE id = ?`)
@@ -436,6 +461,7 @@ router.get('/competence-matrix', authenticate, authorize('admin', 'assessor'), (
     const assessmentId = getAssessmentFilter(req, res);
     if (assessmentId === false) return;
     const scope = assessmentScope(req.user, 'asm', assessmentId);
+    const score = scoreContext(assessmentId);
     const items = db.prepare(`
       WITH scoped_assessments AS (
         SELECT asm.id FROM assessments asm WHERE ${scope.sql}
@@ -444,7 +470,7 @@ router.get('/competence-matrix', authenticate, authorize('admin', 'assessor'), (
         JOIN assessment_attempts at ON at.id = r.attempt_id AND at.status = 'completed'
         JOIN scoped_assessments sa ON sa.id = at.assessment_id
       )
-      SELECT q.id, q.question_number, q.question_text,
+      SELECT q.id, q.question_number, q.question_text, q.response_type, q.framework_competence_id,
              ca.name AS area_name, ca.code AS area_code, ca.sort_order,
       CASE WHEN COUNT(r.rating) >= ? THEN ROUND(AVG(r.rating), 2) END AS mean_rating,
       CASE WHEN COUNT(r.rating) >= ? THEN COUNT(r.rating) END AS count_ratings,
@@ -452,17 +478,18 @@ router.get('/competence-matrix', authenticate, authorize('admin', 'assessor'), (
       CASE WHEN COUNT(r.rating) >= ? THEN SUM(CASE WHEN r.rating = 3 THEN 1 ELSE 0 END) END AS count_3,
       CASE WHEN COUNT(r.rating) >= ? THEN SUM(CASE WHEN r.rating = 2 THEN 1 ELSE 0 END) END AS count_2,
       CASE WHEN COUNT(r.rating) >= ? THEN SUM(CASE WHEN r.rating = 1 THEN 1 ELSE 0 END) END AS count_1,
+      CASE WHEN COUNT(r.rating) >= ? THEN SUM(CASE WHEN r.rating = 0 THEN 1 ELSE 0 END) END AS count_0,
       CASE WHEN COUNT(r.rating) > 0 AND COUNT(r.rating) < ? THEN 1 ELSE 0 END AS suppressed
       FROM questions q JOIN competence_areas ca ON ca.id = q.competence_area_id
       LEFT JOIN scoped_responses r ON r.question_id = q.id
-      WHERE (
+      WHERE q.instrument_code = ? AND (
         ? = 1 OR EXISTS (
           SELECT 1 FROM assessment_questions aq JOIN scoped_assessments sa ON sa.id = aq.assessment_id
           WHERE aq.question_id = q.id
         )
       )
       GROUP BY q.id ORDER BY ca.sort_order ASC, q.question_number ASC
-    `).all(...scope.params, MIN_REPORT_GROUP_SIZE, MIN_REPORT_GROUP_SIZE, MIN_REPORT_GROUP_SIZE, MIN_REPORT_GROUP_SIZE, MIN_REPORT_GROUP_SIZE, MIN_REPORT_GROUP_SIZE, MIN_REPORT_GROUP_SIZE, req.user.role === 'admin' && assessmentId === null ? 1 : 0);
+    `).all(...scope.params, MIN_REPORT_GROUP_SIZE, MIN_REPORT_GROUP_SIZE, MIN_REPORT_GROUP_SIZE, MIN_REPORT_GROUP_SIZE, MIN_REPORT_GROUP_SIZE, MIN_REPORT_GROUP_SIZE, MIN_REPORT_GROUP_SIZE, MIN_REPORT_GROUP_SIZE, score.instrumentCode, req.user.role === 'admin' && assessmentId === null ? 1 : 0);
     return res.json({ success: true, data: items });
   } catch (err) {
     console.error('Error retrieving competence matrix:', err);

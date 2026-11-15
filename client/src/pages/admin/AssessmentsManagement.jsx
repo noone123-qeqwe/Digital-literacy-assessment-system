@@ -14,7 +14,6 @@ import {
   FileSpreadsheet,
   ChevronRight,
   Archive,
-  Sparkles,
   Pencil,
   RotateCcw,
   BellRing,
@@ -53,6 +52,7 @@ export const AssessmentsManagement = () => {
     start_date: '',
     end_date: '',
     consent_required: true,
+    instrument_code: 'dlas-thesis-v1',
     selectedQuestions: [],
     selectedUsers: [],
   });
@@ -71,8 +71,20 @@ export const AssessmentsManagement = () => {
   }, []);
 
   useEffect(() => {
-    fetchAssessments();
-  }, [fetchAssessments]);
+    let active = true;
+    const loadAssessments = async () => {
+      try {
+        const response = await api.get('/assessments');
+        if (active && response.data.success) setAssessments(response.data.data);
+      } catch {
+        if (active) toast.error('Failed to load assessments');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void loadAssessments();
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (!isParticipantsOpen) return undefined;
@@ -99,7 +111,7 @@ export const AssessmentsManagement = () => {
       setFormData((prev) => ({ ...prev, consent_required: true }));
       // Load questions and respondents
       const [qRes, people] = await Promise.all([
-        api.get('/questions?active_only=true'),
+        api.get('/questions?active_only=true&instrument_code=dlas-thesis-v1'),
         loadRespondents(),
       ]);
 
@@ -167,6 +179,7 @@ export const AssessmentsManagement = () => {
         start_date: formData.start_date ? new Date(formData.start_date).toISOString() : null,
         end_date: formData.end_date ? new Date(formData.end_date).toISOString() : null,
         consent_required: Boolean(formData.consent_required),
+        instrument_code: formData.instrument_code,
         question_ids: formData.selectedQuestions,
         assigned_user_ids: formData.selectedUsers,
       });
@@ -180,6 +193,27 @@ export const AssessmentsManagement = () => {
       toast.error(err.response?.data?.message || 'Failed to create assessment');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleInstrumentChange = async (instrumentCode) => {
+    try {
+      const response = await api.get(`/questions?active_only=true&instrument_code=${encodeURIComponent(instrumentCode)}`);
+      const nextQuestions = response.data.data || [];
+      setQuestions(nextQuestions);
+      setFormData((previous) => ({
+        ...previous,
+        instrument_code: instrumentCode,
+        selectedQuestions: nextQuestions.map((question) => question.id),
+        consent_required: true,
+        ...(instrumentCode === 'digcompsat-2020' && !previous.title?.includes('DigCompSAT')
+          ? { title: 'DigCompSAT Self-Reflection Assessment' }
+          : instrumentCode === 'dlas-thesis-v1' && previous.title === 'DigCompSAT Self-Reflection Assessment'
+            ? { title: 'Digital Literacy Assessment 2026-2027' }
+            : {}),
+      }));
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Unable to load the selected question bank');
     }
   };
 
@@ -238,6 +272,7 @@ export const AssessmentsManagement = () => {
   };
 
   const toggleSelectAllQuestions = () => {
+    if (formData.instrument_code === 'digcompsat-2020') return;
     if (formData.selectedQuestions.length === questions.length) {
       setFormData({ ...formData, selectedQuestions: [] });
     } else {
@@ -351,6 +386,9 @@ export const AssessmentsManagement = () => {
                   <h3 className="text-base font-bold text-slate-900 group-hover:text-green-600 transition-colors">
                     {item.title}
                   </h3>
+                  <span className={`mt-2 inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold ${item.scoring_version === 'digcompsat-self-reflection-0-3.1' ? 'bg-teal-50 text-teal-800' : 'bg-slate-100 text-slate-700'}`}>
+                    {item.scoring_version === 'digcompsat-self-reflection-0-3.1' ? 'DigCompSAT · self-reflection' : 'Masbate Colleges · research questionnaire'}
+                  </span>
                   <p className="text-xs text-slate-500 mt-1.5 line-clamp-2 leading-relaxed">
                     {item.description || 'No description provided.'}
                   </p>
@@ -547,10 +585,19 @@ export const AssessmentsManagement = () => {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 uppercase">Instrument Template</label>
-              <div className="mt-1 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-xs text-green-700 font-medium flex items-center">
-                <Sparkles className="w-3.5 h-3.5 mr-1.5" />
-                {questions.length}-Item DigComp 2.1 Question Bank
-              </div>
+              <select
+                value={formData.instrument_code}
+                onChange={(event) => handleInstrumentChange(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+              >
+                <option value="dlas-thesis-v1">Masbate Colleges research questionnaire · 30 items</option>
+                <option value="digcompsat-2020">DigCompSAT self-reflection bank · 82 items</option>
+              </select>
+              {formData.instrument_code === 'digcompsat-2020' ? (
+                <p className="mt-1 text-[11px] leading-4 text-slate-600">The full published knowledge, skills, and attitude item bank uses 0–3 response scales. Source: Clifford et al. (2020), JRC123226, European Union, CC BY 4.0. Results stay separate from thesis scores and are not locally validated; the local area mapping is not endorsed by the European Commission. <a className="font-semibold text-green-800 underline" href="https://publications.jrc.ec.europa.eu/repository/handle/JRC123226" target="_blank" rel="noreferrer">Source and methodology</a></p>
+              ) : (
+                <p className="mt-1 text-[11px] text-slate-500">The approved Masbate Colleges research questionnaire with its original 1–4 scale.</p>
+              )}
             </div>
 
             <label className="sm:col-span-2 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50/70 p-3.5 cursor-pointer">
@@ -576,17 +623,20 @@ export const AssessmentsManagement = () => {
               <button
                 type="button"
                 onClick={toggleSelectAllQuestions}
+                disabled={formData.instrument_code === 'digcompsat-2020'}
                 className="text-xs font-bold text-green-600 hover:text-green-700 cursor-pointer"
               >
-                {formData.selectedQuestions.length === questions.length ? 'Deselect All' : `Select All ${questions.length} Items`}
+                {formData.instrument_code === 'digcompsat-2020' ? 'Complete bank required' : formData.selectedQuestions.length === questions.length ? 'Deselect All' : `Select All ${questions.length} Items`}
               </button>
             </div>
+            {formData.instrument_code === 'digcompsat-2020' && <p className="mt-2 text-[11px] leading-4 text-slate-500">All 82 items are required to preserve the published instrument structure. Edit or remove items only from the separate Masbate Colleges research questionnaire.</p>}
             <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-xl p-3 bg-slate-50 divide-y divide-slate-200/60 text-xs">
               {questions.map((q) => (
                 <label key={q.id} className="flex items-center py-2 cursor-pointer hover:bg-slate-100/60 px-1 rounded-md">
                   <input
                     type="checkbox"
                     checked={formData.selectedQuestions.includes(q.id)}
+                    disabled={formData.instrument_code === 'digcompsat-2020'}
                     onChange={(e) => {
                       if (e.target.checked) {
                         setFormData({ ...formData, selectedQuestions: [...formData.selectedQuestions, q.id] });
@@ -602,7 +652,7 @@ export const AssessmentsManagement = () => {
                   <span className="font-bold text-slate-600 w-10 shrink-0">#{q.question_number}</span>
                   <span className="text-slate-800 truncate">{q.question_text}</span>
                   <span className="ml-auto text-[10px] uppercase font-bold text-green-600 shrink-0 pl-2">
-                    {q.area_code}
+                    {formData.instrument_code === 'digcompsat-2020' ? `${q.area_code} · DigComp ${q.framework_competence_id || '·'} · ${q.response_type}` : q.area_code}
                   </span>
                 </label>
               ))}

@@ -1,0 +1,37 @@
+{
+  "defaults": {
+    "hairStyle": "swept",
+    "hairColor": "#302d29",
+    "skinColor": "#d99e6c",
+    "eyeColor": "#302d29",
+    "outfit": "polo",
+    "shirtColor": "#006b3c",
+    "accentColor": "#f2ead8",
+    "expression": "smile",
+    "glasses": "none",
+    "facialHair": "none",
+    "laptopColor": "#60766d",
+    "backdropColor": "#dcebdc",
+    "showBackdrop": true,
+    "showBooks": true,
+    "showPlant": true,
+    "animation": "float",
+    "size": 100,
+    "horizontalPosition": 0,
+    "verticalPosition": 0,
+    "flip": false
+  },
+  "choices": {
+    "hairStyle": ["swept", "short", "curly", "long", "bun", "buzz", "none"],
+    "outfit": ["polo", "tshirt", "hoodie"],
+    "expression": ["smile", "neutral", "wink"],
+    "glasses": ["none", "round", "square"],
+    "facialHair": ["none", "stubble", "beard"],
+    "animation": ["float", "breathe", "none"]
+  },
+  "ranges": {
+    "size": { "min": 75, "max": 130 },
+    "horizontalPosition": { "min": -20, "max": 20 },
+    "verticalPosition": { "min": -15, "max": 15 }
+  }
+}

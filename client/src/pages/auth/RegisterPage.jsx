@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/useAuth';
-import { ArrowRight, CheckCircle2, Circle, Eye, EyeOff, Lock, Mail, MailCheck, Sparkles } from 'lucide-react';
+import { useDemoMode } from '../../contexts/useDemoMode';
+import { ArrowRight, CheckCircle2, Circle, Eye, EyeOff, Lock, Mail, MailCheck, ShieldCheck, Sparkles } from 'lucide-react';
 
 const skillAreas = ['Information', 'Communication', 'Content creation', 'Safety', 'Problem solving'];
 
@@ -22,6 +23,7 @@ export const RegisterPage = () => {
   const [serverError, setServerError] = useState('');
   const [registrationComplete, setRegistrationComplete] = useState(false);
   const { register } = useAuth();
+  const { available: demoStatusAvailable, freeDemoReadOnly, loading: demoStatusLoading } = useDemoMode();
   const navigate = useNavigate();
 
   const validate = (values) => {
@@ -210,12 +212,30 @@ export const RegisterPage = () => {
                 </div>
               </div>
               <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-green-800 sm:text-xs">College of Computer Studies</p>
-              <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">Create your account</h2>
-              <p className="mt-1 text-sm leading-5 text-slate-700">Register as a student to get started with your digital literacy assessment.</p>
+              <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl">{demoStatusAvailable && freeDemoReadOnly ? 'Registration unavailable' : 'Create your account'}</h2>
+              <p className="mt-1 text-sm leading-5 text-slate-700">{demoStatusAvailable && freeDemoReadOnly ? 'This read-only demo uses sample accounts and does not accept new registrations.' : 'Register as a student to get started with your digital literacy assessment.'}</p>
             </div>
 
             <div className="rounded-2xl border border-white/80 bg-white/95 p-4 shadow-xl shadow-slate-900/10 backdrop-blur-sm sm:p-5 lg:p-4">
-              {registrationComplete ? (
+              {demoStatusLoading ? (
+                <div className="flex min-h-64 flex-col items-center justify-center text-center" role="status" aria-live="polite">
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-green-700/30 border-t-green-700" aria-hidden="true" />
+                  <p className="mt-4 text-sm font-medium text-slate-700">Checking account options…</p>
+                </div>
+              ) : demoStatusAvailable && freeDemoReadOnly ? (
+                <div className="flex min-h-64 flex-col items-center justify-center text-center" role="status" aria-live="polite">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-50 text-amber-800 ring-1 ring-amber-100">
+                    <ShieldCheck aria-hidden="true" className="h-8 w-8" />
+                  </div>
+                  <p className="mt-5 text-xs font-bold uppercase tracking-[0.14em] text-amber-800">Read-only demo</p>
+                  <h3 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Use a demo account</h3>
+                  <p className="mt-3 max-w-xl text-sm leading-6 text-slate-700 sm:text-base">Account creation is turned off so sample data stays separate from real study records.</p>
+                  <Link to="/login" className="group mt-6 flex min-h-12 w-full max-w-sm items-center justify-center gap-2 rounded-xl bg-green-800 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-green-900/15 transition hover:bg-green-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 sm:min-h-14 sm:text-base">
+                    Go to sign in
+                    <ArrowRight aria-hidden="true" className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                  </Link>
+                </div>
+              ) : registrationComplete ? (
                 <div className="flex min-h-[24rem] flex-col items-center justify-center text-center" role="status" aria-live="polite">
                   <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-green-50 text-green-800 ring-1 ring-green-100">
                     <MailCheck aria-hidden="true" className="h-8 w-8" />

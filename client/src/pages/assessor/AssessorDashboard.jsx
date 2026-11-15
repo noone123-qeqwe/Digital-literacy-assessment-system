@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import api from '../../api/axios';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import StatCard from '../../components/common/StatCard';
@@ -23,27 +23,29 @@ export const AssessorDashboard = () => {
   const [selectedAssessmentId, setSelectedAssessmentId] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const fetchAssessorData = useCallback(async () => {
-    try {
-      const [dashboard, assessmentList] = await Promise.all([
-        api.get('/analytics/dashboard'),
-        api.get('/assessments'),
-      ]);
-      if (dashboard.data.success) setData(dashboard.data.data);
-      if (assessmentList.data.success) {
-        setAssessments(assessmentList.data.data);
-        setSelectedAssessmentId((current) => current || String(assessmentList.data.data[0]?.id || ''));
-      }
-    } catch (err) {
-      console.error('Failed to load assessor dashboard:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    fetchAssessorData();
-  }, [fetchAssessorData]);
+    let active = true;
+    const loadAssessorData = async () => {
+      try {
+        const [dashboard, assessmentList] = await Promise.all([
+          api.get('/analytics/dashboard'),
+          api.get('/assessments'),
+        ]);
+        if (!active) return;
+        if (dashboard.data.success) setData(dashboard.data.data);
+        if (assessmentList.data.success) {
+          setAssessments(assessmentList.data.data);
+          setSelectedAssessmentId((current) => current || String(assessmentList.data.data[0]?.id || ''));
+        }
+      } catch (err) {
+        if (active) console.error('Failed to load assessor dashboard:', err);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void loadAssessorData();
+    return () => { active = false; };
+  }, []);
 
   const handleExportRoster = async () => {
     if (!selectedAssessmentId) return;

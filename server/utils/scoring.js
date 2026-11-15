@@ -129,6 +129,56 @@ function calculateAssessmentResults(responses, competenceAreas) {
   };
 }
 
+function calculateDigCompSatResults(responses, competenceAreas) {
+  const areaResponses = Object.fromEntries(competenceAreas.map((area) => [area.id, []]));
+  for (const response of responses) {
+    const rating = Number(response.rating);
+    if (areaResponses[response.competence_area_id] && Number.isFinite(rating) && rating >= 0 && rating <= 3) {
+      areaResponses[response.competence_area_id].push(rating);
+    }
+  }
+
+  const areaResults = competenceAreas.map((area) => {
+    const ratings = areaResponses[area.id] || [];
+    return {
+      competence_area_id: area.id,
+      area_name: area.name,
+      area_code: area.code,
+      weightedMean: ratings.length ? roundTo(calculateMean(ratings)) : null,
+      standardDeviation: ratings.length ? roundTo(calculateStdDev(ratings)) : null,
+      level: ratings.length ? 'Self-reflection' : 'N/A',
+      question_count: ratings.length,
+    };
+  });
+  const allRatings = responses.map((response) => Number(response.rating)).filter((rating) => Number.isFinite(rating) && rating >= 0 && rating <= 3);
+  const overallMean = allRatings.length ? roundTo(calculateMean(allRatings)) : 0;
+  const ratedAreas = areaResults.filter((area) => area.question_count > 0);
+  const strengths = ratedAreas.length
+    ? ratedAreas.filter((area) => area.weightedMean === Math.max(...ratedAreas.map((item) => item.weightedMean)))
+    : [];
+  const weaknesses = ratedAreas.length
+    ? ratedAreas.filter((area) => area.weightedMean === Math.min(...ratedAreas.map((item) => item.weightedMean)))
+    : [];
+  const itemRatings = responses.map((response) => ({
+    question_id: response.question_id,
+    rating: response.rating,
+    question_text: response.question_text || '',
+    question_number: response.question_number || 0,
+  })).sort((a, b) => a.rating - b.rating || a.question_number - b.question_number);
+
+  return {
+    overallMean,
+    overallLevel: 'Self-reflection profile',
+    areaResults,
+    strengths: strengths.map((area) => ({ area: area.area_name, code: area.area_code, mean: area.weightedMean })),
+    weaknesses: weaknesses.map((area) => ({ area: area.area_name, code: area.area_code, mean: area.weightedMean })),
+    lowestRatedItems: itemRatings.slice(0, 5),
+    highestRatedItems: itemRatings.slice(-5).reverse(),
+    totalQuestions: allRatings.length,
+    totalResponded: allRatings.length,
+  };
+}
+
 module.exports = {
   getProficiencyLevel,
   calculateMean,
@@ -136,4 +186,5 @@ module.exports = {
   roundTo,
   calculateAreaResult,
   calculateAssessmentResults,
+  calculateDigCompSatResults,
 };

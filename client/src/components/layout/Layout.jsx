@@ -1,29 +1,38 @@
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
+import MobileStudentNav from './MobileStudentNav';
+import { useAuth } from '../../contexts/useAuth';
+import './MobileWorkspace.css';
 
 export const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const { user } = useAuth();
+  const { pathname } = useLocation();
+  const isStudentDashboard = pathname === '/respondent/dashboard';
+  const isStudent = user?.role === 'respondent';
+  const showMobileNav = isStudent && !/^\/respondent\/assessments\/\d+\/take\/?$/.test(pathname);
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className={`flex min-h-screen bg-slate-50 ${isStudentDashboard ? 'dlas-dashboard-shell' : ''} ${isStudent ? 'dlas-student-workspace' : ''} ${showMobileNav ? 'has-student-mobile-nav' : ''}`}>
       <a href="#main-content" className="sr-only fixed left-3 top-3 z-[60] rounded-lg bg-white px-4 py-3 text-sm font-bold text-green-900 shadow-lg focus:not-sr-only focus:outline focus:outline-2 focus:outline-green-700">Skip to main content</a>
       {/* Sidebar navigation */}
-      <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} light={isStudentDashboard} />
 
       {/* Main Content Area */}
-      <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:pl-96 xl:pl-112">
-        <Navbar setIsSidebarOpen={setIsSidebarOpen} isSidebarOpen={isSidebarOpen} />
+      <div className="dlas-workspace-content flex min-h-screen min-w-0 flex-1 flex-col lg:pl-96 xl:pl-112">
+        <Navbar setIsSidebarOpen={setIsSidebarOpen} isSidebarOpen={isSidebarOpen} dashboardMode={isStudentDashboard} />
 
-        <main id="main-content" tabIndex="-1" className="mx-auto w-full max-w-[2560px] flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8 focus:outline-none">
+        <main id="main-content" tabIndex="-1" className="dlas-workspace-main mx-auto w-full max-w-[2560px] flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8 focus:outline-none">
           <Outlet />
         </main>
 
-        <footer className="border-t border-slate-200/80 bg-white/80 px-4 py-4 text-center text-[11px] leading-5 text-slate-500 sm:px-6">
+        <footer className="dlas-workspace-footer border-t border-slate-200/80 bg-white/80 px-4 py-4 text-center text-[11px] leading-5 text-slate-500 sm:px-6">
           Digital Literacy Assessment System <span aria-hidden="true">·</span> College of Computer Studies, Masbate Colleges <span aria-hidden="true">·</span> DigComp 2.1
         </footer>
       </div>
+      {showMobileNav && <MobileStudentNav />}
     </div>
   );
 };

@@ -503,7 +503,7 @@ export const RespondentProfile = () => {
           </div>
           </>}
 
-          <div className="flex justify-end border-t border-slate-100 pt-6">
+          <div className="profile-save-actions flex justify-end border-t border-slate-100 pt-6">
             <button
               type="submit"
               disabled={loading}

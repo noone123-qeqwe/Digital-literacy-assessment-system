@@ -1,0 +1,18 @@
+{
+  "default": {
+    "primary": "#075b3b",
+    "accent": "#c49a43",
+    "paper": "#fffdf7",
+    "tint": "#edf5ef",
+    "label": "Digital Literacy Assessment",
+    "referencePrefix": "MC-DLA"
+  },
+  "digcompsat-self-reflection-0-3.1": {
+    "primary": "#0f6265",
+    "accent": "#62a9a0",
+    "paper": "#fafffe",
+    "tint": "#eaf5f3",
+    "label": "DigCompSAT Self-Reflection",
+    "referencePrefix": "MC-DCS"
+  }
+}

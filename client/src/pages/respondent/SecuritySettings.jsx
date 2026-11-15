@@ -36,7 +36,21 @@ export const SecuritySettings = () => {
     }
   }, []);
 
-  useEffect(() => { refreshSessions(); }, [refreshSessions]);
+  useEffect(() => {
+    let active = true;
+    const loadSessions = async () => {
+      try {
+        const response = await api.get('/auth/sessions');
+        if (active) setSessions(response.data.data || []);
+      } catch {
+        if (active) toast.error('Unable to load active sessions.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void loadSessions();
+    return () => { active = false; };
+  }, []);
 
   const revoke = async (session) => {
     setBusyId(session.id);

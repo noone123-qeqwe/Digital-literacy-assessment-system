@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const { db, initializeDatabase, logActivity } = require('./database');
 const { initializeInstrument } = require('./instrument');
+const { ensureDigCompSatQuestionBank } = require('./digcompsat');
 
 function seed() {
   if (process.env.NODE_ENV === 'production' && process.env.DLAS_FREE_DEMO !== 'true') {
@@ -8,6 +9,8 @@ function seed() {
   }
   console.log('Initializing database schema...');
   initializeDatabase();
+  initializeInstrument(db);
+  ensureDigCompSatQuestionBank(db);
 
   // Check if already seeded
   const existingAdmin = db.prepare("SELECT id FROM users WHERE email = ?").get('admin@dlas.edu.ph');
@@ -30,7 +33,7 @@ function seed() {
   const adminId = adminResult.lastInsertRowid;
   console.log('Local demonstration administrator created.');
 
-  const areaIds = initializeInstrument(db);
+  const areaIds = Object.fromEntries(db.prepare('SELECT id, code FROM competence_areas').all().map((row) => [row.code, row.id]));
   console.log('The five competence areas and 30 questionnaire items are ready.');
 
   // Create 3 sample respondent users
@@ -86,7 +89,7 @@ function seed() {
 
   // Add all 30 questions to the assessment
   const insertAQ = db.prepare('INSERT INTO assessment_questions (assessment_id, question_id) VALUES (?, ?)');
-  const allQuestions = db.prepare('SELECT id FROM questions ORDER BY question_number').all();
+  const allQuestions = db.prepare("SELECT id FROM questions WHERE instrument_code = 'dlas-thesis-v1' ORDER BY question_number").all();
   for (const q of allQuestions) {
     insertAQ.run(assessmentId, q.id);
   }

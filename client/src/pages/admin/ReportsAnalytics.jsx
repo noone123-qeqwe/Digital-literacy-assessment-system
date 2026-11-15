@@ -23,6 +23,7 @@ export const ReportsAnalytics = () => {
   const [desiredSkillsResponses, setDesiredSkillsResponses] = useState([]);
   const [desiredSkillsMeta, setDesiredSkillsMeta] = useState({ pendingReviewCount: 0, suppressedForSmallCohort: false, minimumReportGroupSize: 5 });
   const [privacyReviewQueue, setPrivacyReviewQueue] = useState([]);
+  const [privacyReviewAssessmentId, setPrivacyReviewAssessmentId] = useState('');
   const [reviewDrafts, setReviewDrafts] = useState({});
   const [reviewConfirmations, setReviewConfirmations] = useState({});
   const [reviewSavingId, setReviewSavingId] = useState(null);
@@ -33,9 +34,11 @@ export const ReportsAnalytics = () => {
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('tables'); // 'tables', 'enhancement', 'matrix'
   const hasInitializedAnalyticsFilter = useRef(false);
+  const visiblePrivacyReviewQueue = isAdmin && privacyReviewAssessmentId === analyticsAssessmentId
+    ? privacyReviewQueue
+    : [];
 
   const fetchReports = useCallback(async () => {
-    setAnalyticsLoading(true);
     try {
       const query = analyticsAssessmentId
         ? { params: { assessment_id: analyticsAssessmentId } }
@@ -78,8 +81,55 @@ export const ReportsAnalytics = () => {
   }, [analyticsAssessmentId]);
 
   useEffect(() => {
-    fetchReports();
-  }, [fetchReports]);
+    let active = true;
+    const loadInitialReports = async () => {
+      try {
+        const query = analyticsAssessmentId
+          ? { params: { assessment_id: analyticsAssessmentId } }
+          : undefined;
+        const [demoRes, dashRes, matrixRes, inferentialRes, desiredSkillsRes, assessmentRes] = await Promise.all([
+          api.get('/analytics/demographics', query),
+          api.get('/analytics/dashboard', query),
+          api.get('/analytics/competence-matrix', query),
+          api.get('/analytics/inferential', query),
+          api.get('/analytics/desired-skills', query),
+          api.get('/assessments'),
+        ]);
+        if (!active) return;
+
+        if (demoRes.data.success) setDemographics(demoRes.data.data);
+        if (dashRes.data.success) setDashboardData(dashRes.data.data);
+        if (matrixRes.data.success) setCompetenceMatrix(matrixRes.data.data);
+        if (inferentialRes.data.success) setInferentialData(inferentialRes.data.data);
+        if (desiredSkillsRes.data.success) {
+          setDesiredSkillsResponses(desiredSkillsRes.data.data);
+          setDesiredSkillsMeta({
+            pendingReviewCount: desiredSkillsRes.data.pendingReviewCount || 0,
+            suppressedForSmallCohort: Boolean(desiredSkillsRes.data.suppressedForSmallCohort),
+            minimumReportGroupSize: desiredSkillsRes.data.minimumReportGroupSize || 5,
+          });
+        }
+        if (assessmentRes.data.success) {
+          setAssessments(assessmentRes.data.data);
+          setSelectedAssessmentId((current) => current || String(assessmentRes.data.data[0]?.id || ''));
+          if (!hasInitializedAnalyticsFilter.current && assessmentRes.data.data[0]?.id) {
+            hasInitializedAnalyticsFilter.current = true;
+            setAnalyticsAssessmentId((current) => current || String(assessmentRes.data.data[0].id));
+          }
+        }
+      } catch {
+        if (active) toast.error('Failed to load analytical reports');
+      } finally {
+        if (active) {
+          setLoading(false);
+          setAnalyticsLoading(false);
+        }
+      }
+    };
+
+    void loadInitialReports();
+    return () => { active = false; };
+  }, [analyticsAssessmentId]);
 
   useEffect(() => {
     if (!analyticsAssessmentId) return undefined;
@@ -92,7 +142,6 @@ export const ReportsAnalytics = () => {
 
   useEffect(() => {
     if (!isAdmin || !analyticsAssessmentId) {
-      setPrivacyReviewQueue([]);
       return undefined;
     }
     let active = true;
@@ -101,9 +150,14 @@ export const ReportsAnalytics = () => {
         if (!active) return;
         const queue = response.data.data || [];
         setPrivacyReviewQueue(queue);
+        setPrivacyReviewAssessmentId(analyticsAssessmentId);
         setReviewDrafts((current) => Object.fromEntries(queue.map((item) => [item.attempt_id, current[item.attempt_id] ?? item.raw_response])));
       })
-      .catch(() => { if (active) setPrivacyReviewQueue([]); });
+      .catch(() => {
+        if (!active) return;
+        setPrivacyReviewQueue([]);
+        setPrivacyReviewAssessmentId(analyticsAssessmentId);
+      });
     return () => { active = false; };
   }, [analyticsAssessmentId, isAdmin]);
 
@@ -116,6 +170,7 @@ export const ReportsAnalytics = () => {
       await fetchReports();
       const queueResponse = await api.get('/analytics/desired-skills/review-queue', { params: { assessment_id: analyticsAssessmentId } });
       setPrivacyReviewQueue(queueResponse.data.data || []);
+      setPrivacyReviewAssessmentId(analyticsAssessmentId);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Unable to save the privacy review.');
     } finally {
@@ -138,6 +193,11 @@ export const ReportsAnalytics = () => {
   if (loading) return <LoadingSpinner text="Loading cohort summaries..." />;
 
   const { areaPerformance, summary } = dashboardData || {};
+  const activeAnalyticsAssessment = assessments.find((assessment) => String(assessment.id) === analyticsAssessmentId);
+  const isDigCompSat = activeAnalyticsAssessment?.scoring_version === 'digcompsat-self-reflection-0-3.1';
+  const scoreScaleMax = Number(dashboardData?.scoreScaleMax) === 3 ? 3 : 4;
+  const selectedExportAssessment = assessments.find((assessment) => String(assessment.id) === selectedAssessmentId);
+  const selectedExportIsDigCompSat = selectedExportAssessment?.scoring_version === 'digcompsat-self-reflection-0-3.1';
 
   return (
     <div className="space-y-8">
@@ -165,7 +225,7 @@ export const ReportsAnalytics = () => {
             className="inline-flex w-full items-center justify-center rounded-xl bg-emerald-600 px-3.5 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
           >
             <FileSpreadsheet className="w-4 h-4 mr-1.5" />
-            <span>Export De-identified Study Data</span>
+            <span>{selectedExportIsDigCompSat ? 'Export De-identified Assessment Results' : 'Export De-identified Study Data'}</span>
           </button>
           </div>
         )}
@@ -184,7 +244,10 @@ export const ReportsAnalytics = () => {
           <select
             id="analytics-assessment-filter"
             value={analyticsAssessmentId}
-            onChange={(event) => setAnalyticsAssessmentId(event.target.value)}
+            onChange={(event) => {
+              setAnalyticsLoading(true);
+              setAnalyticsAssessmentId(event.target.value);
+            }}
             className="min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-700 sm:min-w-64"
           >
             <option value="">All assessments</option>
@@ -195,6 +258,10 @@ export const ReportsAnalytics = () => {
           {analyticsLoading && <span role="status" className="text-xs text-slate-500">Updating summaries…</span>}
         </div>
       </div>
+
+      {isDigCompSat && <div role="note" className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950">
+        This is the separate DigCompSAT self-reflection item bank. Scores use a 0–3 scale and summarize self-reported knowledge, skills, and attitudes. This version has not yet been locally validated with Masbate Colleges students; keep its data separate from the thesis questionnaire analysis.
+      </div>}
 
       {/* Tabs */}
       <div className="flex flex-wrap border-b border-slate-200/80 gap-x-6 gap-y-2 text-xs font-bold">
@@ -209,7 +276,7 @@ export const ReportsAnalytics = () => {
           }`}
         >
           <BarChart3 className="w-4 h-4" />
-          <span>Statistical Tables (Thesis Ch. 4)</span>
+          <span>{isDigCompSat ? 'Self-reflection summaries' : 'Statistical Tables (Thesis Ch. 4)'}</span>
         </button>
 
         <button
@@ -237,7 +304,7 @@ export const ReportsAnalytics = () => {
           }`}
         >
           <Layers className="w-4 h-4" />
-          <span>Full 30-Item Rating Matrix</span>
+          <span>{isDigCompSat ? 'Full 82-item Self-Rating Matrix' : 'Full 30-Item Rating Matrix'}</span>
         </button>
       </div>
 
@@ -247,13 +314,13 @@ export const ReportsAnalytics = () => {
           <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200/80 shadow-xs">
             <div className="mb-4">
               <span className="text-[11px] font-bold uppercase tracking-wider text-green-600">
-                Chapter 4 • Table 2
+                {isDigCompSat ? 'DigCompSAT • Area summary' : 'Chapter 4 • Table 2'}
               </span>
               <h3 className="text-base font-bold text-slate-900 mt-0.5">
-                Level of Digital Literacy of the Respondents Across Competence Areas
+                {isDigCompSat ? 'Self-Reported Digital Competence by Area' : 'Level of Digital Literacy of the Respondents Across Competence Areas'}
               </h3>
               <p className="text-xs text-slate-500">
-                Weighted mean, standard deviation, and descriptive proficiency level (Scale: 1.00–1.75 Low, 1.76–2.50 Moderate, 2.51–3.25 High, 3.26–4.00 Very High).
+                {isDigCompSat ? 'Mean self-rating and variation across areas. Higher values indicate greater self-reported capability; they are not official proficiency levels.' : 'Weighted mean, standard deviation, and descriptive proficiency level (Scale: 1.00–1.75 Low, 1.76–2.50 Moderate, 2.51–3.25 High, 3.26–4.00 Very High).'}
               </p>
             </div>
 
@@ -263,9 +330,9 @@ export const ReportsAnalytics = () => {
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-bold">
                     <th className="py-3 px-4">Code</th>
                     <th className="py-3 px-4">Competence Area (DigComp 2.1)</th>
-                    <th className="py-3 px-4 text-center">Weighted Mean</th>
+                    <th className="py-3 px-4 text-center">{isDigCompSat ? 'Mean / 3' : 'Weighted Mean'}</th>
                     <th className="py-3 px-4 text-center">Std. Dev.</th>
-                    <th className="py-3 px-4 text-center">Descriptive Level</th>
+                    <th className="py-3 px-4 text-center">{isDigCompSat ? 'Interpretation' : 'Descriptive Level'}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -300,7 +367,7 @@ export const ReportsAnalytics = () => {
                   {/* Overall Summary Row */}
                   <tr className="bg-green-50/50 font-bold border-t-2 border-green-200">
                     <td className="py-3.5 px-4 font-extrabold text-green-800" colSpan={2}>
-                      COMPOSITE OVERALL DIGITAL LITERACY
+                      {isDigCompSat ? 'OVERALL MEAN SELF-RATING' : 'COMPOSITE OVERALL DIGITAL LITERACY'}
                     </td>
                     <td className="py-3.5 px-4 text-center text-sm font-extrabold text-green-900">
                       {summary?.scoredAttempts ? summary.averageScore : 'N/A'}
@@ -310,7 +377,9 @@ export const ReportsAnalytics = () => {
                     </td>
                     <td className="py-3.5 px-4 text-center">
                       <span className="inline-flex px-3 py-1 rounded-full text-xs font-extrabold bg-green-600 text-white shadow-xs">
-                        {!summary?.scoredAttempts
+                        {isDigCompSat
+                          ? (summary?.scoredAttempts ? 'Self-reflection' : 'N/A')
+                          : !summary?.scoredAttempts
                           ? 'N/A'
                           : summary.averageScore >= 3.26
                           ? 'Very High'
@@ -331,7 +400,7 @@ export const ReportsAnalytics = () => {
             <div className="mb-4">
               <span className="text-[11px] font-bold uppercase tracking-wider text-green-700">Instrument quality · Pilot analysis</span>
               <h3 className="mt-1 text-base font-bold text-slate-900">Questionnaire reliability (Cronbach’s alpha)</h3>
-              <p className="mt-1 text-xs leading-5 text-slate-500">Calculated from completed answers for the selected assessment. Review interpretation with the approved thesis adviser.</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">{isDigCompSat ? 'Calculated from complete self-reflection responses for this version only. Treat as exploratory and review its suitability for the three response dimensions before interpreting.' : 'Calculated from completed answers for the selected assessment. Review interpretation with the approved thesis adviser.'}</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               <div className="rounded-2xl border border-green-200 bg-green-50 p-4">
@@ -357,7 +426,7 @@ export const ReportsAnalytics = () => {
                 Live respondent profile
               </span>
               <h3 className="text-base font-bold text-slate-900 mt-0.5">
-                Digital literacy results by profile group
+                {isDigCompSat ? 'Self-reflection results by profile group' : 'Digital literacy results by profile group'}
               </h3>
               <p className="text-xs text-slate-500">
                 Group counts and mean scores reflect completed assessment attempts. Categories with fewer than five respondents are withheld to reduce re-identification risk.
@@ -371,7 +440,7 @@ export const ReportsAnalytics = () => {
                     <th className="py-3 px-4">Profile Variable</th>
                     <th className="py-3 px-4">Group</th>
                     <th className="py-3 px-4 text-center">Respondents</th>
-                    <th className="py-3 px-4 text-center">Mean score / 4</th>
+                    <th className="py-3 px-4 text-center">Mean score / {scoreScaleMax}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -400,12 +469,12 @@ export const ReportsAnalytics = () => {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs sm:p-7">
+          {!isDigCompSat && <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs sm:p-7">
             <div className="mb-5">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-green-700">Chapter 4 · Profile comparisons</span>
-              <h3 className="mt-1 text-base font-bold text-slate-900">Inferential analysis at α = 0.05</h3>
+              <span className="text-[11px] font-bold uppercase tracking-wider text-green-700">{isDigCompSat ? 'Exploratory · Profile comparisons' : 'Chapter 4 · Profile comparisons'}</span>
+              <h3 className="mt-1 text-base font-bold text-slate-900">{isDigCompSat ? 'Self-reflection comparisons at α = 0.05' : 'Inferential analysis at α = 0.05'}</h3>
               <p className="mt-1 text-xs leading-5 text-slate-500">
-                Normality is checked with Jarque–Bera and equal variance with median-centered Levene. Tests report effect sizes, 95% confidence intervals where appropriate, and Benjamini–Hochberg adjusted q-values across profile comparisons. Groups with fewer than five respondents are excluded and suppressed.
+                {isDigCompSat ? 'These exploratory tests use this instrument’s 0–3 self-reflection scores only; they are not combined with the thesis questionnaire and should not be treated as locally validated findings. Normality and equal-variance checks, effect sizes, confidence intervals, and multiple-comparison adjustments are shown where available. Groups with fewer than five respondents are suppressed.' : 'Normality is checked with Jarque–Bera and equal variance with median-centered Levene. Tests report effect sizes, 95% confidence intervals where appropriate, and Benjamini–Hochberg adjusted q-values across profile comparisons. Groups with fewer than five respondents are excluded and suppressed.'}
               </p>
             </div>
             <div className="overflow-x-auto">
@@ -454,9 +523,9 @@ export const ReportsAnalytics = () => {
               </table>
             </div>
             <p className="mt-4 text-[11px] leading-5 text-slate-500">{inferentialData?.note} Completed responses analyzed: {inferentialData?.observationCount ?? 0}.</p>
-          </div>
+          </div>}
 
-          {isAdmin && privacyReviewQueue.length > 0 && (
+          {visiblePrivacyReviewQueue.length > 0 && (
             <section className="rounded-3xl border border-amber-300 bg-amber-50/80 p-6 shadow-xs sm:p-7">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -464,10 +533,10 @@ export const ReportsAnalytics = () => {
                   <h3 className="mt-1 text-base font-bold text-slate-950">Review open-ended responses</h3>
                   <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-700">Raw responses are withheld from reports and exports until you remove names, contact details, and other identifying information. Clear a response to keep it out of reporting.</p>
                 </div>
-                <span className="rounded-full bg-amber-200 px-3 py-1 text-xs font-bold text-amber-950">{privacyReviewQueue.length} pending</span>
+                <span className="rounded-full bg-amber-200 px-3 py-1 text-xs font-bold text-amber-950">{visiblePrivacyReviewQueue.length} pending</span>
               </div>
               <div className="mt-5 space-y-4">
-                {privacyReviewQueue.map((item) => (
+                {visiblePrivacyReviewQueue.map((item) => (
                   <article key={item.attempt_id} className="rounded-2xl border border-amber-200 bg-white p-4">
                     <p className="mb-2 text-xs font-semibold text-slate-600">{item.assessment_title} · {item.completed_at ? new Date(`${String(item.completed_at).replace(' ', 'T')}Z`).toLocaleDateString() : 'Date unavailable'}</p>
                     <div className="grid gap-4 lg:grid-cols-2">
@@ -491,7 +560,7 @@ export const ReportsAnalytics = () => {
             </section>
           )}
 
-          <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs sm:p-7">
+          {!isDigCompSat && <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs sm:p-7">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
               <div>
                 <span className="text-[11px] font-bold uppercase tracking-wider text-sky-700">Chapter 4 · Part III</span>
@@ -514,7 +583,7 @@ export const ReportsAnalytics = () => {
             ) : (
               <p className="rounded-2xl bg-slate-50 px-4 py-5 text-sm text-slate-500">{desiredSkillsMeta.suppressedForSmallCohort ? `Free-text reporting is suppressed until at least ${desiredSkillsMeta.minimumReportGroupSize} completed participants are available.` : desiredSkillsMeta.pendingReviewCount > 0 ? 'Submitted responses remain withheld until an administrator removes identifying details and approves them.' : 'No reviewed open-ended responses are available for this cohort yet.'}</p>
             )}
-          </div>
+          </div>}
         </div>
       )}
 
@@ -525,7 +594,7 @@ export const ReportsAnalytics = () => {
               Proposed Digital Literacy Enhancement Program (DLEP)
             </h2>
             <p className="text-xs sm:text-sm text-slate-300 mt-2 leading-relaxed max-w-3xl">
-              A structured semester-long intervention formulated on the basis of empirical assessment results from Computer Science freshmen at Masbate Colleges, targeting the lowest-ranked competencies through hands-on laboratory workshops and peer coaching.
+              {isDigCompSat ? 'A proposed learning-program outline. Review local assessment findings and approve the learning content before treating these modules as recommendations for Masbate Colleges students.' : 'A structured semester-long intervention formulated on the basis of empirical assessment results from Computer Science freshmen at Masbate Colleges, targeting the lowest-ranked competencies through hands-on laboratory workshops and peer coaching.'}
             </p>
           </div>
 
@@ -632,9 +701,9 @@ export const ReportsAnalytics = () => {
       {activeTab === 'matrix' && (
         <div className="bg-white rounded-3xl p-6 border border-slate-200/80 shadow-xs">
           <div className="mb-4">
-            <h3 className="text-base font-bold text-slate-900">Complete 30-Item Response Rating Distribution</h3>
+            <h3 className="text-base font-bold text-slate-900">{isDigCompSat ? 'Complete 82-Item Self-Rating Distribution' : 'Complete 30-Item Response Rating Distribution'}</h3>
             <p className="text-xs text-slate-500">
-              Aggregated frequency of ratings (4 = Confident, 3 = Occasional difficulty, 2 = Much difficulty, 1 = Cannot do) across all freshmen submissions.
+              {isDigCompSat ? 'Per-item self-ratings are shown on the 0–3 scale. Response wording differs for knowledge, skills, and attitude items; small counts are suppressed.' : 'Aggregated frequency of ratings (4 = Confident, 3 = Occasional difficulty, 2 = Much difficulty, 1 = Cannot do) across submissions.'}
             </p>
           </div>
 
@@ -643,36 +712,28 @@ export const ReportsAnalytics = () => {
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-bold">
                   <th className="py-2.5 px-3">#</th>
+                  {isDigCompSat && <th className="py-2.5 px-2">DigComp ID</th>}
                   <th className="py-2.5 px-3">Area</th>
                   <th className="py-2.5 px-3">Item Statement</th>
+                  {isDigCompSat && <th className="py-2.5 px-2 text-center">Type</th>}
                   <th className="py-2.5 px-3 text-center">Mean</th>
-                  <th className="py-2.5 px-2 text-center text-emerald-700">Rating 4</th>
-                  <th className="py-2.5 px-2 text-center text-green-700">Rating 3</th>
-                  <th className="py-2.5 px-2 text-center text-amber-700">Rating 2</th>
-                  <th className="py-2.5 px-2 text-center text-rose-700">Rating 1</th>
+                  {(isDigCompSat ? [3, 2, 1, 0] : [4, 3, 2, 1]).map((rating) => <th key={rating} className="py-2.5 px-2 text-center">Rating {rating}</th>)}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {competenceMatrix.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/60">
                     <td className="py-2.5 px-3 font-bold text-slate-900">{item.question_number}</td>
+                    {isDigCompSat && <td className="py-2.5 px-2 font-mono text-slate-600">{item.framework_competence_id}</td>}
                     <td className="py-2.5 px-3 font-bold text-green-600">{item.area_code}</td>
                     <td className="py-2.5 px-3 text-slate-800 font-medium max-w-md">{item.question_text}</td>
+                    {isDigCompSat && <td className="py-2.5 px-2 text-center text-slate-600">{item.response_type}</td>}
                     <td className="py-2.5 px-3 text-center font-extrabold text-slate-900">
                       {item.suppressed ? 'Suppressed' : item.mean_rating ?? 'N/A'}
                     </td>
-                    <td className="py-2.5 px-2 text-center font-mono font-bold text-emerald-600 bg-emerald-50/30">
-                      {item.suppressed ? '—' : item.count_4 ?? 0}
-                    </td>
-                    <td className="py-2.5 px-2 text-center font-mono font-bold text-green-600 bg-green-50/30">
-                      {item.suppressed ? '—' : item.count_3 ?? 0}
-                    </td>
-                    <td className="py-2.5 px-2 text-center font-mono font-bold text-amber-600 bg-amber-50/30">
-                      {item.suppressed ? '—' : item.count_2 ?? 0}
-                    </td>
-                    <td className="py-2.5 px-2 text-center font-mono font-bold text-rose-600 bg-rose-50/30">
-                      {item.suppressed ? '—' : item.count_1 ?? 0}
-                    </td>
+                    {(isDigCompSat ? [3, 2, 1, 0] : [4, 3, 2, 1]).map((rating) => <td key={rating} className="py-2.5 px-2 text-center font-mono font-bold text-slate-700">
+                      {item.suppressed ? '—' : item[`count_${rating}`] ?? 0}
+                    </td>)}
                   </tr>
                 ))}
               </tbody>

@@ -3,6 +3,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const PDFDocument = require('pdfkit');
 const ExcelJS = require('exceljs');
+const { drawCompletionAward } = require('../utils/completionAward');
 const { db, logActivity } = require('../db/database');
 const { authenticate, authorize, canAccessAttempt, canAccessAssessment } = require('../middleware/auth');
 
@@ -42,6 +43,8 @@ router.get('/results/:attemptId/pdf', authenticate, (req, res) => {
       return res.status(409).json({ success: false, message: 'Results are available after submission' });
     }
     auditSuccessfulExport(req, res, 'RESULT_EXPORT_PDF', `Downloaded individual result PDF for attempt #${attempt.id}`);
+    const isDigCompSat = attempt.scoring_version === 'digcompsat-self-reflection-0-3.1';
+    const scoreScaleMax = isDigCompSat ? 3 : 4;
 
     const areaResults = db.prepare(`
       SELECT ar.*, ca.name as area_name, ca.code as area_code
@@ -80,14 +83,14 @@ router.get('/results/:attemptId/pdf', authenticate, (req, res) => {
     // Overall Score Box
     doc.rect(40, doc.y, 515, 60).fillAndStroke('#eff6ff', '#bfdbfe');
     const boxY = doc.y;
-    doc.fillColor('#1e40af').fontSize(14).font('Helvetica-Bold').text('OVERALL DIGITAL LITERACY PERFORMANCE', 50, boxY + 12);
-    doc.fontSize(18).text(`${attempt.overall_mean || 'N/A'} / 4.00`, 50, boxY + 30);
-    doc.fontSize(14).text(`Level: ${attempt.overall_level || 'N/A'}`, 250, boxY + 32);
+    doc.fillColor('#1e40af').fontSize(14).font('Helvetica-Bold').text(isDigCompSat ? 'OVERALL SELF-REFLECTION MEAN' : 'OVERALL DIGITAL LITERACY PERFORMANCE', 50, boxY + 12);
+    doc.fontSize(18).text(`${attempt.overall_mean ?? 'N/A'} / ${scoreScaleMax}.00`, 50, boxY + 30);
+    if (!isDigCompSat) doc.fontSize(14).text(`Level: ${attempt.overall_level || 'N/A'}`, 250, boxY + 32);
     doc.fillColor('#000000');
     doc.y = boxY + 75;
 
     // Competence Areas Breakdown
-    doc.fontSize(12).font('Helvetica-Bold').text('Performance by Competence Area (DigComp 2.1 Framework)');
+    doc.fontSize(12).font('Helvetica-Bold').text(isDigCompSat ? 'Self-Reported Competence by Area (DigComp 2.1)' : 'Performance by Competence Area (DigComp 2.1 Framework)');
     doc.moveDown(0.5);
 
     // Table Header
@@ -96,9 +99,9 @@ router.get('/results/:attemptId/pdf', authenticate, (req, res) => {
     doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(10);
     doc.text('Code', 45, startY + 5);
     doc.text('Competence Area', 90, startY + 5);
-    doc.text('Weighted Mean', 340, startY + 5);
+    doc.text(isDigCompSat ? 'Mean / 3' : 'Weighted Mean', 340, startY + 5);
     doc.text('Std. Dev.', 440, startY + 5);
-    doc.text('Proficiency Level', 495, startY + 5);
+    doc.text(isDigCompSat ? 'Interpretation' : 'Proficiency Level', 495, startY + 5);
 
     let curY = startY + 22;
     doc.font('Helvetica').fontSize(9);
@@ -116,9 +119,11 @@ router.get('/results/:attemptId/pdf', authenticate, (req, res) => {
     doc.y = curY + 15;
 
     // Interpretation Scale Reference
-    doc.fontSize(10).font('Helvetica-Bold').text('Evaluation Reference Scale:');
+    doc.fontSize(10).font('Helvetica-Bold').text(isDigCompSat ? 'Instrument and score note:' : 'Evaluation Reference Scale:');
     doc.fontSize(8).font('Helvetica');
-    doc.text('1.00 – 1.75: Low | 1.76 – 2.50: Moderate | 2.51 – 3.25: High | 3.26 – 4.00: Very High');
+    doc.text(isDigCompSat
+      ? 'DigCompSAT is a self-reflection tool; these 0–3 self-ratings are not objective right/wrong test scores or official proficiency classifications. This English item bank has not been locally validated with Masbate Colleges students. Source: Clifford et al. (2020), JRC123226, doi:10.2760/77437; European Union, CC BY 4.0. The local mapping is not endorsed by or the responsibility of the European Commission.'
+      : '1.00 – 1.75: Low | 1.76 – 2.50: Moderate | 2.51 – 3.25: High | 3.26 – 4.00: Very High');
     const skillsToShow = req.user.role === 'respondent' && req.user.id === attempt.user_id
       ? attempt.desired_skills
       : (attempt.desired_skills_reviewed_at ? attempt.desired_skills_redacted : null);
@@ -140,6 +145,45 @@ router.get('/results/:attemptId/pdf', authenticate, (req, res) => {
   } catch (err) {
     console.error('Error generating PDF:', err);
     res.status(500).json({ success: false, message: 'Failed to generate PDF' });
+  }
+});
+
+// GET /api/export/awards/:attemptId/pdf - Completion-only digital award
+router.get('/awards/:attemptId/pdf', authenticate, (req, res) => {
+  try {
+    if (process.env.DLAS_FREE_DEMO === 'true') {
+      return res.status(403).json({ success: false, message: 'Completion awards are disabled for synthetic demo records.' });
+    }
+    const attemptId = Number.parseInt(req.params.attemptId, 10);
+    if (!Number.isInteger(attemptId) || attemptId <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid attempt ID' });
+    }
+    const attempt = db.prepare(`
+      SELECT at.id, at.assessment_id, at.user_id, at.status, at.completed_at, at.scoring_version,
+             asm.title AS assessment_title,
+             u.first_name, u.last_name
+      FROM assessment_attempts at
+      JOIN assessments asm ON asm.id = at.assessment_id
+      JOIN users u ON u.id = at.user_id
+      WHERE at.id = ?
+    `).get(attemptId);
+    if (!attempt) return res.status(404).json({ success: false, message: 'Award not found' });
+    if (!canAccessAttempt(req.user, attempt)) return res.status(403).json({ success: false, message: 'Access denied' });
+    if (attempt.status !== 'completed' || !attempt.completed_at) {
+      return res.status(409).json({ success: false, message: 'The completion award is available after the assessment is submitted.' });
+    }
+
+    auditSuccessfulExport(req, res, 'ASSESSMENT_COMPLETION_AWARD', `Downloaded completion award for attempt #${attempt.id}`);
+    const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 0 });
+    const filename = `Masbate_Colleges_Completion_Award_${attempt.id}.pdf`;
+    drawCompletionAward(doc, attempt);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    doc.pipe(res);
+    doc.end();
+  } catch (err) {
+    console.error('Error generating assessment completion award:', err);
+    res.status(500).json({ success: false, message: 'Failed to generate the completion award' });
   }
 });
 
@@ -170,6 +214,7 @@ router.get('/results/:attemptId/excel', authenticate, async (req, res) => {
       return res.status(409).json({ success: false, message: 'Results are available after submission' });
     }
     auditSuccessfulExport(req, res, 'RESULT_EXPORT_EXCEL', `Downloaded individual result Excel for attempt #${attempt.id}`);
+    const isDigCompSat = attempt.scoring_version === 'digcompsat-self-reflection-0-3.1';
 
     const currentResponses = db.prepare(`
       SELECT r.question_id, r.rating, q.question_number, q.question_text, ca.name as area_name, ca.code as area_code
@@ -189,6 +234,8 @@ router.get('/results/:attemptId/excel', authenticate, async (req, res) => {
         question_text: snapshotItems.get(response.question_id).question_text,
         area_name: snapshotItems.get(response.question_id).area_name,
         area_code: snapshotItems.get(response.question_id).area_code,
+        framework_competence_id: snapshotItems.get(response.question_id).framework_competence_id,
+        response_type: snapshotItems.get(response.question_id).response_type,
       } : {}),
     }));
 
@@ -197,9 +244,13 @@ router.get('/results/:attemptId/excel', authenticate, async (req, res) => {
 
     sheet.columns = [
       { header: 'No.', key: 'num', width: 8 },
+      ...(isDigCompSat ? [
+        { header: 'DigComp ID', key: 'framework_id', width: 14 },
+        { header: 'Response Type', key: 'response_type', width: 16 },
+      ] : []),
       { header: 'Competence Area', key: 'area', width: 30 },
       { header: 'Competency Statement', key: 'text', width: 65 },
-      { header: 'Self-Rating (1-4)', key: 'rating', width: 16 }
+      { header: isDigCompSat ? 'Self-Rating (0-3)' : 'Self-Rating (1-4)', key: 'rating', width: 16 }
     ];
 
     sheet.getRow(1).font = { bold: true };
@@ -208,6 +259,8 @@ router.get('/results/:attemptId/excel', authenticate, async (req, res) => {
     for (const r of responses) {
       sheet.addRow({
         num: r.question_number,
+        framework_id: r.framework_competence_id || '',
+        response_type: r.response_type || '',
         area: `${r.area_name} (${r.area_code})`,
         text: r.question_text,
         rating: r.rating
@@ -218,21 +271,41 @@ router.get('/results/:attemptId/excel', authenticate, async (req, res) => {
     sheet.addRow({});
     sheet.addRow({
       num: '',
-      area: 'OVERALL MEAN',
-      text: `Proficiency Level: ${attempt.overall_level}`,
+      area: isDigCompSat ? 'OVERALL SELF-RATING MEAN' : 'OVERALL WEIGHTED MEAN',
+      text: isDigCompSat ? 'Interpretation: self-reflection profile; not an official proficiency level' : `Proficiency Level: ${attempt.overall_level}`,
       rating: attempt.overall_mean
     });
 
-    sheet.addRow({});
-    sheet.addRow({ num: '', area: 'PART III', text: 'Skills the respondent would like to develop', rating: '' });
-    const skillsToShow = req.user.role === 'respondent' && req.user.id === attempt.user_id
-      ? attempt.desired_skills
-      : (attempt.desired_skills_reviewed_at ? attempt.desired_skills_redacted : null);
-    sheet.addRow({
-      num: '', area: '',
-      text: skillsToShow || (attempt.desired_skills && req.user.role !== 'respondent' ? 'Withheld pending privacy review' : 'No response provided'),
-      rating: '',
-    });
+    if (!isDigCompSat) {
+      sheet.addRow({});
+      sheet.addRow({ num: '', area: 'PART III', text: 'Skills the respondent would like to develop', rating: '' });
+      const skillsToShow = req.user.role === 'respondent' && req.user.id === attempt.user_id
+        ? attempt.desired_skills
+        : (attempt.desired_skills_reviewed_at ? attempt.desired_skills_redacted : null);
+      sheet.addRow({
+        num: '', area: '',
+        text: skillsToShow || (attempt.desired_skills && req.user.role !== 'respondent' ? 'Withheld pending privacy review' : 'No response provided'),
+        rating: '',
+      });
+    } else {
+      const notes = workbook.addWorksheet('Instrument Notes');
+      notes.addRows([
+        ['Instrument', 'DigCompSAT self-reflection item bank (2020 final English version)'],
+        ['Score scale', '0–3; knowledge, skills, and attitude response labels differ by item type.'],
+        ...['knowledge', 'skills', 'attitude'].map((type) => [
+          `${type[0].toUpperCase()}${type.slice(1)} scale`,
+          (snapshot?.responseScales?.[type] || []).map((option) => `${option.value} = ${option.label}`).join(' | '),
+        ]),
+        ['Interpretation', 'Self-reported profile, not a right/wrong test score or official proficiency classification.'],
+        ['Local validation', 'Not yet locally validated with Masbate Colleges students. Keep separate from thesis questionnaire analyses.'],
+        ['Source', 'Clifford et al. (2020), JRC123226, doi:10.2760/77437'],
+        ['Reuse and local changes', 'European Union, 2020, CC BY 4.0. Source wording imported in English and mapped to local competence-area codes.'],
+        ['Commission disclaimer', 'The European Commission is not responsible for or endorsing this local implementation.'],
+      ]);
+      notes.getColumn(1).width = 22;
+      notes.getColumn(2).width = 105;
+      notes.getColumn(1).font = { bold: true };
+    }
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="Result_${attempt.id}.xlsx"`);
@@ -248,13 +321,18 @@ router.get('/results/:attemptId/excel', authenticate, async (req, res) => {
 // GET /api/export/assessment/:id/excel - Full institutional cohort dataset
 router.get('/assessment/:id/excel', authenticate, authorize('admin', 'assessor'), async (req, res) => {
   try {
-    const assessment = db.prepare('SELECT id, title FROM assessments WHERE id = ?').get(req.params.id);
+    const assessment = db.prepare('SELECT id, title, scoring_version, instrument_snapshot FROM assessments WHERE id = ?').get(req.params.id);
     if (!assessment) {
       return res.status(404).json({ success: false, message: 'Assessment not found' });
     }
     if (!canAccessAssessment(req.user, assessment.id)) {
       return res.status(403).json({ success: false, message: 'Access denied' });
     }
+    const isDigCompSat = assessment.scoring_version === 'digcompsat-self-reflection-0-3.1';
+    let assessmentSnapshot;
+    try { assessmentSnapshot = JSON.parse(assessment.instrument_snapshot || 'null'); } catch { assessmentSnapshot = null; }
+    const instrumentItems = assessmentSnapshot?.items || [];
+    if (!instrumentItems.length) return res.status(409).json({ success: false, message: 'This assessment has no saved instrument version to export.' });
     auditSuccessfulExport(req, res, 'COHORT_EXPORT_EXCEL', `Downloaded de-identified cohort report for assessment #${assessment.id}`);
 
     const participants = db.prepare(`
@@ -363,8 +441,8 @@ router.get('/assessment/:id/excel', authenticate, authorize('admin', 'assessor')
       { header: 'Family Income Range', key: 'income', width: 22 },
       { header: 'Home PC', key: 'pc', width: 10 },
       { header: 'Internet', key: 'internet', width: 18 },
-      { header: 'Overall Mean', key: 'mean', width: 14 },
-      { header: 'Proficiency Level', key: 'level', width: 16 }
+      { header: isDigCompSat ? 'Self-Rating Mean (0-3)' : 'Overall Mean (1-4)', key: 'mean', width: 18 },
+      { header: isDigCompSat ? 'Interpretation' : 'Proficiency Level', key: 'level', width: 22 }
     ];
     sheet.getRow(1).font = { bold: true };
     sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCBD5E1' } };
@@ -387,7 +465,7 @@ router.get('/assessment/:id/excel', authenticate, authorize('admin', 'assessor')
     const itemSheet = workbook.addWorksheet('Item Ratings');
     itemSheet.columns = [
       { header: 'Respondent Code', key: 'respondent_code', width: 18 },
-      ...Array.from({ length: 30 }, (_, index) => ({ header: `Q${String(index + 1).padStart(2, '0')}`, key: `Q${String(index + 1).padStart(2, '0')}`, width: 8 })),
+      ...instrumentItems.map((item) => ({ header: `Q${String(item.question_number).padStart(2, '0')}`, key: `Q${String(item.question_number).padStart(2, '0')}`, width: 8 })),
     ];
     itemSheet.getRow(1).font = { bold: true };
     itemSheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFCBD5E1' } };
@@ -395,6 +473,47 @@ router.get('/assessment/:id/excel', authenticate, authorize('admin', 'assessor')
       itemSheet.addRow({ respondent_code: participant.respondent_code, ...(ratingsByAttempt.get(participant.attempt_id) || {}) });
     }
 
+    if (isDigCompSat) {
+      const notes = workbook.addWorksheet('Instrument Notes');
+      notes.addRows([
+        ['Instrument', 'DigCompSAT self-reflection item bank (2020 final English version)'],
+        ['Items', `${instrumentItems.length} saved instrument items`],
+        ['Score scale', '0–3; knowledge, skills, and attitude response labels differ by item type.'],
+        ...['knowledge', 'skills', 'attitude'].map((type) => [
+          `${type[0].toUpperCase()}${type.slice(1)} scale`,
+          (assessmentSnapshot?.responseScales?.[type] || []).map((option) => `${option.value} = ${option.label}`).join(' | '),
+        ]),
+        ['Interpretation', 'Self-reported profile, not a right/wrong test score or official proficiency classification.'],
+        ['Local validation', 'Not yet locally validated with Masbate Colleges students. Keep separate from thesis questionnaire analyses.'],
+        ['Source', 'Clifford et al. (2020), JRC123226, doi:10.2760/77437'],
+        ['Reuse and local changes', 'European Union, 2020, CC BY 4.0. Source wording imported in English and mapped to local competence-area codes.'],
+        ['Commission disclaimer', 'The European Commission is not responsible for or endorsing this local implementation.'],
+      ]);
+      notes.getColumn(1).width = 22;
+      notes.getColumn(2).width = 105;
+      notes.getColumn(1).font = { bold: true };
+      const itemMetadata = workbook.addWorksheet('Instrument Items');
+      itemMetadata.columns = [
+        { header: 'Item', key: 'number', width: 10 },
+        { header: 'DigComp ID', key: 'framework_id', width: 14 },
+        { header: 'Local Area', key: 'area', width: 12 },
+        { header: 'Response Type', key: 'response_type', width: 16 },
+        { header: 'Target Level', key: 'target_level', width: 18 },
+        { header: 'Statement', key: 'statement', width: 110 },
+      ];
+      for (const item of instrumentItems) itemMetadata.addRow({
+        number: item.question_number,
+        framework_id: item.framework_competence_id || '',
+        area: `${item.area_code} · ${item.area_name}`,
+        response_type: item.response_type,
+        target_level: item.proficiency_level,
+        statement: item.question_text,
+      });
+      itemMetadata.getRow(1).font = { bold: true };
+      itemMetadata.views = [{ state: 'frozen', ySplit: 1 }];
+    }
+
+    if (!isDigCompSat) {
     const partThreeSheet = workbook.addWorksheet('Part III Skills');
     partThreeSheet.columns = [
       { header: 'Respondent Code', key: 'respondent_code', width: 18 },
@@ -411,9 +530,10 @@ router.get('/assessment/:id/excel', authenticate, authorize('admin', 'assessor')
         ? 'Only at least five manually reviewed and sanitized responses are included. Unreviewed and withheld responses are omitted.'
         : 'Part III responses are withheld until at least five responses have been reviewed and sanitized.',
     });
+    }
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', `attachment; filename="Deidentified_Study_Data_${assessment.id}.xlsx"`);
+    res.setHeader('Content-Disposition', `attachment; filename="Deidentified_${isDigCompSat ? 'DigCompSAT' : 'Study_Data'}_${assessment.id}.xlsx"`);
 
     await workbook.xlsx.write(res);
     res.end();

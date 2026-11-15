@@ -1,11 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const { body, validationResult } = require('express-validator');
-const { db, logActivity, buildAssessmentSnapshot } = require('../db/database');
+const { db, logActivity, buildAssessmentSnapshot, DIGCOMPSAT_SCORING_VERSION } = require('../db/database');
 const { authenticate, authorize, canAccessAttempt, canAccessAssessment } = require('../middleware/auth');
-const { calculateAssessmentResults } = require('../utils/scoring');
+const { calculateAssessmentResults, calculateDigCompSatResults } = require('../utils/scoring');
 const { getStudyProfile } = require('../utils/studyProfile');
 const { getStudyReadiness } = require('../utils/studyReadiness');
+
+const INTEGRITY_STATEMENT_VERSION = 'respondent-self-reflection-v1';
 
 function parseSqliteUtc(value) {
   if (!value) return NaN;
@@ -42,7 +44,7 @@ function readAttemptResults(attemptId, snapshot = null) {
   } : {}) }));
 }
 
-function finalizeAttempt(attempt) {
+function finalizeAttempt(attempt, integrityStatementVersion) {
   const snapshot = readInstrumentSnapshot(attempt);
   const snapshotItems = snapshot?.items || [];
   const itemById = new Map(snapshotItems.map((item) => [item.question_id, item]));
@@ -59,13 +61,16 @@ function finalizeAttempt(attempt) {
   }
 
   const competenceAreas = snapshot?.competenceAreas || db.prepare('SELECT id, name, code FROM competence_areas ORDER BY sort_order ASC').all();
-  const calculated = calculateAssessmentResults(responses, competenceAreas);
+  const calculated = snapshot?.scoringVersion === DIGCOMPSAT_SCORING_VERSION
+    ? calculateDigCompSatResults(responses, competenceAreas)
+    : calculateAssessmentResults(responses, competenceAreas);
   const saveResults = db.transaction(() => {
     db.prepare(`
       UPDATE assessment_attempts
-      SET status = 'completed', completed_at = datetime('now'), overall_mean = ?, overall_level = ?
+      SET status = 'completed', completed_at = datetime('now'), overall_mean = ?, overall_level = ?,
+          integrity_confirmed_at = datetime('now'), integrity_statement_version = ?
       WHERE id = ? AND status = 'in_progress'
-    `).run(calculated.overallMean, calculated.overallLevel, attempt.id);
+    `).run(calculated.overallMean, calculated.overallLevel, integrityStatementVersion, attempt.id);
 
     db.prepare('DELETE FROM area_results WHERE attempt_id = ?').run(attempt.id);
     const insertAreaResult = db.prepare(`
@@ -287,10 +292,10 @@ router.get('/:id', authenticate, (req, res) => {
 // PUT /api/attempts/:id/respond - Save a single answer or a batch atomically
 router.put('/:id/respond', authenticate, authorize('respondent'), [
   body('question_id').optional().isInt({ min: 1 }),
-  body('rating').optional().isInt({ min: 1, max: 4 }),
+  body('rating').optional().isInt({ min: 0, max: 4 }),
   body('responses').optional().isArray({ min: 1, max: 100 }),
   body('responses.*.question_id').optional().isInt({ min: 1 }),
-  body('responses.*.rating').optional().isInt({ min: 1, max: 4 }),
+  body('responses.*.rating').optional().isInt({ min: 0, max: 4 }),
 ], (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
@@ -314,9 +319,13 @@ router.put('/:id/respond', authenticate, authorize('respondent'), [
       ? [{ question_id: req.body.question_id, rating: req.body.rating }]
       : null;
   if (!responses) return res.status(400).json({ success: false, message: 'Provide responses or question_id and rating' });
+  const attemptSnapshot = readInstrumentSnapshot(attempt);
+  const isDigCompSat = attemptSnapshot?.scoringVersion === DIGCOMPSAT_SCORING_VERSION;
+  const minRating = isDigCompSat ? 0 : 1;
+  const maxRating = isDigCompSat ? 3 : 4;
   for (const item of responses) {
-    if (!Number.isInteger(item.question_id) || !Number.isInteger(item.rating) || item.rating < 1 || item.rating > 4) {
-      return res.status(400).json({ success: false, message: 'Each response needs an assigned question ID and a rating from 1 to 4' });
+    if (!Number.isInteger(item.question_id) || !Number.isInteger(item.rating) || item.rating < minRating || item.rating > maxRating) {
+      return res.status(400).json({ success: false, message: `Each response needs an assigned question ID and a rating from ${minRating} to ${maxRating}` });
     }
   }
   const uniqueQuestionIds = [...new Set(responses.map((item) => item.question_id))];
@@ -366,6 +375,9 @@ router.put('/:id/desired-skills', authenticate, authorize('respondent'), [
   `).get(attemptId);
   if (!attempt) return res.status(404).json({ success: false, message: 'Attempt not found' });
   if (attempt.user_id !== req.user.id) return res.status(403).json({ success: false, message: 'Access denied' });
+  if (readInstrumentSnapshot(attempt)?.scoringVersion === DIGCOMPSAT_SCORING_VERSION) {
+    return res.status(409).json({ success: false, message: 'This self-reflection assessment does not include the separate open-ended Part III question.' });
+  }
   if (attempt.status !== 'in_progress') return res.status(400).json({ success: false, message: 'The open-ended answer can only be changed before submission.' });
   if (isTimeExpired(attempt, attempt.time_limit_minutes)) {
     return res.status(410).json({ success: false, message: 'The assessment time limit has expired. Your saved answer is retained.' });
@@ -450,9 +462,12 @@ router.post('/:id/submit', authenticate, authorize('respondent'), (req, res) => 
     });
   }
   if (attempt.status !== 'in_progress') return res.status(400).json({ success: false, message: 'This attempt cannot be submitted' });
+  if (req.body?.integrity_confirmed !== true) {
+    return res.status(400).json({ success: false, message: 'Confirm that these responses are your own before submitting.' });
+  }
 
   try {
-    const { calculated, error, answeredCount, totalCount } = finalizeAttempt(attempt);
+    const { calculated, error, answeredCount, totalCount } = finalizeAttempt(attempt, INTEGRITY_STATEMENT_VERSION);
     if (error) return res.status(400).json({ success: false, message: error, answeredCount, totalCount });
     return res.json({
       success: true,
@@ -506,12 +521,15 @@ router.get('/:id/results', authenticate, (req, res) => {
       S: ['Safety', 'Digital Safety & Privacy', 'Practice cyber hygiene, threat identification, and device protection.'],
       CC: ['Communication and Collaboration', 'Digital Etiquette & Collaboration', 'Improve collaborative document workflows and formal communication etiquette.'],
     };
+    const isDigCompSat = snapshot?.scoringVersion === DIGCOMPSAT_SCORING_VERSION;
     const recommendations = lowestRatedSkills.map((item) => {
       const [area, topic, advice] = recommendationByArea[item.area_code];
       return {
         area,
         topic,
-        recommendation: `Target Item #${item.question_number}: "${item.question_text}". ${advice}`,
+        recommendation: isDigCompSat
+          ? `You gave this statement a lower self-rating: “${item.question_text}”. Consider a learning activity in this area, then use practical exercises or instructor feedback to check what support would help.`
+          : `Target Item #${item.question_number}: "${item.question_text}". ${advice}`,
       };
     });
 

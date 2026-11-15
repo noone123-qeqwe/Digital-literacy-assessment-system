@@ -10,7 +10,7 @@ router.get('/areas', authenticate, authorize('admin', 'assessor'), (req, res) =>
     const areas = db.prepare(`
       SELECT ca.*, COUNT(q.id) as question_count
       FROM competence_areas ca
-      LEFT JOIN questions q ON ca.id = q.competence_area_id AND q.is_active = 1
+      LEFT JOIN questions q ON ca.id = q.competence_area_id AND q.is_active = 1 AND q.instrument_code = 'dlas-thesis-v1'
       GROUP BY ca.id
       ORDER BY ca.sort_order ASC
     `).all();
@@ -26,14 +26,18 @@ router.get('/', authenticate, authorize('admin', 'assessor'), (req, res) => {
   try {
     const areaId = req.query.area_id;
     const isActiveOnly = req.query.active_only === 'true';
+    const instrumentCode = req.query.instrument_code || 'dlas-thesis-v1';
+    if (!['dlas-thesis-v1', 'digcompsat-2020'].includes(instrumentCode)) {
+      return res.status(400).json({ success: false, message: 'Unknown assessment instrument.' });
+    }
 
     let query = `
       SELECT q.*, ca.name as area_name, ca.code as area_code
       FROM questions q
       JOIN competence_areas ca ON q.competence_area_id = ca.id
     `;
-    const conditions = [];
-    const params = [];
+    const conditions = ['q.instrument_code = ?'];
+    const params = [instrumentCode];
 
     if (areaId) {
       conditions.push('q.competence_area_id = ?');
@@ -86,6 +90,10 @@ router.post('/', authenticate, authorize('admin'), [
   }
 
   const { competence_area_id, question_number, question_text, is_active = 1 } = req.body;
+  const instrumentCode = req.body.instrument_code || 'dlas-thesis-v1';
+  if (instrumentCode !== 'dlas-thesis-v1') {
+    return res.status(400).json({ success: false, message: 'Externally sourced instrument items are versioned and cannot be edited here.' });
+  }
 
   const area = db.prepare('SELECT id FROM competence_areas WHERE id = ?').get(competence_area_id);
   if (!area) {
@@ -95,9 +103,9 @@ router.post('/', authenticate, authorize('admin'), [
   let result;
   try {
     result = db.prepare(`
-      INSERT INTO questions (competence_area_id, question_number, question_text, is_active)
-      VALUES (?, ?, ?, ?)
-    `).run(competence_area_id, question_number, question_text, Number(is_active));
+      INSERT INTO questions (competence_area_id, question_number, question_text, instrument_code, is_active)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(competence_area_id, question_number, question_text, instrumentCode, Number(is_active));
   } catch (err) {
     if (err.code === 'SQLITE_CONSTRAINT_UNIQUE') {
       return res.status(409).json({ success: false, message: 'That question number is already used in this competence area' });
@@ -131,6 +139,9 @@ router.put('/:id', authenticate, authorize('admin'), [
 
   if (!question) {
     return res.status(404).json({ success: false, message: 'Question not found' });
+  }
+  if (question.instrument_code !== 'dlas-thesis-v1') {
+    return res.status(409).json({ success: false, message: 'DigCompSAT items are read-only so the published instrument wording and scoring stay intact.' });
   }
 
   const updates = [];
@@ -182,9 +193,12 @@ router.put('/:id', authenticate, authorize('admin'), [
 
 // DELETE /api/questions/:id - Toggle active status or delete (Admin only)
 router.delete('/:id', authenticate, authorize('admin'), (req, res) => {
-  const question = db.prepare('SELECT id, is_active FROM questions WHERE id = ?').get(req.params.id);
+  const question = db.prepare('SELECT id, instrument_code, is_active FROM questions WHERE id = ?').get(req.params.id);
   if (!question) {
     return res.status(404).json({ success: false, message: 'Question not found' });
+  }
+  if (question.instrument_code !== 'dlas-thesis-v1') {
+    return res.status(409).json({ success: false, message: 'DigCompSAT items are read-only so the full published bank remains intact.' });
   }
 
   // Keep questions that have been used in an assessment so old results remain valid.

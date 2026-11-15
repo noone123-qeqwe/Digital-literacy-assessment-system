@@ -5,7 +5,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 const { db, logActivity } = require('../db/database');
-const { authenticate } = require('../middleware/auth');
+const { authenticate, authorize } = require('../middleware/auth');
+const { defaults: characterDefaults, validateCharacterSettings } = require('../utils/dashboardCharacter');
 const { rateLimit } = require('../middleware/rateLimit');
 const {
   issueSession, revokeSession, revokeUserSessions, clearSessionCookies,
@@ -425,6 +426,32 @@ router.get('/me', authenticate, (req, res) => {
     success: true,
     data: { ...user, profile },
   });
+});
+
+// Account-specific dashboard character preferences.
+router.get('/me/dashboard-character', authenticate, authorize('respondent'), (req, res) => {
+  const row = db.prepare('SELECT settings_json FROM dashboard_characters WHERE user_id = ?').get(req.user.id);
+  let settings = characterDefaults;
+  if (row) {
+    try {
+      settings = validateCharacterSettings(JSON.parse(row.settings_json)).settings || characterDefaults;
+    } catch {
+      settings = characterDefaults;
+    }
+  }
+  return res.json({ success: true, data: { settings } });
+});
+
+router.put('/me/dashboard-character', authenticate, authorize('respondent'), (req, res) => {
+  const { settings, error } = validateCharacterSettings(req.body?.settings);
+  if (error) return res.status(400).json({ success: false, message: error });
+  db.prepare(`
+    INSERT INTO dashboard_characters (user_id, settings_json)
+    VALUES (?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET settings_json = excluded.settings_json, updated_at = datetime('now')
+  `).run(req.user.id, JSON.stringify(settings));
+  logActivity(req.user.id, 'DASHBOARD_CHARACTER_UPDATE', 'User customized their dashboard character');
+  return res.json({ success: true, message: 'Your dashboard character was saved.', data: { settings } });
 });
 
 // PUT /api/auth/me/profile-picture

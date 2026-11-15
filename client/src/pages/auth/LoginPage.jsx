@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/useAuth';
+import { useDemoMode } from '../../contexts/useDemoMode';
 import { Lock, Mail, ArrowRight, Sparkles, Eye, EyeOff, ShieldCheck } from 'lucide-react';
+import LoginIntro from '../../components/auth/LoginIntro';
 
 const skillAreas = [
   { name: 'Information', color: 'text-amber-200' },
@@ -25,6 +27,7 @@ export const LoginPage = () => {
   const [verificationRequired, setVerificationRequired] = useState(false);
   const [searchParams] = useSearchParams();
   const { login, completeMfaLogin, beginMfaSetup, completeMfaSetup } = useAuth();
+  const { available: demoStatusAvailable, freeDemoReadOnly, loading: demoStatusLoading } = useDemoMode();
   const navigate = useNavigate();
 
   const continueAfterLogin = (user) => {
@@ -72,6 +75,7 @@ export const LoginPage = () => {
   };
 
   return (
+    <LoginIntro skipIntro={searchParams.get('registered') === '1'}>
     <main className="relative isolate flex min-h-svh items-center justify-center overflow-x-hidden bg-slate-950 px-3 py-3 sm:px-5 sm:py-5 lg:px-6 lg:py-5">
       <img
         aria-hidden="true"
@@ -135,7 +139,7 @@ export const LoginPage = () => {
           <div className="relative z-10 mx-auto w-full max-w-xl">
             <div className="mb-4 sm:mb-5">
               <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-green-700 sm:text-xs">{authStep === 'credentials' ? 'College of Computer Studies' : 'Account security'}</p>
-              <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl lg:text-4xl xl:text-5xl">{authStep === 'credentials' ? 'Welcome back' : authStep === 'mfa-setup' ? 'Secure your account' : 'Verify it’s you'}</h2>
+              <h2 data-login-heading tabIndex={-1} className="mt-1 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl lg:text-4xl xl:text-5xl">{authStep === 'credentials' ? 'Welcome back' : authStep === 'mfa-setup' ? 'Secure your account' : 'Verify it’s you'}</h2>
               <p className="mt-1 text-sm leading-5 text-slate-600 sm:text-base sm:leading-6">{authStep === 'credentials' ? 'Sign in with the email linked to your account.' : authStep === 'mfa-setup' ? 'Administrators and teachers must set up an authenticator app before using the system.' : 'Enter the current six-digit code from your authenticator app.'}</p>
             </div>
 
@@ -233,12 +237,18 @@ export const LoginPage = () => {
               </form>}
 
               {authStep === 'credentials' && <div className="mt-4 border-t border-slate-200 pt-3 text-center">
-                <p className="text-sm text-slate-700 sm:text-base">
-                  New student?{' '}
-                  <Link to="/register" className="font-semibold text-green-700 underline-offset-4 hover:text-green-800 hover:underline">
-                    Register here
-                  </Link>
-                </p>
+                {demoStatusLoading ? (
+                  <p className="text-sm text-slate-600 sm:text-base" role="status">Checking account options…</p>
+                ) : demoStatusAvailable && freeDemoReadOnly ? (
+                  <p className="text-sm font-medium text-slate-600 sm:text-base" role="status">Registration is disabled in this read-only demo.</p>
+                ) : (
+                  <p className="text-sm text-slate-700 sm:text-base">
+                    New student?{' '}
+                    <Link to="/register" className="font-semibold text-green-700 underline-offset-4 hover:text-green-800 hover:underline">
+                      Register here
+                    </Link>
+                  </p>
+                )}
                 <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm sm:text-base">
                   <Link to="/forgot-password" className="font-semibold text-green-800 underline-offset-4 hover:text-green-900 hover:underline">Forgot password?</Link>
                   {verificationRequired && <Link to="/verify-email" className="font-semibold text-green-800 underline-offset-4 hover:text-green-900 hover:underline">Resend verification</Link>}
@@ -252,6 +262,7 @@ export const LoginPage = () => {
         </section>
       </div>
     </main>
+    </LoginIntro>
   );
 };
 

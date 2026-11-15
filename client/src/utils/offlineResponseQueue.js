@@ -61,6 +61,16 @@ export async function saveAttemptCheckpoint({ userId, assessmentId, attempt, ass
     throw new Error('The assessment backup is missing its account or attempt reference.');
   }
 
+  let responseScales;
+  try {
+    const snapshot = typeof assessment?.instrument_snapshot === 'string'
+      ? JSON.parse(assessment.instrument_snapshot)
+      : assessment?.instrument_snapshot;
+    responseScales = snapshot?.responseScales;
+  } catch {
+    responseScales = undefined;
+  }
+
   const checkpoint = {
     key: checkpointKey(numericUserId, numericAssessmentId),
     userId: numericUserId,
@@ -78,6 +88,8 @@ export async function saveAttemptCheckpoint({ userId, assessmentId, attempt, ass
       title: String(assessment?.title || 'Digital Literacy Assessment'),
       description: String(assessment?.description || ''),
       time_limit_minutes: Number(assessment?.time_limit_minutes) || null,
+      scoring_version: assessment?.scoring_version || attempt.scoring_version || null,
+      instrument_snapshot: responseScales ? { responseScales } : null,
     },
     questions: (questions || []).map((question) => ({
       id: Number(question.id),
@@ -85,7 +97,10 @@ export async function saveAttemptCheckpoint({ userId, assessmentId, attempt, ass
       question_text: String(question.question_text || ''),
       area_code: String(question.area_code || ''),
       area_name: String(question.area_name || ''),
-      saved_rating: Number(question.saved_rating) || null,
+      response_type: question.response_type || null,
+      saved_rating: question.saved_rating === null || question.saved_rating === undefined
+        ? null
+        : Number(question.saved_rating),
     })),
     desiredSkills: String(desiredSkills ?? attempt.desired_skills ?? ''),
     pendingQuestionIds: [...new Set(pendingQuestionIds.map(Number))],

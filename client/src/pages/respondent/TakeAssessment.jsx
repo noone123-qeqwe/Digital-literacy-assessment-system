@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import api from '../../api/axios';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -7,6 +7,7 @@ import Modal from '../../components/common/Modal';
 import {
   CheckCircle2,
   Clock,
+  ArrowLeft,
   ArrowRight,
   Send,
   HelpCircle,
@@ -36,6 +37,9 @@ import {
   updateAttemptCheckpointResponse,
 } from '../../utils/offlineResponseQueue';
 
+const QUESTIONS_PER_PAGE = 6;
+const questionAnswered = (responses, id) => responses[id] !== undefined && responses[id] !== null;
+
 export const TakeAssessment = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -44,6 +48,15 @@ export const TakeAssessment = () => {
 
   const [loading, setLoading] = useState(true);
   const [assessment, setAssessment] = useState(null);
+  const snapshotSource = assessment?.instrument_snapshot;
+  const instrumentSnapshot = useMemo(() => {
+    try {
+      return typeof snapshotSource === 'string' ? JSON.parse(snapshotSource) : snapshotSource || null;
+    } catch {
+      return null;
+    }
+  }, [snapshotSource]);
+  const isDigCompSat = assessment?.scoring_version === 'digcompsat-self-reflection-0-3.1';
   const [attempt, setAttempt] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [responses, setResponses] = useState({}); // { [question_id]: rating }
@@ -51,7 +64,10 @@ export const TakeAssessment = () => {
   const [savedIds, setSavedIds] = useState(() => new Set());
   const [remainingSeconds, setRemainingSeconds] = useState(null);
   const [activeDomain, setActiveDomain] = useState('ALL'); // 'ALL', 'IDL', 'CC', 'DCC', 'S', 'PS'
+  const [questionPage, setQuestionPage] = useState(0);
+  const [focusRequest, setFocusRequest] = useState(null);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
+  const [integrityConfirmed, setIntegrityConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [consentInfo, setConsentInfo] = useState(null);
   const [consentForm, setConsentForm] = useState({ participantName: '', participantAge: '', participantConfirmed: false, guardianName: '', guardianRelationship: '', guardianEmail: '' });
@@ -83,6 +99,37 @@ export const TakeAssessment = () => {
   const desiredSkillsSaveRef = useRef(Promise.resolve());
   const desiredSkillsSavedValueRef = useRef('');
   const consentIsMinor = Boolean(consentInfo?.isMinor || (Number(consentForm.participantAge) > 0 && Number(consentForm.participantAge) < 18));
+  const filteredQuestions = activeDomain === 'ALL' ? questions : questions.filter((question) => question.area_code === activeDomain);
+  const pageCount = Math.max(1, Math.ceil(filteredQuestions.length / QUESTIONS_PER_PAGE));
+  const page = Math.min(questionPage, pageCount - 1);
+  const pageStart = page * QUESTIONS_PER_PAGE;
+  const pageQuestions = filteredQuestions.slice(pageStart, pageStart + QUESTIONS_PER_PAGE);
+  const firstUnanswered = questions.find((question) => !questionAnswered(responses, question.id));
+
+  useEffect(() => {
+    if (!focusRequest) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const target = document.getElementById(focusRequest.targetId);
+      target?.focus({ preventScroll: true });
+      target?.scrollIntoView({ block: 'start' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusRequest]);
+
+  const goToPage = (nextPage) => {
+    setQuestionPage(nextPage);
+    setFocusRequest({ targetId: 'assessment-question-heading' });
+  };
+
+  const goToUnanswered = () => {
+    if (!firstUnanswered) return;
+    const currentIndex = filteredQuestions.indexOf(firstUnanswered);
+    const targetIndex = currentIndex === -1 ? questions.indexOf(firstUnanswered) : currentIndex;
+    if (currentIndex === -1) setActiveDomain('ALL');
+    setQuestionPage(Math.floor(targetIndex / QUESTIONS_PER_PAGE));
+    setIsSubmitModalOpen(false);
+    setFocusRequest({ targetId: `assessment-question-${firstUnanswered.id}` });
+  };
 
   const saveDesiredSkills = useCallback((value) => {
     const request = desiredSkillsSaveRef.current.catch(() => undefined)
@@ -103,6 +150,7 @@ export const TakeAssessment = () => {
         : null;
       setRemainingSeconds(remaining);
     };
+    updateRemaining();
     const timer = window.setInterval(updateRemaining, 1000);
     return () => window.clearInterval(timer);
   }, [attempt?.started_at, assessment?.time_limit_minutes]);
@@ -117,7 +165,7 @@ export const TakeAssessment = () => {
       const savedMap = {};
       const savedQuestionIds = new Set();
       for (const question of qs) {
-        if (question.saved_rating) {
+        if (question.saved_rating !== null && question.saved_rating !== undefined) {
           savedMap[question.id] = question.saved_rating;
           savedQuestionIds.add(question.id);
         }
@@ -126,7 +174,7 @@ export const TakeAssessment = () => {
       for (const question of qs) {
         if (pendingCheckpointQuestionIds.has(Number(question.id)) && checkpoint.questions?.some((cachedQuestion) => Number(cachedQuestion.id) === Number(question.id))) {
           const cachedQuestion = checkpoint.questions.find((item) => Number(item.id) === Number(question.id));
-          if (cachedQuestion?.saved_rating) {
+          if (cachedQuestion?.saved_rating !== null && cachedQuestion?.saved_rating !== undefined) {
             savedMap[question.id] = cachedQuestion.saved_rating;
             savedQuestionIds.delete(question.id);
           }
@@ -142,7 +190,7 @@ export const TakeAssessment = () => {
       for (const questionId of pendingCheckpointQuestionIds) {
         if (queuedByQuestion.has(questionId)) continue;
         const cachedQuestion = checkpoint?.questions?.find((item) => Number(item.id) === questionId);
-        if (!cachedQuestion?.saved_rating || !qs.some((question) => Number(question.id) === questionId)) continue;
+        if (cachedQuestion?.saved_rating === null || cachedQuestion?.saved_rating === undefined || !qs.some((question) => Number(question.id) === questionId)) continue;
         try {
           const queuedRecord = await saveQueuedResponse({
             userId: currentUserId,
@@ -199,7 +247,7 @@ export const TakeAssessment = () => {
             assessmentId: id,
             attempt: att,
             assessment: asm,
-            questions: qs.map((question) => ({ ...question, saved_rating: savedMap[question.id] || null })),
+            questions: qs.map((question) => ({ ...question, saved_rating: savedMap[question.id] ?? null })),
             desiredSkills: restoredDesiredSkills,
             pendingQuestionIds: [...new Set([
               ...pendingCheckpointQuestionIds,
@@ -278,7 +326,10 @@ export const TakeAssessment = () => {
   }, [id, navigate, currentUserId]);
 
   useEffect(() => {
-    initAttempt();
+    const initializeAttempt = async () => {
+      await initAttempt();
+    };
+    void initializeAttempt();
   }, [initAttempt]);
 
   useEffect(() => {
@@ -312,7 +363,7 @@ export const TakeAssessment = () => {
             for (const questionId of checkpoint.pendingQuestionIds || []) {
               if (queuedQuestionIds.has(Number(questionId))) continue;
               const cachedQuestion = checkpoint.questions.find((question) => Number(question.id) === Number(questionId));
-              if (!cachedQuestion?.saved_rating) continue;
+              if (cachedQuestion?.saved_rating === null || cachedQuestion?.saved_rating === undefined) continue;
               const recoveredRecord = await saveQueuedResponse({ userId: currentUserId, assessmentId: id, attemptId: attempt.id, questionId, rating: cachedQuestion.saved_rating });
               queued.push(recoveredRecord);
               queueRevisionRef.current.set(Number(questionId), recoveredRecord.revision);
@@ -543,6 +594,10 @@ export const TakeAssessment = () => {
   };
 
   const handleSubmitAssessment = async () => {
+    if (!integrityConfirmed) {
+      toast.error('Confirm that the responses reflect your own digital literacy before submitting.');
+      return;
+    }
     if (pendingSavesRef.current.size > 0) {
       await Promise.allSettled([...pendingSavesRef.current.values()]);
     }
@@ -564,11 +619,7 @@ export const TakeAssessment = () => {
     const answeredCount = Object.keys(responses).length;
     if (answeredCount !== questions.length) {
       toast.error(`Answer all ${questions.length} questions before submitting.`);
-      const unanswered = questions.find((question) => !responses[question.id]);
-      if (unanswered) {
-        setActiveDomain('ALL');
-        window.setTimeout(() => document.getElementById(`q-${unanswered.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50);
-      }
+      goToUnanswered();
       return;
     }
     try {
@@ -581,7 +632,7 @@ export const TakeAssessment = () => {
         setDesiredSkillsDirty(false);
         setDesiredSkillsSaved(Boolean(desiredSkillsRef.current));
       }
-      const res = await api.post(`/attempts/${attempt.id}/submit`);
+      const res = await api.post(`/attempts/${attempt.id}/submit`, { integrity_confirmed: true });
       if (res.data.success) {
         await Promise.allSettled([
           clearQueuedResponses(currentUserId, id),
@@ -741,216 +792,215 @@ export const TakeAssessment = () => {
     PS: Wrench,
   };
 
-  const filteredQuestions =
-    activeDomain === 'ALL'
-      ? questions
-      : questions.filter((q) => q.area_code === activeDomain);
+  const domainOptions = competenceAreas.map((area) => {
+    const items = questions.filter((question) => question.area_code === area.code);
+    return { ...area, total: items.length, answered: items.filter((question) => questionAnswered(responses, question.id)).length };
+  }).filter((area) => area.total > 0);
+  const activeDomainName = domainOptions.find((area) => area.code === activeDomain)?.name;
+  const submissionPending = savingIds.size > 0 || desiredSkillsSaving || offlineQueueIds.size > 0 || savedIds.size < answeredCount;
+  const showSyncNotice = !isOnline || syncConnectionError || isOfflineRecovery || (offlineQueueIds.size > 0 && savingIds.size === 0);
+  let submissionMessage = 'Review your answers before submitting. You can open your results after submission.';
+  if (!isOnline) submissionMessage = 'Reconnect to the internet before submitting.';
+  else if (remainingSeconds === 0 && firstUnanswered) submissionMessage = 'Time is up. Your saved answers are kept. Ask your instructor to reopen this attempt.';
+  else if (firstUnanswered) submissionMessage = 'Answer the remaining questions before submitting.';
+  else if (submissionPending) submissionMessage = 'Wait for your answers to sync before submitting.';
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto pb-16">
-      {/* Top Fixed Progress & Info Card */}
-      <div className="sticky top-16 z-20 bg-white/95 backdrop-blur-md rounded-3xl border border-slate-200/80 p-5 shadow-sm space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <span className="text-[10px] font-extrabold uppercase tracking-wider text-green-600">
-              DigComp 2.1 Self-Assessment Questionnaire
-            </span>
-            <h1 className="text-lg sm:text-xl font-extrabold text-slate-900">
-              {assessment?.title || 'Digital Literacy Assessment'}
-            </h1>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-            <span className="shrink-0 text-xs font-bold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
-              Answered: <span className="text-green-600 font-extrabold">{answeredCount}</span> / {totalCount}
-            </span>
-            {remainingSeconds !== null && (
-              <span className={`shrink-0 text-xs font-bold px-3 py-1.5 rounded-xl border ${remainingSeconds === 0 ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`} role="timer">
-                <Clock className="inline w-3.5 h-3.5 mr-1" />
-                {remainingSeconds === 0 ? 'Time is up' : formatTime(remainingSeconds)}
-              </span>
-            )}
-
-            <button
-              onClick={() => setIsSubmitModalOpen(true)}
-              className="inline-flex shrink-0 items-center px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold text-xs shadow-md shadow-green-500/20 cursor-pointer transition-all"
-            >
-              <Send className="w-3.5 h-3.5 mr-1.5" />
-              <span>Review & Submit</span>
-            </button>
-          </div>
+    <div className="mx-auto max-w-6xl space-y-3 pb-8 sm:space-y-4">
+      <header className="rounded-3xl bg-green-950 px-4 pb-4 pt-1 text-white sm:px-6 sm:pb-5 sm:pt-2">
+        <div className="flex flex-wrap items-center justify-between gap-x-4">
+          <Link to="/respondent/assessments" className="inline-flex min-h-11 items-center gap-2 rounded-lg text-sm font-semibold text-green-100 hover:text-white focus-visible:outline-white">
+            <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+            My assessments
+          </Link>
+          <p className="hidden text-sm font-semibold text-green-100 sm:block">
+            {isDigCompSat ? 'DigCompSAT self-reflection' : 'DigComp 2.1 research questionnaire'}
+          </p>
         </div>
+        <h1 className="text-xl font-extrabold leading-tight tracking-tight wrap-anywhere sm:text-3xl">
+          {assessment?.title || 'Digital Literacy Assessment'}
+        </h1>
+        <p className="mt-2 text-sm leading-5 text-green-100">Choose the response that best describes your own experience.</p>
+      </header>
 
-        <ProgressBar progress={progressPercent} color="brand" height="h-2" />
-
-        {/* Domain Filter Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pt-1 text-[11px] font-bold">
+      <section aria-label="Assessment progress" className="student-assessment-progress sticky top-[5.5rem] z-20 space-y-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:px-5 2xl:top-[7rem]">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 sm:gap-x-4">
+          <p className="text-sm font-bold tabular-nums text-slate-900"><span className="sr-only">Answered </span>{answeredCount} of {totalCount}<span aria-hidden="true" className="hidden sm:inline"> answered</span></p>
+          {remainingSeconds !== null && (
+            <span className={`inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-sm font-semibold tabular-nums ${remainingSeconds === 0 ? 'bg-rose-50 text-rose-800' : 'bg-amber-50 text-amber-900'}`} role="timer" aria-label="Time remaining">
+              <Clock aria-hidden="true" className="h-4 w-4" />
+              {remainingSeconds === 0 ? 'Time is up' : formatTime(remainingSeconds)}
+            </span>
+          )}
           <button
-            onClick={() => setActiveDomain('ALL')}
-            aria-pressed={activeDomain === 'ALL'}
-            className={`px-3 py-1.5 rounded-lg shrink-0 cursor-pointer transition-colors ${
-              activeDomain === 'ALL'
-                ? 'bg-slate-900 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            type="button"
+            onClick={() => setIsSubmitModalOpen(true)}
+            aria-label="Review and submit"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-green-700 px-3 text-sm font-bold text-white hover:bg-green-800"
           >
-            All Questions ({questions.length})
+            <Send aria-hidden="true" className="h-4 w-4" />
+            <span>Review<span className="hidden sm:inline"> &amp; submit</span></span>
           </button>
-
-          {competenceAreas.map((area) => {
-            const Icon = domainIcons[area.code] || HelpCircle;
-            const isSelected = activeDomain === area.code;
-            const domainQuestions = questions.filter((q) => q.area_code === area.code);
-            const domainAnswered = domainQuestions.filter((q) => responses[q.id]).length;
-
-            return (
-              <button
-                key={area.code}
-                onClick={() => setActiveDomain(area.code)}
-                aria-pressed={isSelected}
-                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-lg shrink-0 cursor-pointer transition-colors ${
-                  isSelected
-                    ? 'bg-green-600 text-white shadow-xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                <Icon className="w-3 h-3" />
-                <span>{area.name}</span>
-                <span className={`text-[10px] px-1 py-0.2 rounded-md ${isSelected ? 'bg-green-700 text-white' : 'bg-slate-200 text-slate-600'}`}>
-                  {domainAnswered}/{domainQuestions.length}
-                </span>
-              </button>
-            );
-          })}
         </div>
-      </div>
+        <div role="progressbar" aria-label="Questions answered" aria-valuemin={0} aria-valuemax={Math.max(1, totalCount)} aria-valuenow={answeredCount}>
+          <ProgressBar progress={progressPercent} color="brand" height="h-1.5" />
+        </div>
+      </section>
 
-      <div role="status" aria-live="polite" className={`flex flex-col gap-1 rounded-2xl border px-4 py-3 text-xs sm:flex-row sm:items-center sm:justify-between ${localBackupStatus === 'unavailable' ? 'border-rose-200 bg-rose-50 text-rose-900' : localBackupStatus === 'best-effort' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-emerald-200 bg-emerald-50 text-emerald-900'}`}>
-        <p className="font-bold">{localBackupStatus === 'protected' ? 'On-device recovery copy is active' : localBackupStatus === 'restored' ? 'Assessment restored from this device' : localBackupStatus === 'best-effort' ? 'On-device recovery copy is active; browser storage may be cleared' : localBackupStatus === 'unavailable' ? 'On-device recovery copy is unavailable' : 'Preparing an on-device recovery copy…'}</p>
-        <p>{localBackupStatus === 'unavailable' ? 'Make sure each answer shows “Saved to system” before closing.' : 'Use the same device and browser to recover this assessment.'}</p>
-      </div>
-      {assessment?.time_limit_minutes && <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">This assessment is timed. The timer continues while the device is off; saved answers remain available, but the time limit may expire. Contact your instructor if you need the timed attempt reopened.</p>}
+      {localBackupStatus === 'unavailable' && (
+        <p role="status" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm leading-5 text-rose-900">
+          Device backup is unavailable. Check that each answer shows “Saved to system” before leaving.
+        </p>
+      )}
+      {remainingSeconds === 0 && firstUnanswered && (
+        <p role="status" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-5 text-amber-900">
+          Your saved answers are kept. Ask your instructor to reopen this attempt to finish answering.
+        </p>
+      )}
 
-      {(!isOnline || syncConnectionError || offlineQueueIds.size > 0 || isOfflineRecovery) && <div role="status" aria-live="polite" className={`flex flex-col gap-3 rounded-2xl border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between ${isOnline ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-sky-200 bg-sky-50 text-sky-900'}`}>
-        <div><p className="font-bold">{syncBlockedReason ? 'Answers need instructor attention' : !isOnline ? 'Connection interrupted' : syncConnectionError ? 'Cannot reach or sync with the assessment server' : isOfflineRecovery ? 'Recovered work is waiting to sync' : 'Some answers are waiting to sync'}</p><p className="mt-0.5 text-xs leading-5">{syncBlockedReason || `${offlineQueueIds.size ? `${offlineQueueIds.size} answer${offlineQueueIds.size === 1 ? '' : 's'} saved on this device.` : 'Your current work is backed up on this device.'} Keep using this same browser and device. Reconnect and sign in to sync; submission is available after the system confirms every answer.`}</p></div>
+      {showSyncNotice && <div role="status" className={`flex flex-col gap-3 rounded-2xl border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between ${isOnline ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-sky-200 bg-sky-50 text-sky-900'}`}>
+        <div>
+          <p className="font-bold">{syncBlockedReason ? 'Answers need instructor attention' : !isOnline ? 'Connection interrupted' : syncConnectionError ? 'Cannot sync with the assessment server' : isOfflineRecovery ? 'Recovered work is waiting to sync' : 'Answers are waiting to sync'}</p>
+          <p className="mt-0.5 text-sm leading-5">{syncBlockedReason || 'Keep using this browser to sync your saved answers. Submit after every answer is saved to the system.'}</p>
+        </div>
         {isOnline && <button type="button" onClick={() => setSyncRequest((current) => current + 1)} disabled={syncingQueue} className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-xl border border-current/20 bg-white px-3 text-xs font-bold disabled:opacity-50">{syncingQueue ? 'Syncing…' : 'Sync answers now'}</button>}
       </div>}
 
-      {/* Instructions Box */}
-      <div className="bg-green-50/80 border border-green-200/80 rounded-2xl p-4 text-xs text-green-900 flex items-start space-x-3">
-        <Info className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
-        <div className="space-y-1">
-          <p className="font-bold">Part II Instructions:</p>
-          <p className="text-green-800 leading-relaxed">
-            Read each statement carefully and select the rating that most accurately reflects your personal competence:
-            <br />
-            <strong>4</strong> = I can do this confidently and independently | <strong>3</strong> = I can do this with occasional difficulty | <strong>2</strong> = I can do this with much difficulty | <strong>1</strong> = I cannot do this.
-          </p>
+      <details className="rounded-2xl border border-green-200 bg-green-50 px-4 text-sm text-green-950 sm:px-5">
+        <summary className="min-h-11 cursor-pointer rounded-lg py-3 font-bold">Instructions and response scale</summary>
+        <div className="space-y-3 border-t border-green-200 py-4 leading-6">
+          {isDigCompSat ? (
+            <>
+              <p>There are no right or wrong answers. The scale depends on whether the statement asks about knowledge, skills, or attitude.</p>
+              {['knowledge', 'skills', 'attitude'].map((type) => (
+                <p key={type}><strong className="capitalize">{type}:</strong> {instrumentSnapshot?.responseScales?.[type]?.map((option) => `${option.value} = ${option.label}`).join(' · ')}</p>
+              ))}
+              <p className="text-xs leading-5">Source: Clifford et al. (2020), JRC123226; European Union, 2020, CC BY 4.0. This local English version maps items to Masbate Colleges’ five areas, is not locally validated, and is not endorsed by or the responsibility of the European Commission.</p>
+            </>
+          ) : (
+            <>
+              <ul className="space-y-1">
+                {ratingScale.map(({ value, label }) => <li key={value}><strong>{value}</strong> · {label}</li>)}
+              </ul>
+              <p>The last page in All areas includes an optional written question.</p>
+            </>
+          )}
+          {assessment?.time_limit_minutes && <p>The timer continues if you lose your connection or turn off the device.</p>}
+          {localBackupStatus !== 'unavailable' && <p>Use the same browser and device to restore locally saved answers. Clearing browser data removes the local copy.</p>}
         </div>
-      </div>
+      </details>
 
-      {/* Questions Stack */}
-      <div className="space-y-5">
-        {filteredQuestions.map((q) => {
-          const selectedRating = responses[q.id];
-          const isAnswered = !!selectedRating;
-          const Icon = domainIcons[q.area_code] || HelpCircle;
+      <section aria-labelledby="assessment-question-heading" className="space-y-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
+            <div className="min-w-0">
+              <h2 id="assessment-question-heading" tabIndex={-1} className="scroll-mt-52 text-xl font-extrabold text-slate-950 sm:scroll-mt-44 2xl:scroll-mt-52">
+                {activeDomainName || 'All questions'}
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                {pageQuestions.length
+                  ? `Showing ${pageStart + 1}–${pageStart + pageQuestions.length} of ${filteredQuestions.length} · Page ${page + 1} of ${pageCount}`
+                  : 'No questions in this view.'}
+              </p>
+            </div>
+            <label className="min-w-0 sm:w-64">
+              <span className="mb-1.5 block text-sm font-semibold text-slate-700">Filter by competence area</span>
+              <select
+                value={activeDomain}
+                onChange={(event) => {
+                  setActiveDomain(event.target.value);
+                  setQuestionPage(0);
+                }}
+                className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm text-slate-900"
+              >
+                <option value="ALL">All areas ({answeredCount}/{totalCount})</option>
+                {domainOptions.map((area) => (
+                  <option key={area.code} value={area.code}>{area.name} ({area.answered}/{area.total})</option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {firstUnanswered && remainingSeconds !== 0 && (
+            <button type="button" onClick={goToUnanswered} className="mt-1 inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm font-bold text-green-800 hover:bg-green-50">
+              Go to first unanswered
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        {pageQuestions.map((question) => {
+          const selectedRating = responses[question.id];
+          const isAnswered = questionAnswered(responses, question.id);
+          const isSaving = savingIds.has(question.id);
+          const isQueued = offlineQueueIds.has(question.id);
+          const Icon = domainIcons[question.area_code] || HelpCircle;
+          const questionScale = isDigCompSat
+            ? [...(instrumentSnapshot?.responseScales?.[question.response_type] || [])].reverse()
+            : ratingScale;
+          const headingId = `assessment-question-${question.id}`;
+          const isSaved = savedIds.has(question.id);
+          const needsRetry = isAnswered && !isSaving && !isQueued && !isSaved;
+          const saveLabel = isQueued ? 'Saved on this device' : isSaving ? 'Saving…' : isSaved ? 'Saved to system' : '';
 
           return (
-            <div
-              key={q.id}
-              id={`q-${q.id}`}
-              className={`bg-white rounded-3xl border transition-all p-6 sm:p-7 shadow-xs ${
-                isAnswered
-                  ? 'border-green-200/80 ring-1 ring-green-50'
-                  : 'border-slate-200/80 hover:border-slate-300'
-              }`}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start space-x-3.5">
-                  <div
-                    className={`w-9 h-9 rounded-2xl font-extrabold flex items-center justify-center text-xs shrink-0 mt-0.5 ${
-                      isAnswered
-                        ? 'bg-green-600 text-white shadow-xs'
-                        : 'bg-slate-100 text-slate-500 border border-slate-200'
-                    }`}
-                  >
-                    #{q.question_number}
-                  </div>
-                  <div>
-                    <div className="flex items-center space-x-2 mb-1">
-                      <span className="text-[10px] font-bold text-green-600 uppercase tracking-wider flex items-center">
-                        <Icon className="w-3 h-3 mr-1" />
-                        {q.area_name}
-                      </span>
-                    </div>
-                    <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
-                      {q.question_text}
-                    </h3>
-                  </div>
-                </div>
-
-                {(savingIds.has(q.id) || savedIds.has(q.id) || offlineQueueIds.has(q.id)) && (
-                  <span className={`inline-flex shrink-0 items-center gap-1 text-[10px] font-semibold ${savingIds.has(q.id) ? 'text-green-600' : 'text-emerald-700'}`}>
-                    {savingIds.has(q.id) && !offlineQueueIds.has(q.id) ? 'Saving…' : offlineQueueIds.has(q.id) ? <><CheckCircle2 aria-hidden="true" className="h-3 w-3" /> Saved on device · syncing</> : <><CheckCircle2 aria-hidden="true" className="h-3 w-3" /> Saved to system</>}
+            <article key={question.id} className={`min-w-0 rounded-2xl border border-l-4 bg-white p-4 shadow-sm sm:p-6 ${isAnswered ? 'border-l-green-600' : 'border-l-slate-300'}`}>
+              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+                <p className="flex min-w-0 items-center gap-2 text-sm font-semibold text-green-800">
+                  <Icon aria-hidden="true" className="h-4 w-4 shrink-0" />
+                  <span>{question.area_name}{isDigCompSat && <> · <span className="capitalize">{question.response_type}</span></>}</span>
+                </p>
+                {saveLabel && (
+                  <span className={`inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold ${isSaved ? 'bg-green-50 text-green-800' : 'bg-slate-100 text-slate-700'}`}>
+                    {isSaved && <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" />}
+                    {saveLabel}
                   </span>
                 )}
+                {needsRetry && (
+                  <button type="button" onClick={() => handleRatingSelect(question.id, selectedRating)} disabled={remainingSeconds === 0 || submitting} className="min-h-11 rounded-lg bg-amber-50 px-3 text-sm font-semibold text-amber-900 hover:bg-amber-100 disabled:opacity-60">
+                    Retry save
+                  </button>
+                )}
               </div>
+              <h3 id={headingId} tabIndex={-1} className="mt-3 scroll-mt-52 text-base font-bold leading-relaxed text-slate-950 wrap-anywhere sm:scroll-mt-44 sm:text-lg 2xl:scroll-mt-52">
+                <span className="mr-2 text-sm font-semibold text-slate-600">{question.question_number}.</span>
+                {question.question_text}
+              </h3>
 
-              {/* 4-Point Likert Rating Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 mt-5">
-                {ratingScale.map((opt) => {
-                  const isSelected = selectedRating === opt.value;
+              <fieldset aria-labelledby={headingId} disabled={remainingSeconds === 0 || submitting} className="mt-4 grid min-w-0 gap-2 sm:grid-cols-2 sm:gap-3">
+                {questionScale.map((option) => {
+                  const isSelected = selectedRating === option.value;
                   return (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => handleRatingSelect(q.id, opt.value)}
-                      disabled={remainingSeconds === 0 || savingIds.has(q.id)}
-                      aria-pressed={isSelected}
-                      aria-label={`Question ${q.question_number}, rating ${opt.value}: ${opt.label}`}
-                      className={`p-3.5 rounded-2xl border text-left cursor-pointer transition-all flex flex-col justify-between ${
-                        isSelected
-                          ? 'border-green-600 bg-green-50/80 shadow-xs ring-2 ring-green-500/20'
-                          : 'border-slate-200/90 bg-slate-50/60 hover:bg-slate-100/80 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span
-                          className={`w-6 h-6 rounded-xl flex items-center justify-center text-xs font-black ${
-                            isSelected
-                              ? 'bg-green-600 text-white'
-                              : 'bg-white border border-slate-300 text-slate-700'
-                          }`}
-                        >
-                          {opt.value}
-                        </span>
-                        {isSelected && <CheckCircle2 className="w-4 h-4 text-green-600" />}
-                      </div>
-                      <p
-                        className={`text-xs leading-relaxed ${
-                          isSelected ? 'font-bold text-green-900' : 'text-slate-600 font-medium'
-                        }`}
-                      >
-                        {opt.label}
-                      </p>
-                    </button>
+                    <label key={option.value} className={`flex min-h-12 min-w-0 items-center gap-3 rounded-xl border px-3 py-2.5 text-sm leading-5 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-green-700 ${isSelected ? 'border-green-600 bg-green-50 font-semibold text-green-950' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'} ${remainingSeconds === 0 || submitting || isSaving ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                      <input
+                        type="radio"
+                        name={`assessment-rating-${question.id}`}
+                        value={option.value}
+                        checked={isSelected}
+                        aria-disabled={isSaving || undefined}
+                        onChange={() => {
+                          if (!isSaving) handleRatingSelect(question.id, option.value);
+                        }}
+                        className="h-4 w-4 shrink-0 accent-green-700 focus-visible:outline-none"
+                      />
+                      <span className="shrink-0 rounded-md bg-slate-100 px-1.5 py-0.5 text-xs font-bold tabular-nums text-slate-700">{option.value}</span>
+                      <span className="min-w-0 wrap-anywhere">{option.label}</span>
+                    </label>
                   );
                 })}
-              </div>
-            </div>
+              </fieldset>
+            </article>
           );
         })}
-        {activeDomain === 'ALL' && (
+        {!isDigCompSat && activeDomain === 'ALL' && page + 1 === pageCount && (
           <section className="rounded-3xl border border-sky-200 bg-white p-6 shadow-xs sm:p-7" aria-labelledby="desired-skills-title">
-            <div className="flex items-start gap-3">
+            <div className="flex flex-wrap items-start gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700"><Info aria-hidden="true" className="h-5 w-5" /></div>
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-sky-700">Part III · Open-ended question</p>
                 <h2 id="desired-skills-title" className="mt-1 text-base font-bold leading-snug text-slate-900">Which digital skills would you most like to develop in college?</h2>
                 <p className="mt-1 text-sm leading-5 text-slate-600">Your answer is optional and is not included in your digital literacy score.</p>
               </div>
-              <span className="shrink-0 text-xs font-medium text-slate-500" role="status">{desiredSkillsSaving ? 'Syncing…' : desiredSkillsSaved && !desiredSkillsDirty ? 'Saved to system' : desiredSkillsDirty && desiredSkillsLocalSaved ? 'Saved on this device' : desiredSkillsDirty ? 'Saving on this device…' : ''}</span>
+              <span className="w-full text-xs font-medium text-slate-600 sm:w-auto" role="status">{desiredSkillsSaving ? 'Syncing…' : desiredSkillsSaved && !desiredSkillsDirty ? 'Saved to system' : desiredSkillsDirty && desiredSkillsLocalSaved ? 'Saved on this device' : desiredSkillsDirty ? 'Saving on this device…' : ''}</span>
             </div>
             <label htmlFor="desired-skills" className="sr-only">Digital skills you would like to develop</label>
             <textarea
@@ -979,36 +1029,38 @@ export const TakeAssessment = () => {
             <p className="mt-2 flex flex-col justify-between gap-1 text-xs text-slate-500 sm:flex-row"><span>Please do not include names or other details that could identify you or another person.</span><span className="text-right">{desiredSkills.length}/1,200 characters</span></p>
           </section>
         )}
-      </div>
+      </section>
 
-      {/* Floating Bottom Navigator Bar */}
-      <div className="fixed bottom-4 left-0 right-0 z-30 px-4">
-        <div className="max-w-3xl mx-auto bg-slate-900/95 backdrop-blur-md rounded-2xl p-3 px-5 text-white shadow-2xl border border-slate-800 flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center space-x-2">
-            <span className="text-xs font-semibold text-slate-400">{remainingSeconds === 0 ? 'Time expired:' : 'Completion:'}</span>
-            <span className="text-xs font-extrabold text-green-400">
-              {answeredCount} / {totalCount} ({Math.round(progressPercent)}%)
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setIsWithdrawModalOpen(true)} className="rounded-xl px-3 py-2 text-xs font-semibold text-rose-200 transition hover:bg-white/10 hover:text-white">Stop and withdraw</button>
-            <button
-              onClick={() => setIsSubmitModalOpen(true)}
-              className="inline-flex items-center px-4 py-2 rounded-xl bg-green-600 hover:bg-green-500 text-white text-xs font-bold shadow-md cursor-pointer transition-colors"
-            >
-              <span>Proceed to Submit</span>
-              <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <button type="button" onClick={() => setIsWithdrawModalOpen(true)} className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-rose-800 hover:bg-rose-50">
+          Stop and withdraw
+        </button>
+        <nav aria-label="Question pages" className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto">
+          {page > 0 && (
+            <button type="button" onClick={() => goToPage(page - 1)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 text-sm font-bold text-slate-700 hover:bg-slate-50">
+              <ArrowLeft aria-hidden="true" className="h-4 w-4" />
+              Previous page
             </button>
-          </div>
-        </div>
+          )}
+          {page + 1 < pageCount ? (
+            <button type="button" onClick={() => goToPage(page + 1)} className="ml-auto inline-flex min-h-11 items-center gap-2 rounded-xl bg-green-700 px-3 text-sm font-bold text-white hover:bg-green-800">
+              Next page
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </button>
+          ) : (
+            <button type="button" onClick={() => setIsSubmitModalOpen(true)} className="ml-auto inline-flex min-h-11 items-center gap-2 rounded-xl bg-green-700 px-3 text-sm font-bold text-white hover:bg-green-800">
+              Review &amp; submit
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </button>
+          )}
+        </nav>
       </div>
 
       {/* Submission Confirmation Modal */}
       <Modal
         isOpen={isSubmitModalOpen}
         onClose={() => setIsSubmitModalOpen(false)}
-        title="Confirm Assessment Submission"
+        title="Review assessment"
         maxWidth="max-w-md"
       >
         <div className="space-y-4">
@@ -1016,38 +1068,43 @@ export const TakeAssessment = () => {
             <div className="w-12 h-12 rounded-full bg-green-600 text-white flex items-center justify-center mx-auto mb-2 font-bold shadow-sm">
               <CheckCircle2 className="w-6 h-6" />
             </div>
-            <h4 className="text-sm font-bold text-slate-900">
-              {answeredCount === totalCount
-                ? `All ${totalCount} Questions Answered!`
-                : `${answeredCount} of ${totalCount} Questions Answered`}
-            </h4>
-            <p className="text-xs text-slate-600 mt-1">
-              {remainingSeconds === 0 && answeredCount !== totalCount
-                ? 'Time is up before every question was answered. Your saved responses are retained; contact your instructor to request a timed restart.'
-                : remainingSeconds === 0
-                ? 'The time limit has ended. All responses are saved and ready to submit.'
-                : answeredCount === totalCount
-                ? 'Your responses are saved. Click below to compute your digital literacy scores and proficiency levels.'
-                : 'Complete every question before submitting. This keeps your result based on the full assigned questionnaire.'}
-            </p>
+            <p className="text-base font-bold text-slate-900">{answeredCount} of {totalCount} questions answered</p>
+            <p className="mt-1 text-sm text-slate-700">{submissionMessage}</p>
           </div>
 
-          <div className="flex items-center justify-end space-x-3 pt-3">
+          {!firstUnanswered && <label htmlFor="assessment-integrity-confirmation" className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-700">
+            <input
+              id="assessment-integrity-confirmation"
+              type="checkbox"
+              checked={integrityConfirmed}
+              onChange={(event) => setIntegrityConfirmed(event.target.checked)}
+              className="mt-1 h-4 w-4 shrink-0 accent-green-700"
+            />
+            <span>I completed this assessment myself, and my answers reflect my own digital literacy. I understand this is a self-reflection questionnaire with no right or wrong answers.</span>
+          </label>}
+
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-2">
             <button
               type="button"
               onClick={() => setIsSubmitModalOpen(false)}
-              className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 cursor-pointer"
+              className="min-h-11 rounded-xl px-3 text-sm font-bold text-slate-700 hover:bg-slate-100"
             >
-              Continue Answering
+              Back to questions
             </button>
-            <button
-              type="button"
-              onClick={handleSubmitAssessment}
-              disabled={submitting || answeredCount !== totalCount || savingIds.size > 0 || desiredSkillsSaving || offlineQueueIds.size > 0 || !isOnline}
-              className="px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-xs font-bold shadow-md cursor-pointer transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {submitting ? 'Calculating Results...' : 'Finalize & Submit'}
-            </button>
+            {firstUnanswered ? (
+              <button type="button" onClick={goToUnanswered} className="min-h-11 rounded-xl bg-green-700 px-4 text-sm font-bold text-white hover:bg-green-800">
+                Go to unanswered
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmitAssessment}
+                disabled={!integrityConfirmed || submitting || submissionPending || !isOnline}
+                className="min-h-11 rounded-xl bg-green-700 px-4 text-sm font-bold text-white hover:bg-green-800 disabled:opacity-50"
+              >
+                {submitting ? 'Submitting…' : 'Submit assessment'}
+              </button>
+            )}
           </div>
         </div>
       </Modal>

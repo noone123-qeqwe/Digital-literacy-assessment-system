@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -16,18 +16,51 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/useAuth';
 
-export const Sidebar = ({ isOpen, setIsOpen }) => {
+export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
   const { logout, isAdmin, isAssessor } = useAuth();
   const location = useLocation();
+  const sidebarRef = useRef(null);
+  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
 
   useEffect(() => {
-    if (!isOpen) return undefined;
+    const media = window.matchMedia('(min-width: 1024px)');
+    const update = () => {
+      setIsDesktop(media.matches);
+      if (media.matches) setIsOpen(false);
+    };
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, [setIsOpen]);
+
+  useEffect(() => {
+    if (!isOpen || isDesktop) return undefined;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const frame = window.requestAnimationFrame(() => sidebarRef.current?.querySelector('button')?.focus());
     const onKeyDown = (event) => {
       if (event.key === 'Escape') setIsOpen(false);
+      if (event.key !== 'Tab') return;
+      const focusable = sidebarRef.current?.querySelectorAll('a[href], button:not(:disabled)');
+      if (!focusable?.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [isOpen, setIsOpen]);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+      previousFocus?.focus?.();
+    };
+  }, [isOpen, isDesktop, setIsOpen]);
 
   const adminNav = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
@@ -67,36 +100,40 @@ export const Sidebar = ({ isOpen, setIsOpen }) => {
       )}
 
       <aside
+        ref={sidebarRef}
         id="main-navigation"
         aria-label="Main navigation"
-        className={`fixed top-0 bottom-0 left-0 z-50 flex w-80 flex-col bg-green-950 text-white transition-transform duration-300 ease-in-out lg:w-96 lg:translate-x-0 xl:w-112 ${
+        role={!isDesktop && isOpen ? 'dialog' : undefined}
+        aria-modal={!isDesktop && isOpen ? true : undefined}
+        inert={!isDesktop && !isOpen ? true : undefined}
+        className={`workspace-sidebar fixed top-0 bottom-0 left-0 z-50 flex w-80 flex-col transition-transform duration-300 ease-in-out lg:w-96 lg:translate-x-0 xl:w-112 ${light ? 'dashboard-sidebar bg-white text-slate-800' : 'bg-green-950 text-white'} ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         {/* Brand / Institution Header */}
-        <div className="flex items-center space-x-4 border-b border-white/10 p-5 sm:p-6 2xl:p-7">
+        <div className={`sidebar-brand flex items-center space-x-4 border-b p-5 sm:p-6 2xl:p-7 ${light ? 'border-slate-100' : 'border-white/10'}`}>
           <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-0.5 shadow-md shadow-black/20">
             <img src="/masbate-colleges-logo.png" alt="Masbate Colleges seal" className="h-full w-full object-contain" />
           </div>
           <div>
-            <h1 className="text-base font-bold leading-tight tracking-tight text-white 2xl:text-lg">DLAS Portal</h1>
-            <p className="text-[11px] font-medium text-slate-300 2xl:text-sm">Masbate Colleges · CCS</p>
+            <p className={`text-base font-bold leading-tight tracking-tight 2xl:text-lg ${light ? 'text-green-950' : 'text-white'}`}>DLAS Portal</p>
+            <p className={`text-[11px] font-medium 2xl:text-sm ${light ? 'text-slate-500' : 'text-slate-300'}`}>Masbate Colleges · CCS</p>
           </div>
           <button
             type="button"
             onClick={() => setIsOpen(false)}
             aria-label="Close navigation menu"
-            className="ml-auto rounded-lg p-2 text-slate-400 transition-colors hover:bg-white/10 hover:text-white lg:hidden"
+            className={`ml-auto rounded-lg p-2 transition-colors lg:hidden ${light ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}
           >
             <X aria-hidden="true" className="h-5 w-5" />
           </button>
         </div>
 
         {/* Navigation Links */}
-        <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-5 py-6">
-          <div className="px-3 pb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-400 2xl:text-sm">
+        <nav className="sidebar-links min-h-0 flex-1 space-y-1.5 overflow-y-auto px-5 py-6">
+          {!light && <div className="px-3 pb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-400 2xl:text-sm">
             Navigation
-          </div>
+          </div>}
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname.startsWith(item.path);
@@ -107,12 +144,14 @@ export const Sidebar = ({ isOpen, setIsOpen }) => {
                 to={item.path}
                 onClick={() => setIsOpen(false)}
                 className={`flex items-center space-x-3 rounded-xl px-4 py-3.5 text-sm font-semibold transition-all 2xl:py-4 2xl:text-base ${
-                  isActive
+                  light
+                    ? isActive ? 'bg-green-50 text-green-800' : 'text-slate-600 hover:bg-slate-50 hover:text-green-800'
+                    : isActive
                     ? 'bg-green-600 text-white shadow-sm shadow-green-500/25'
                     : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'
                 }`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                <Icon aria-hidden="true" className={`h-4 w-4 shrink-0 ${light ? isActive ? 'text-green-700' : 'text-slate-500' : isActive ? 'text-white' : 'text-slate-400'}`} />
                 <span>{item.name}</span>
               </NavLink>
             );
@@ -120,23 +159,23 @@ export const Sidebar = ({ isOpen, setIsOpen }) => {
         </nav>
 
         {/* DigComp Framework Reference Pill */}
-        <div className="m-4 rounded-xl border border-white/10 bg-white/[0.05] p-4">
-          <div className="flex items-center space-x-2 text-sm font-bold text-amber-300 2xl:text-base">
+        <div className={`sidebar-framework m-4 rounded-xl border p-4 ${light ? 'border-green-100 bg-green-50' : 'border-white/10 bg-white/[0.05]'}`}>
+          <div className={`flex items-center space-x-2 text-sm font-bold 2xl:text-base ${light ? 'text-green-800' : 'text-amber-300'}`}>
             <Sparkles className="w-3.5 h-3.5" />
             <span>DigComp 2.1 Model</span>
           </div>
-          <p className="mt-1 text-xs leading-relaxed text-slate-300 2xl:text-sm">
+          <p className={`mt-1 text-xs leading-relaxed 2xl:text-sm ${light ? 'text-slate-600' : 'text-slate-300'}`}>
             Standardized 5-domain digital literacy competence framework.
           </p>
         </div>
 
         {/* Logout */}
-        <div className="border-t border-white/10 p-4">
+        <div className={`sidebar-logout border-t p-4 ${light ? 'border-slate-100' : 'border-white/10'}`}>
           <button
             onClick={logout}
             type="button"
             aria-label="Sign out of your account"
-            className="flex min-h-11 w-full items-center space-x-3 rounded-xl px-4 py-3.5 text-left text-sm font-semibold text-slate-200 transition-colors hover:bg-rose-500/10 hover:text-rose-200 2xl:min-h-12 2xl:text-base"
+            className={`flex min-h-11 w-full items-center space-x-3 rounded-xl px-4 py-3.5 text-left text-sm font-semibold transition-colors 2xl:min-h-12 2xl:text-base ${light ? 'text-slate-600 hover:bg-rose-50 hover:text-rose-800' : 'text-slate-200 hover:bg-rose-500/10 hover:text-rose-200'}`}
           >
             <LogOut className="w-4 h-4" />
             <span>Sign Out</span>

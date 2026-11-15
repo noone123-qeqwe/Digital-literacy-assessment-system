@@ -39,13 +39,15 @@ const questions = [
   { area: 'PS', num: 30, text: 'I can use digital technologies to find solutions to academic and everyday problems.' },
 ];
 
+const DLAS_INSTRUMENT_CODE = 'dlas-thesis-v1';
+
 function initializeInstrument(db) {
   const currentAreaCount = db.prepare('SELECT COUNT(*) AS count FROM competence_areas').get().count;
-  const currentQuestionCount = db.prepare('SELECT COUNT(*) AS count FROM questions').get().count;
+  const currentQuestionCount = db.prepare('SELECT COUNT(*) AS count FROM questions WHERE instrument_code = ?').get(DLAS_INSTRUMENT_CODE).count;
   if (currentAreaCount === areas.length && currentQuestionCount === questions.length) {
     const areaIds = Object.fromEntries(db.prepare('SELECT id, code FROM competence_areas').all().map((row) => [row.code, row.id]));
     const complete = areas.every((area) => areaIds[area.code])
-      && questions.every((question) => db.prepare('SELECT 1 FROM questions WHERE question_number = ? AND competence_area_id = ?').get(question.num, areaIds[question.area]));
+      && questions.every((question) => db.prepare('SELECT 1 FROM questions WHERE instrument_code = ? AND question_number = ? AND competence_area_id = ?').get(DLAS_INSTRUMENT_CODE, question.num, areaIds[question.area]));
     if (complete) return areaIds;
   }
   if (currentAreaCount || currentQuestionCount) {
@@ -58,11 +60,11 @@ function initializeInstrument(db) {
     for (const area of areas) {
       areaIds[area.code] = insertArea.run(area.name, area.code, area.description, area.sort_order).lastInsertRowid;
     }
-    const insertQuestion = db.prepare('INSERT INTO questions (competence_area_id, question_number, question_text, is_active) VALUES (?, ?, ?, 1)');
-    for (const question of questions) insertQuestion.run(areaIds[question.area], question.num, question.text);
+    const insertQuestion = db.prepare('INSERT INTO questions (competence_area_id, question_number, question_text, instrument_code, is_active) VALUES (?, ?, ?, ?, 1)');
+    for (const question of questions) insertQuestion.run(areaIds[question.area], question.num, question.text, DLAS_INSTRUMENT_CODE);
     return areaIds;
   });
   return insert();
 }
 
-module.exports = { areas, questions, initializeInstrument };
+module.exports = { areas, questions, initializeInstrument, DLAS_INSTRUMENT_CODE };

@@ -2,7 +2,7 @@ import React from 'react';
 import './ChartSetup';
 import { Radar } from 'react-chartjs-2';
 
-export const AreaRadarChart = ({ areaData = [] }) => {
+export const AreaRadarChart = ({ areaData = [], maxScore = 4 }) => {
   const labels = [
     'Info & Data',
     'Communication',
@@ -35,7 +35,7 @@ export const AreaRadarChart = ({ areaData = [] }) => {
     labels,
     datasets: [
       {
-        label: 'Weighted Mean (Scale 1–4)',
+        label: `Mean self-rating (Scale ${maxScore === 3 ? '0' : '1'}–${maxScore})`,
         data: values,
         backgroundColor: 'rgba(0, 107, 60, 0.20)',
         borderColor: '#006B3C',
@@ -54,8 +54,8 @@ export const AreaRadarChart = ({ areaData = [] }) => {
     maintainAspectRatio: false,
     scales: {
       r: {
-        min: 1,
-        max: 4,
+        min: maxScore === 3 ? 0 : 1,
+        max: maxScore,
         ticks: {
           stepSize: 1,
           font: { size: 13 },
@@ -83,7 +83,7 @@ export const AreaRadarChart = ({ areaData = [] }) => {
       },
       tooltip: {
         callbacks: {
-          label: (context) => ` Weighted Mean: ${context.parsed.r.toFixed(2)} / 4.00`,
+          label: (context) => ` Mean rating: ${context.parsed.r.toFixed(2)} / ${maxScore}.00`,
         },
       },
     },
@@ -92,7 +92,7 @@ export const AreaRadarChart = ({ areaData = [] }) => {
   return (
     <div
       role="img"
-      aria-label={`Competence area scores on a 1 to 4 scale. ${labels.map((label, index) => `${label}: ${Number.isFinite(values[index]) ? `${values[index].toFixed(2)} out of 4` : 'no score'}`).join('. ')}.`}
+      aria-label={`Competence area scores on a ${maxScore === 3 ? '0 to 3' : '1 to 4'} scale. ${labels.map((label, index) => `${label}: ${Number.isFinite(values[index]) ? `${values[index].toFixed(2)} out of ${maxScore}` : 'no score'}`).join('. ')}.`}
       className="relative flex h-72 items-center justify-center sm:h-80"
     >
       <Radar data={data} options={options} />

@@ -47,7 +47,35 @@ export default function LearningHub() {
     }
   }, [isAdmin]);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => {
+    let active = true;
+    const loadInitialData = async () => {
+      try {
+        const [moduleResponse, areaResponse, attemptResponse] = await Promise.all([
+          api.get('/learning/modules'),
+          isAdmin ? api.get('/learning/areas') : Promise.resolve({ data: { data: [] } }),
+          isAdmin ? Promise.resolve({ data: { data: [] } }) : api.get('/attempts/my'),
+        ]);
+        if (!active) return;
+        setModules(moduleResponse.data?.data || []);
+        setAreas(areaResponse.data?.data || []);
+        const completed = (attemptResponse.data?.data || []).filter((attempt) => attempt.status === 'completed')
+          .sort((first, second) => String(second.completed_at || '').localeCompare(String(first.completed_at || '')));
+        setAttempts(completed);
+        if (!isAdmin) {
+          const results = await Promise.allSettled(completed.slice(0, 8).map((attempt) => api.get(`/attempts/${attempt.id}/results`)));
+          if (!active) return;
+          setHistoryResults(results.flatMap((result) => result.status === 'fulfilled' ? [result.value.data.data] : []));
+        }
+      } catch (error) {
+        if (active) toast.error(error.response?.data?.message || 'Could not load your learning resources.');
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void loadInitialData();
+    return () => { active = false; };
+  }, [isAdmin]);
 
   const latestResult = historyResults[0];
   const weakestArea = useMemo(() => [...(latestResult?.areaResults || [])].sort((first, second) => Number(first.weighted_mean) - Number(second.weighted_mean))[0], [latestResult]);

@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { db, initializeDatabase, logActivity } = require('../db/database');
 const { initializeInstrument } = require('../db/instrument');
+const { ensureDigCompSatQuestionBank } = require('../db/digcompsat');
 const { assertProductionReady } = require('../utils/studyReadiness');
 const { sendSecurityEmail, clientUrl } = require('../utils/email');
 
@@ -26,6 +27,7 @@ async function bootstrapAdmin() {
   const userCount = db.prepare('SELECT COUNT(*) AS count FROM users').get().count;
   if (demoMode || userCount > 0) throw new Error('Bootstrap requires a clean, empty, non-demo production database.');
   initializeInstrument(db);
+  ensureDigCompSatQuestionBank(db);
 
   const passwordHash = await bcrypt.hash(password, 12);
   const token = crypto.randomBytes(32).toString('base64url');

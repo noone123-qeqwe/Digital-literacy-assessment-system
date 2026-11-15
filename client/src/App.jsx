@@ -2,10 +2,10 @@ import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext.jsx';
+import { DemoModeProvider } from './contexts/DemoModeContext';
 import { useAuth } from './contexts/useAuth';
 import Layout from './components/layout/Layout';
 import LoadingSpinner from './components/common/LoadingSpinner';
-import DemoModeIndicator from './components/common/DemoModeIndicator';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
@@ -74,10 +74,10 @@ function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <DemoModeIndicator />
-        <Toaster position="top-right" toastOptions={{ duration: 3500 }} />
-        <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50"><LoadingSpinner text="Loading page..." /></div>}>
-        <Routes>
+        <DemoModeProvider>
+          <Toaster position="top-right" toastOptions={{ duration: 3500 }} />
+          <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50"><LoadingSpinner text="Loading page..." /></div>}>
+          <Routes>
           {/* Public Auth Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -214,8 +214,9 @@ function App() {
 
           {/* Catch-all fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-        </Suspense>
+          </Routes>
+          </Suspense>
+        </DemoModeProvider>
       </BrowserRouter>
     </AuthProvider>
   );
