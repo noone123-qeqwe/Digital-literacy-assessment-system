@@ -13,6 +13,7 @@ import {
   X,
   BookOpen,
   CircleHelp,
+  Layers3, Award, TrendingUp, ListChecks,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/useAuth';
 
@@ -64,25 +65,37 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
 
   const adminNav = [
     { name: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
-    { name: 'Assessments', path: '/admin/assessments', icon: ClipboardList },
     { name: 'User Management', path: '/admin/users', icon: Users },
-    { name: 'Question Bank', path: '/admin/questions', icon: HelpCircle },
-    { name: 'Research & Analytics', path: '/admin/reports', icon: BarChart3 },
-    { name: 'Learning Resources', path: '/admin/learning', icon: BookOpen },
-    { name: 'Security', path: '/security', icon: ShieldCheck },
+    { name: 'Assessment Categories', path: '/admin/categories', icon: Layers3 },
+    { name: 'Question Bank', path: '/admin/knowledge/questions', icon: HelpCircle },
+    { name: 'Assessment Management', path: '/admin/knowledge', icon: ClipboardList },
+    { name: 'Assessment Results', path: '/admin/results', icon: ListChecks },
+    { name: 'Reports and Analytics', path: '/admin/analytics', icon: BarChart3 },
+    { name: 'Learning Materials', path: '/admin/materials', icon: BookOpen },
+    { name: 'Progress Tracking', path: '/admin/progress', icon: TrendingUp },
+    { name: 'Certificates', path: '/admin/certificates', icon: Award },
+    { name: 'Settings', path: '/security', icon: ShieldCheck },
   ];
 
   const assessorNav = [
     { name: 'Dashboard', path: '/assessor/dashboard', icon: LayoutDashboard },
     { name: 'Assigned Assessments', path: '/assessor/assessments', icon: ClipboardList },
+    { name: 'Knowledge Assessments', path: '/assessor/knowledge', icon: Layers3 },
+    { name: 'Assessment Results', path: '/assessor/results', icon: ListChecks },
+    { name: 'Reports and Analytics', path: '/assessor/analytics', icon: BarChart3 },
+    { name: 'Progress Tracking', path: '/assessor/progress', icon: TrendingUp },
+    { name: 'Certificates', path: '/assessor/certificates', icon: Award },
     { name: 'Security', path: '/security', icon: ShieldCheck },
   ];
 
   const respondentNav = [
-    { name: 'My Dashboard', path: '/respondent/dashboard', icon: LayoutDashboard },
-    { name: 'My Assessments', path: '/respondent/assessments', icon: ClipboardList },
-    { name: 'Student Profile', path: '/respondent/profile', icon: UserCheck },
-    { name: 'Learning Path', path: '/respondent/learning', icon: BookOpen },
+    { name: 'Student Dashboard', path: '/respondent/dashboard', icon: LayoutDashboard },
+    { name: 'Take Assessment', path: '/respondent/knowledge', icon: ClipboardList },
+    { name: 'My Results', path: '/respondent/results', icon: ListChecks },
+    { name: 'Learning Materials', path: '/respondent/materials', icon: BookOpen },
+    { name: 'My Progress', path: '/respondent/progress', icon: TrendingUp },
+    { name: 'My Certificates', path: '/respondent/certificates', icon: Award },
+    { name: 'My Profile', path: '/respondent/profile', icon: UserCheck },
     { name: 'Help and Support', path: '/respondent/help', icon: CircleHelp },
     { name: 'Security', path: '/security', icon: ShieldCheck },
   ];
@@ -113,7 +126,7 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
         {/* Brand / Institution Header */}
         <div className={`sidebar-brand flex items-center space-x-4 border-b p-5 sm:p-6 2xl:p-7 ${light ? 'border-slate-100' : 'border-white/10'}`}>
           <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-0.5 shadow-md shadow-black/20">
-            <img src="/masbate-colleges-logo.png" alt="Masbate Colleges seal" className="h-full w-full object-contain" />
+            <img src="/masbate-colleges-logo-login.webp" alt="Masbate Colleges seal" className="h-full w-full object-contain" />
           </div>
           <div>
             <p className={`text-base font-bold leading-tight tracking-tight 2xl:text-lg ${light ? 'text-green-950' : 'text-white'}`}>DLAS Portal</p>
@@ -136,7 +149,7 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
           </div>}
           {navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname.startsWith(item.path);
+            const isActive = location.pathname === item.path || (item.path !== '/admin/knowledge' && item.path !== '/assessor/knowledge' && location.pathname.startsWith(`${item.path}/`));
 
             return (
               <NavLink
@@ -162,10 +175,10 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
         <div className={`sidebar-framework m-4 rounded-xl border p-4 ${light ? 'border-green-100 bg-green-50' : 'border-white/10 bg-white/[0.05]'}`}>
           <div className={`flex items-center space-x-2 text-sm font-bold 2xl:text-base ${light ? 'text-green-800' : 'text-amber-300'}`}>
             <Sparkles className="w-3.5 h-3.5" />
-            <span>DigComp 2.1 Model</span>
+            <span>Learn. Assess. Improve.</span>
           </div>
           <p className={`mt-1 text-xs leading-relaxed 2xl:text-sm ${light ? 'text-slate-600' : 'text-slate-300'}`}>
-            Standardized 5-domain digital literacy competence framework.
+            Knowledge quizzes and DigComp research assessments, with distinct scoring.
           </p>
         </div>
 

@@ -7,6 +7,7 @@ import { useAuth } from '../../contexts/useAuth';
 import { useDemoMode } from '../../contexts/useDemoMode';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import DashboardCharacter from '../../components/dashboard/DashboardCharacter';
+import { KnowledgePulse } from '../knowledge/KnowledgeCommon';
 import {
   AlertCircle, ArrowRight, Award, BookOpenCheck, CalendarClock,
   CheckCircle2, ClipboardList, Clock3, FileCheck2, RefreshCw,
@@ -171,6 +172,7 @@ export const RespondentDashboard = () => {
 
   return (
     <div className="dlas-student-dashboard">
+      <KnowledgePulse student />
       {error && <div className="dashboard-error" role="alert">
         <AlertCircle aria-hidden="true" size={18} /><p>{error}</p>
         <button type="button" onClick={fetchDashboardData} disabled={refreshing}>Try again</button>

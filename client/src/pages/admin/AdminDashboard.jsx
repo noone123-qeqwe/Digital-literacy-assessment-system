@@ -4,6 +4,7 @@ import api from '../../api/axios';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import StatCard from '../../components/common/StatCard';
 import PageHeader from '../../components/common/PageHeader';
+import { KnowledgePulse } from '../knowledge/KnowledgeCommon';
 import AreaRadarChart from '../../components/charts/AreaRadarChart';
 import ProficiencyChart from '../../components/charts/ProficiencyChart';
 import {
@@ -125,9 +126,10 @@ export const AdminDashboard = () => {
 
   return (
     <div className="space-y-6 sm:space-y-7">
+      <KnowledgePulse />
       <PageHeader
         eyebrow="Administration · System overview"
-        title="Institution overview"
+        title="Research assessment overview"
         description="Track participation, assessment completion, and digital literacy outcomes across your cohort."
         action={(
           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">

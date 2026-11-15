@@ -5,6 +5,7 @@ import Navbar from './Navbar';
 import MobileStudentNav from './MobileStudentNav';
 import { useAuth } from '../../contexts/useAuth';
 import './MobileWorkspace.css';
+import './BlueWorkspace.css';
 
 export const Layout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -12,13 +13,13 @@ export const Layout = () => {
   const { pathname } = useLocation();
   const isStudentDashboard = pathname === '/respondent/dashboard';
   const isStudent = user?.role === 'respondent';
-  const showMobileNav = isStudent && !/^\/respondent\/assessments\/\d+\/take\/?$/.test(pathname);
+  const showMobileNav = isStudent && !/^\/respondent\/(assessments\/\d+\/take|knowledge\/attempts\/\d+)\/?$/.test(pathname);
 
   return (
-    <div className={`flex min-h-screen bg-slate-50 ${isStudentDashboard ? 'dlas-dashboard-shell' : ''} ${isStudent ? 'dlas-student-workspace' : ''} ${showMobileNav ? 'has-student-mobile-nav' : ''}`}>
+    <div className={`dlas-blue-workspace flex min-h-screen bg-slate-50 ${isStudentDashboard ? 'dlas-dashboard-shell' : ''} ${isStudent ? 'dlas-student-workspace' : ''} ${showMobileNav ? 'has-student-mobile-nav' : ''}`}>
       <a href="#main-content" className="sr-only fixed left-3 top-3 z-[60] rounded-lg bg-white px-4 py-3 text-sm font-bold text-green-900 shadow-lg focus:not-sr-only focus:outline focus:outline-2 focus:outline-green-700">Skip to main content</a>
       {/* Sidebar navigation */}
-      <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} light={isStudentDashboard} />
+      <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
       {/* Main Content Area */}
       <div className="dlas-workspace-content flex min-h-screen min-w-0 flex-1 flex-col lg:pl-96 xl:pl-112">

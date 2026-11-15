@@ -1,0 +1,26 @@
+.dlas-blue-workspace,
+.dlas-blue-workspace.dlas-dashboard-shell {
+  background: radial-gradient(ellipse at top right, #dbeafe65, transparent 55%), #f5f8fd;
+}
+.dlas-blue-workspace .workspace-sidebar { background: #10264d; color: #fff; border-right: 1px solid #1e3a6b; }
+.dlas-blue-workspace .sidebar-brand { min-height: 84px; padding: 20px; }
+.dlas-blue-workspace .sidebar-links { padding: 16px 12px; }
+.dlas-blue-workspace .sidebar-links > a { min-height: 44px; padding: 10px 14px; font-size: 13px; }
+.dlas-blue-workspace .sidebar-framework { margin: 10px 14px; padding: 12px; }
+.dlas-blue-workspace .sidebar-framework p { font-size: 11px; }
+.dlas-blue-workspace .sidebar-logout { padding: 10px 14px; }
+.dlas-blue-workspace .dashboard-navbar { background: #f5f8fdf5; border-bottom: 1px solid #e2e8f0; }
+.dlas-blue-workspace .dashboard-card { border-color: #e0e8f3; box-shadow: 0 3px 14px #14315c05; }
+.dlas-blue-workspace .dashboard-welcome { background: linear-gradient(115deg, #174194, #3372ed); }
+.dlas-blue-workspace .dashboard-eyebrow { color: #dbeafe; }
+.dlas-blue-workspace .dashboard-welcome-copy > p:not(.dashboard-eyebrow) { color: #eff6ff; }
+.dlas-blue-workspace .dashboard-text-link { color: #1d4ed8; }
+.dlas-blue-workspace .student-mobile-link.is-active { color: #1d4ed8; background: #eff6ff; }
+.dlas-blue-workspace .dlas-student-dashboard { color: #17243a; }
+.dlas-blue-workspace .dlas-workspace-main { max-width: 1800px; }
+@media (min-width: 1024px) {
+  .dlas-blue-workspace .workspace-sidebar { width: 280px; }
+  .dlas-blue-workspace .dlas-workspace-content,
+  .dlas-blue-workspace.dlas-dashboard-shell .dlas-workspace-content { padding-left: 280px; }
+  .dlas-blue-workspace.dlas-dashboard-shell .dlas-workspace-main { padding: 24px 32px 32px; }
+}

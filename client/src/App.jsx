@@ -25,6 +25,11 @@ const RespondentProfile = lazy(() => import('./pages/respondent/RespondentProfil
 const SecuritySettings = lazy(() => import('./pages/respondent/SecuritySettings'));
 const StudentHelp = lazy(() => import('./pages/respondent/StudentHelp'));
 const LearningHub = lazy(() => import('./pages/learning/LearningHub'));
+const KnowledgeBank = lazy(() => import('./pages/knowledge/KnowledgeBank'));
+const KnowledgeAssessments = lazy(() => import('./pages/knowledge/KnowledgeAssessments'));
+const KnowledgeAttempt = lazy(() => import('./pages/knowledge/KnowledgeAttempt'));
+const KnowledgeRecords = lazy(() => import('./pages/knowledge/KnowledgeRecords'));
+const KnowledgeMaterials = lazy(() => import('./pages/knowledge/KnowledgeMaterials'));
 
 // Route Guard Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -98,6 +103,15 @@ function App() {
               </ProtectedRoute>
             }
           >
+            {['admin', 'assessor', 'respondent'].map((role) => <React.Fragment key={role}>
+              <Route path={`/${role}/knowledge`} element={<ProtectedRoute allowedRoles={[role]}><KnowledgeAssessments /></ProtectedRoute>} />
+              {['results', 'progress', 'certificates', ...(role === 'respondent' ? [] : ['analytics'])].map((section) => <Route key={section} path={`/${role}/${section}`} element={<ProtectedRoute allowedRoles={[role]}><KnowledgeRecords key={`${role}-${section}`} mode={section === 'analytics' ? 'reports' : section} /></ProtectedRoute>} />)}
+            </React.Fragment>)}
+            <Route path="/admin/categories" element={<ProtectedRoute allowedRoles={['admin']}><KnowledgeBank categoriesOnly /></ProtectedRoute>} />
+            <Route path="/admin/knowledge/questions" element={<ProtectedRoute allowedRoles={['admin']}><KnowledgeBank /></ProtectedRoute>} />
+            <Route path="/admin/materials" element={<ProtectedRoute allowedRoles={['admin']}><KnowledgeMaterials /></ProtectedRoute>} />
+            <Route path="/respondent/materials" element={<ProtectedRoute allowedRoles={['respondent']}><KnowledgeMaterials /></ProtectedRoute>} />
+            <Route path="/respondent/knowledge/attempts/:attemptId" element={<ProtectedRoute allowedRoles={['respondent', 'admin', 'assessor']}><KnowledgeAttempt /></ProtectedRoute>} />
             {/* Admin Routes */}
             <Route
               path="/admin/dashboard"

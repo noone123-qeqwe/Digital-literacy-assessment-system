@@ -334,6 +334,7 @@ function initializeDatabase() {
     ['uq_area_results_attempt_area', 'area_results', 'attempt_id, competence_area_id'],
   ];
   for (const [indexName, tableName, columns] of uniqueIndexes) {
+    if (indexName === 'uq_questions_area_number' && db.prepare('SELECT 1 FROM schema_migrations WHERE version=8').get()) continue;
     const duplicates = db.prepare(`
       SELECT 1 FROM ${tableName} GROUP BY ${columns} HAVING COUNT(*) > 1 LIMIT 1
     `).get();
@@ -577,6 +578,7 @@ function initializeDatabase() {
       db.prepare('INSERT INTO schema_migrations (version) VALUES (11)').run();
     })();
   }
+  require('./knowledge').initializeKnowledge(db);
 }
 
 function logActivity(userId, action, details = null) {

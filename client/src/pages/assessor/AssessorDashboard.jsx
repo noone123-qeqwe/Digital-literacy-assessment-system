@@ -3,6 +3,7 @@ import api from '../../api/axios';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import StatCard from '../../components/common/StatCard';
 import PageHeader from '../../components/common/PageHeader';
+import { KnowledgePulse } from '../knowledge/KnowledgeCommon';
 import AreaRadarChart from '../../components/charts/AreaRadarChart';
 import ProficiencyChart from '../../components/charts/ProficiencyChart';
 import {
@@ -66,6 +67,7 @@ export const AssessorDashboard = () => {
 
   return (
     <div className="space-y-8">
+      <KnowledgePulse />
       <PageHeader
         eyebrow="Teacher / assessor workspace · BSCS freshmen cohort"
         title="Assessment overview"

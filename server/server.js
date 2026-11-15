@@ -37,6 +37,7 @@ if (process.env.NODE_ENV === 'production') {
 try {
   initializeDatabase();
   ensureDigCompSatQuestionBank(db);
+  require('./db/knowledgeDemo').seedKnowledgeDemo(db);
   if (!freeDemoMode) assertProductionReady();
   console.log('Database initialized successfully.');
 } catch (err) {
@@ -108,6 +109,7 @@ app.use('/api/consents', require('./routes/consents'));
 app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/export', require('./routes/export'));
 app.use('/api/learning', require('./routes/learning'));
+app.use('/api/knowledge', require('./routes/knowledge'));
 
 // 404 Handler for API
 app.use('/api/*', (req, res) => {

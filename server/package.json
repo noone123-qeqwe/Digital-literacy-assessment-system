@@ -11,7 +11,7 @@
     "dev": "node --watch server.js",
     "seed": "node db/seed.js",
     "bootstrap-admin": "node scripts/bootstrap-admin.js",
-    "test": "node test_system.js",
+    "test": "node test_system.js && node test_knowledge.js",
     "verify-backup": "node db/verify-backup.js"
   },
   "dependencies": {

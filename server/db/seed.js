@@ -181,6 +181,7 @@ function seed() {
 
   // Log the seeding activity
   logActivity(adminId, 'DATABASE_SEEDED', 'Initial database seeding completed with admin user, 30 questions, sample respondents, and demo data.');
+  require('./knowledgeDemo').seedKnowledgeDemo(db);
 
   console.log('Database seeding complete!');
 }

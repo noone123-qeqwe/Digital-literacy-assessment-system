@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { BookOpen, ClipboardList, LayoutDashboard, UserRound } from 'lucide-react';
+import { ListChecks, ClipboardList, LayoutDashboard, UserRound } from 'lucide-react';
 
 const links = [
   { to: '/respondent/dashboard', label: 'Home', Icon: LayoutDashboard },
-  { to: '/respondent/assessments', label: 'Assessments', Icon: ClipboardList },
-  { to: '/respondent/learning', label: 'Learn', Icon: BookOpen },
+  { to: '/respondent/knowledge', label: 'Assessments', Icon: ClipboardList },
+  { to: '/respondent/results', label: 'Results', Icon: ListChecks },
   { to: '/respondent/profile', label: 'Profile', Icon: UserRound },
 ];
 
