@@ -1,0 +1,17 @@
+# Secrets and local configuration
+server/.env
+server/.env.*
+!server/.env.example
+client/.env.local
+client/.env.*.local
+
+# Local data and generated files
+server/db/*.db
+server/db/*.db-shm
+server/db/*.db-wal
+server/backups/
+*.pre-restore-*
+**/node_modules/
+**/dist/
+**/coverage/
+*.log

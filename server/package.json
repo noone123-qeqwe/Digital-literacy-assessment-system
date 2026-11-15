@@ -1,0 +1,31 @@
+{
+  "name": "dlas-server",
+  "version": "1.0.0",
+  "description": "Digital Literacy Assessment System - Backend API",
+  "main": "server.js",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node db/seed.js",
+    "bootstrap-admin": "node scripts/bootstrap-admin.js",
+    "test": "node test_system.js",
+    "verify-backup": "node db/verify-backup.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.19.2",
+    "express-validator": "^7.0.1",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "jstat": "^1.9.6",
+    "morgan": "^1.10.0",
+    "nodemailer": "^10.4.0",
+    "pdfkit": "^0.14.0"
+  }
+}

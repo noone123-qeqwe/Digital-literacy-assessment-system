@@ -1,0 +1,32 @@
+import React, { useState } from 'react';
+import { Outlet } from 'react-router-dom';
+import Sidebar from './Sidebar';
+import Navbar from './Navbar';
+
+export const Layout = () => {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  return (
+    <div className="flex min-h-screen bg-slate-50">
+      <a href="#main-content" className="sr-only fixed left-3 top-3 z-[60] rounded-lg bg-white px-4 py-3 text-sm font-bold text-green-900 shadow-lg focus:not-sr-only focus:outline focus:outline-2 focus:outline-green-700">Skip to main content</a>
+      {/* Sidebar navigation */}
+      <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+
+      {/* Main Content Area */}
+      <div className="flex min-h-screen min-w-0 flex-1 flex-col lg:pl-96 xl:pl-112">
+        <Navbar setIsSidebarOpen={setIsSidebarOpen} isSidebarOpen={isSidebarOpen} />
+
+        <main id="main-content" tabIndex="-1" className="mx-auto w-full max-w-[2560px] flex-1 px-4 py-5 sm:px-6 sm:py-7 lg:px-8 lg:py-8 focus:outline-none">
+          <Outlet />
+        </main>
+
+        <footer className="border-t border-slate-200/80 bg-white/80 px-4 py-4 text-center text-[11px] leading-5 text-slate-500 sm:px-6">
+          Digital Literacy Assessment System <span aria-hidden="true">·</span> College of Computer Studies, Masbate Colleges <span aria-hidden="true">·</span> DigComp 2.1
+        </footer>
+      </div>
+    </div>
+  );
+};
+
+export default Layout;
+
