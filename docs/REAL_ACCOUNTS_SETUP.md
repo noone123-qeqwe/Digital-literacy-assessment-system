@@ -2,7 +2,7 @@
 
 The real-account configuration uses the existing Render free web service, a **Turso libSQL** cloud database, and **Brevo/Resend HTTPS email APIs**. Accounts, saved answers, sessions, and results live in Turso rather than Render's temporary filesystem. New students verify their email; staff also enroll an authenticator. No demonstration users or results are created.
 
-The application code is prepared, but the existing public service stays read-only until the provider accounts, verified sender, credentials, and first administrator are configured. Do not change only `DLAS_FREE_DEMO`: the preview currently runs `seed` and stores SQLite under `/tmp`.
+Before activating a service, configure the provider accounts, verified sender, credentials, and first administrator. Do not change only `DLAS_FREE_DEMO`: an older preview deployment may still run `seed` and store SQLite under `/tmp`. The root `render.yaml` now uses the real-account launcher; the sample-only configuration is kept separately in `deploy/render-preview.yaml`.
 
 ## 1. Create the free provider accounts
 
@@ -67,7 +67,7 @@ npm --prefix server run start:production
 
 Deploy the tested GitHub commit. The first launch initializes the schema and approved question banks, creates only the first administrator, and emails their verification link. Later launches preserve that account and all student data; they do not run the demonstration seed. After the administrator exists, remove `BOOTSTRAP_ADMIN_PASSWORD` from Render. The remaining bootstrap settings can also be removed. If an email is rejected during bootstrap, the unverified account is retained; after correcting email settings, use **resend verification** on the login page rather than recreating the account.
 
-`deploy/render-real-accounts.yaml` is the equivalent blueprint for a new deployment. It prompts for a Brevo key by default; for a Resend-only setup, rename that entry to `RESEND_API_KEY` before applying it. Add any optional fallback credentials privately in Render. Do not create a second service just to update the existing one. If the current service is managed by the repository's preview blueprint, update that blueprint connection/configuration at the same time so a later blueprint sync cannot restore demo flags or the seed command. `render.yaml` intentionally remains the existing preview configuration until the credentials are available.
+The root `render.yaml` and `deploy/render-real-accounts.yaml` describe the real-account configuration. They prompt for a Brevo key by default; for a Resend-only setup, rename that entry to `RESEND_API_KEY` before applying it. Add any optional fallback credentials privately in Render. Do not create a second service just to update the existing one. If the current service is managed by an older preview blueprint, update that blueprint connection/configuration at the same time so a later sync cannot restore demo flags or the seed command.
 
 An optional safe configuration check is available locally with the real production values loaded in private environment settings:
 

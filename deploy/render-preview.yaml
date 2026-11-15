@@ -1,0 +1,21 @@
+# Optional sample-only preview. Real deployments use the repository's render.yaml.
+services:
+  - type: web
+    name: masbate-colleges-digital-literacy-assessment-system
+    runtime: node
+    region: singapore
+    plan: free
+    buildCommand: npm --prefix server ci --omit=dev && npm --prefix client ci --include=dev && npm --prefix client run build
+    startCommand: npm --prefix server run seed && npm --prefix server start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: DLAS_FREE_DEMO
+        value: "true"
+      - key: DLAS_DB_PATH
+        value: /tmp/dlas-free-demo.sqlite
+      - key: TRUST_PROXY
+        value: "1"

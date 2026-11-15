@@ -1,3 +1,5 @@
+# Real accounts on free hosting. Configure the private external-service values
+# before applying this blueprint; see docs/REAL_ACCOUNTS_SETUP.md.
 services:
   - type: web
     name: masbate-colleges-digital-literacy-assessment-system
@@ -5,16 +7,43 @@ services:
     region: singapore
     plan: free
     buildCommand: npm --prefix server ci --omit=dev && npm --prefix client ci --include=dev && npm --prefix client run build
-    startCommand: npm --prefix server run seed && npm --prefix server start
+    startCommand: npm --prefix server run start:production
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: JWT_SECRET
-        generateValue: true
       - key: DLAS_FREE_DEMO
-        value: "true"
-      - key: DLAS_DB_PATH
-        value: /tmp/dlas-free-demo.sqlite
+        value: "false"
+      - key: DLAS_RESEARCH_ENABLED
+        value: "false"
+      - key: DLAS_DATABASE_DRIVER
+        value: libsql
+      - key: BACKUP_STRATEGY
+        value: turso-pitr
+      - key: EMAIL_FROM_NAME
+        value: Masbate Colleges DLAS
       - key: TRUST_PROXY
         value: "1"
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
+        sync: false
+      # For Resend-only deployment, rename this key to RESEND_API_KEY.
+      - key: BREVO_API_KEY
+        sync: false
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: MFA_ENCRYPTION_KEY
+        sync: false
+      - key: BACKUP_ENCRYPTION_KEY
+        sync: false
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        sync: false
+      - key: BOOTSTRAP_ADMIN_FIRST_NAME
+        sync: false
+      - key: BOOTSTRAP_ADMIN_LAST_NAME
+        sync: false
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
