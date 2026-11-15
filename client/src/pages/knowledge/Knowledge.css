@@ -78,6 +78,9 @@
 .kq-table td { padding: 14px 12px; border-bottom: 1px solid #eef2f7; vertical-align: middle; }
 .kq-table td:first-child { min-width: 160px; }
 .kq-table td:last-child { white-space: nowrap; }
+.kq-program-table { table-layout: fixed; }
+.kq-program-table th:first-child { width: 44%; }
+.kq-program-table td:first-child { min-width: 0; overflow-wrap: anywhere; }
 .kq-assessment-card { display: flex; flex-direction: column; gap: 16px; }
 .kq-assessment-card > p { color: #64748b; font-size: 13px; line-height: 1.65; }
 .kq-assessment-card .kq-actions { margin-top: auto; }
@@ -114,5 +117,6 @@
   .kq-distribution ul { min-width: 150px; }
   .kq-activities time { display: none; }
   .kq-take .kq-actions > button { flex: 1; }
+  .kq-program-table th, .kq-program-table td { padding: 10px 6px; }
 }
 @media (prefers-reduced-motion: reduce) { .kq-progress > div { transition: none; } }

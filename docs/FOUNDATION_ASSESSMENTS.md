@@ -73,3 +73,11 @@ The import validates all 64 questions, the type mix, matched objectives and refe
 Staff can unpublish or archive either form using existing assessment controls. Unpublished forms stop automatic enrollment and new attempts. Existing attempts and results retain their established access rules. The live publication creates no sample accounts, responses, results or certificates.
 
 Research collection and the original five-domain scoring rules are unaffected by this educational course.
+
+## Publication validation
+
+Both forms were published to the live persistent database on 16 November 2026: baseline assessment **2** and follow-up assessment **3**. The new bank contains 64 active items, eight per category across the two forms. Publication created no student accounts or attempts.
+
+The backend suite passes 176 checks, and 150 account/research, quiz and curriculum checks also pass with the production libSQL driver. The private real content separately passed the 19 curriculum checks in an isolated database. Browser testing completed both 32-question forms using the actual private bank, checked the below-threshold baseline and qualifying follow-up, verified the unlock and paired progress, and checked phone, tablet and desktop layouts. These browser results were temporary local test data; they were not recorded as live participant scores.
+
+The follow-up gate is enforced by the server as well as the visible interface. Tests confirm automatic enrollment after email verification, cross-user/assessor access boundaries, idempotent imports, immutable scoring snapshots and preservation of staff unpublication choices.
