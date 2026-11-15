@@ -6,8 +6,8 @@ Configured 16 November 2026 on the project owner's Windows computer. These backu
 
 | Item | Location or behavior |
 | --- | --- |
-| Encrypted backups | `C:\Users\mcg45\AppData\Local\MasbateCollegesDLAS\Backups` |
-| Private runner and protected settings | `C:\Users\mcg45\AppData\Local\MasbateCollegesDLAS\Operations` |
+| Encrypted backups | `C:\Users\mcg45\DLAS-Operations\Backups` |
+| Private runner and protected settings | `C:\Users\mcg45\DLAS-Operations\Operations` |
 | Windows scheduled task | `Masbate Colleges DLAS encrypted backup` |
 | Daily trigger | 09:00 Asia/Manila |
 | Missed trigger | Runs when available after this Windows user signs in |
@@ -25,7 +25,7 @@ Each run copies a consistent cloud transaction to a temporary SQLite snapshot, v
 Use the task's **Run** action in Windows Task Scheduler, or execute:
 
 ```powershell
-node "C:\Users\mcg45\AppData\Local\MasbateCollegesDLAS\Operations\run-backup.cjs"
+node "C:\Users\mcg45\DLAS-Operations\Operations\run-backup.cjs"
 ```
 
 Inspect `backup-status.json`: require `success: true`, `integrity: "ok"`, and a recent completion time. A previous successful file does not prove that a later scheduled run succeeded. Investigate a stale status file, nonzero task result, disk-space error, or connection failure.
@@ -33,7 +33,7 @@ Inspect `backup-status.json`: require `success: true`, `integrity: "ok"`, and a 
 For a restore rehearsal without touching the live service:
 
 ```powershell
-node "C:\Users\mcg45\AppData\Local\MasbateCollegesDLAS\Operations\run-backup.cjs" --restore-check
+node "C:\Users\mcg45\DLAS-Operations\Operations\run-backup.cjs" --restore-check
 ```
 
 The rehearsal restores into a new temporary directory, checks foreign-key and SQLite integrity, and removes that temporary copy. It never overwrites the live cloud database. A rehearsal is not a completed cloud failover or recovery-time guarantee.
