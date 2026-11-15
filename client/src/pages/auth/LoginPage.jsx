@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/useAuth';
 import { useDemoMode } from '../../contexts/useDemoMode';
 import { Lock, Mail, ArrowRight, Sparkles, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import LoginIntro from '../../components/auth/LoginIntro';
+import './LoginPage.css';
 
 const skillAreas = [
   { name: 'Information', color: 'text-amber-200' },
@@ -76,7 +77,7 @@ export const LoginPage = () => {
 
   return (
     <LoginIntro skipIntro={searchParams.get('registered') === '1'}>
-    <main className="relative isolate flex min-h-svh items-center justify-center overflow-x-hidden bg-slate-950 px-3 py-3 sm:px-5 sm:py-5 lg:px-6 lg:py-5">
+    <main className="school-login-theme relative isolate flex min-h-svh items-center justify-center overflow-x-hidden bg-slate-950 px-3 py-3 sm:px-5 sm:py-5 lg:px-6 lg:py-5">
       <img
         aria-hidden="true"
         alt=""

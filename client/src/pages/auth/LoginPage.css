@@ -1,0 +1,21 @@
+/* Keep school branding local to sign-in; workspace pages use the blue palette. */
+.school-login-theme {
+  --color-green-50: #eef7f1;
+  --color-green-100: #d8ecdf;
+  --color-green-200: #b4d9c1;
+  --color-green-300: #86bd99;
+  --color-green-400: #579a70;
+  --color-green-500: #287d4d;
+  --color-green-600: #006b3c;
+  --color-green-700: #005a32;
+  --color-green-800: #004a2a;
+  --color-green-900: #003d23;
+  --color-green-950: #002817;
+  --dlas-primary: #006b3c;
+  --dlas-primary-strong: #005a32;
+}
+
+.school-login-theme input:not([type="checkbox"]):not([type="radio"]):focus {
+  border-color: var(--dlas-primary);
+  box-shadow: 0 0 0 3px rgb(0 107 60 / 16%);
+}
