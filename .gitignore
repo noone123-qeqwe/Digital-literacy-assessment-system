@@ -15,3 +15,5 @@ server/backups/
 **/dist/
 **/coverage/
 *.log
+# Live assessment answer keys are deployed to the private database, not GitHub.
+*.private.json

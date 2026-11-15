@@ -13,6 +13,7 @@ const {
   encryptSecret, decryptSecret, generateTotpSecret, verifyTotp,
 } = require('../utils/authSecurity');
 const { sendSecurityEmail, clientUrl } = require('../utils/email');
+const { enrollPublishedQuizzes } = require('../utils/quizEnrollment');
 
 const loginLimit = rateLimit({ id: 'auth-login', windowMs: 15 * 60 * 1000, max: 10, message: 'Too many sign-in attempts. Try again in 15 minutes.' });
 const registrationLimit = rateLimit({ id: 'auth-register', windowMs: 60 * 60 * 1000, max: 10, message: 'Too many registration attempts. Try again later.' });
@@ -223,6 +224,7 @@ router.post('/verify-email', tokenUseLimit, [body('token').isString().isLength({
   db.transaction(() => {
     db.prepare("UPDATE auth_tokens SET used_at = datetime('now') WHERE id = ?").run(token.token_id);
     db.prepare("UPDATE users SET email_verified = 1, updated_at = datetime('now') WHERE id = ?").run(token.id);
+    enrollPublishedQuizzes(db, token.id);
   })();
   logActivity(token.id, 'EMAIL_VERIFIED', 'Email address verified');
   return res.json({ success: true, message: 'Email verified. You can sign in now.' });

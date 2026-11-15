@@ -4,6 +4,8 @@ const ExcelJS = require('exceljs');
 const { db, logActivity } = require('../db/database');
 const { authenticate, authorize } = require('../middleware/auth');
 const { questionInput, publicSnapshot, scoreSnapshot, shuffled } = require('../utils/knowledgeQuiz');
+const { enrollPublishedQuizzes } = require('../utils/quizEnrollment');
+const { programProgress } = require('../utils/programProgress');
 
 const router = express.Router();
 router.use(authenticate);
@@ -57,7 +59,7 @@ function categoryExists(categoryId) {
 function reportRows(user) {
   const scope = user.role === 'admin' ? '1=1' : user.role === 'assessor' ? 'q.created_by=?' : 'a.user_id=?';
   return db.prepare(`SELECT a.id,a.quiz_id,a.user_id,a.percentage,a.level,a.certificate_earned,a.started_at,a.completed_at,
-      a.earned_points,a.possible_points,u.first_name,u.last_name,q.title
+      a.earned_points,a.possible_points,u.first_name,u.last_name,q.title,q.program_code,q.stage,q.prerequisite_quiz_id
     FROM quiz_attempts a JOIN knowledge_quizzes q ON q.id=a.quiz_id JOIN users u ON u.id=a.user_id
     WHERE a.status='completed' AND ${scope} ORDER BY a.completed_at DESC,a.id DESC`).all(...(user.role === 'admin' ? [] : [user.id]));
 }
@@ -136,16 +138,20 @@ router.delete('/questions/:id', authorize('admin'), handler((req, res) => {
 }));
 
 router.get('/quizzes', handler((req, res) => {
+  if (req.user.role === 'respondent') enrollPublishedQuizzes(db, req.user.id);
   const scope = req.user.role === 'admin' ? '1=1' : req.user.role === 'assessor' ? 'q.created_by=?'
     : `EXISTS(SELECT 1 FROM quiz_assignments aa WHERE aa.quiz_id=q.id AND aa.user_id=?) AND (q.status='published' OR EXISTS(SELECT 1 FROM quiz_attempts ip WHERE ip.quiz_id=q.id AND ip.user_id=${Number(req.user.id)} AND ip.status='in_progress'))`;
   const rows = db.prepare(`SELECT q.id,q.title,q.description,q.instructions,q.status,q.time_limit_minutes,q.max_attempts,q.pass_percentage,q.start_date,q.end_date,q.created_at,
+    q.program_code,q.stage,q.prerequisite_quiz_id,q.auto_assign_verified,
+    (SELECT title FROM knowledge_quizzes required WHERE required.id=q.prerequisite_quiz_id) prerequisite_title,
+    EXISTS(SELECT 1 FROM quiz_attempts completed WHERE completed.quiz_id=q.prerequisite_quiz_id AND completed.user_id=? AND completed.status='completed') prerequisite_completed,
     json_array_length(q.snapshot_json,'$.questions') question_count,
     (SELECT COUNT(*) FROM quiz_assignments aa WHERE aa.quiz_id=q.id) assigned_count,
     (SELECT COUNT(*) FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.status='completed') completed_count,
     (SELECT COUNT(*) FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=?) attempt_count,
     (SELECT a.id FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=? ORDER BY a.id DESC LIMIT 1) latest_attempt_id,
     (SELECT a.status FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=? ORDER BY a.id DESC LIMIT 1) latest_status
-    FROM knowledge_quizzes q WHERE ${scope} ORDER BY q.id DESC`).all(req.user.id, req.user.id, req.user.id, ...(req.user.role === 'admin' ? [] : [req.user.id]));
+    FROM knowledge_quizzes q WHERE ${scope} ORDER BY CASE WHEN q.stage='baseline' THEN 0 WHEN q.stage='follow_up' THEN 1 ELSE 2 END,q.id DESC`).all(req.user.id, req.user.id, req.user.id, req.user.id, ...(req.user.role === 'admin' ? [] : [req.user.id]));
   return result(res, rows);
 }));
 router.get('/quizzes/:id', handler((req, res) => {
@@ -199,6 +205,7 @@ router.put('/quizzes/:id/status', authorize('admin', 'assessor'), handler((req, 
   const quiz = quizFor(req.user, req.params.id);
   if (!['draft', 'published', 'archived'].includes(req.body.status)) throw fail('Choose a valid publication status.');
   db.prepare('UPDATE knowledge_quizzes SET status=? WHERE id=?').run(req.body.status, quiz.id);
+  if (req.body.status === 'published') enrollPublishedQuizzes(db, null, quiz.id);
   logActivity(req.user.id, 'KNOWLEDGE_ASSESSMENT_STATUS', `Assessment #${quiz.id}: ${req.body.status}`);
   return result(res, null, 'Publication status updated. In-progress students retain their saved attempt.');
 }));
@@ -214,6 +221,7 @@ router.post('/quizzes/:id/assign', authorize('admin', 'assessor'), handler((req,
 router.delete('/quizzes/:id', authorize('admin', 'assessor'), handler((req, res) => {
   const quiz = quizFor(req.user, req.params.id);
   if (db.prepare('SELECT id FROM quiz_attempts WHERE quiz_id=?').get(quiz.id)) throw fail('This assessment has attempts. Archive it to preserve student results.', 409);
+  if (db.prepare('SELECT id FROM knowledge_quizzes WHERE prerequisite_quiz_id=?').get(quiz.id)) throw fail('Another assessment requires this baseline. Archive it instead of deleting it.', 409);
   db.prepare('DELETE FROM knowledge_quizzes WHERE id=?').run(quiz.id);
   logActivity(req.user.id, 'KNOWLEDGE_ASSESSMENT_DELETE', `Deleted unattempted assessment #${quiz.id}`);
   return result(res, null, 'Assessment deleted.');
@@ -227,6 +235,7 @@ router.post('/quizzes/:id/start', authorize('respondent'), handler((req, res) =>
   const now = Date.now();
   if (quiz.start_date && Date.parse(quiz.start_date) > now) throw fail('This assessment has not opened yet.', 409);
   if (quiz.end_date && Date.parse(quiz.end_date) <= now) throw fail('The assessment deadline has passed.', 410);
+  if (quiz.prerequisite_quiz_id && !db.prepare("SELECT 1 FROM quiz_attempts WHERE quiz_id=? AND user_id=? AND status='completed'").get(quiz.prerequisite_quiz_id, req.user.id)) throw fail('Complete your baseline assessment before starting the follow-up. No minimum baseline score is required.', 409);
   if (req.body.accepted_instructions !== true) throw fail('Confirm the instructions and independent-work statement before beginning.');
   if (db.prepare('SELECT COUNT(*) count FROM quiz_attempts WHERE quiz_id=? AND user_id=?').get(quiz.id, req.user.id).count >= quiz.max_attempts) throw fail('You have used all permitted attempts.', 409);
   const snapshot = JSON.parse(quiz.snapshot_json);
@@ -305,9 +314,13 @@ router.get('/overview', handler((req, res) => {
   const comparisons = rows.map((row) => {
     const history = histories.get(`${row.user_id}:${row.quiz_id}`);
     const first = history[history.length - 1];
-    return { user_id: row.user_id, name: `${row.first_name} ${row.last_name}`, quiz_id: row.quiz_id, title: row.title,
+    return { user_id: row.user_id, name: `${row.first_name} ${row.last_name}`, quiz_id: row.quiz_id, title: row.title, program_code: row.program_code,
       first: first.percentage, latest: row.percentage, change: Math.round((row.percentage - first.percentage) * 100) / 100, attempts: history.length };
   });
+  const programCategoryRows = db.prepare(`SELECT cr.attempt_id,cr.category_id,cr.category_name,cr.percentage
+    FROM quiz_category_results cr JOIN quiz_attempts a ON a.id=cr.attempt_id JOIN knowledge_quizzes q ON q.id=a.quiz_id
+    WHERE a.status='completed' AND q.program_code IS NOT NULL AND ${scoreScope}`).all(...params);
+  const programComparisons = programProgress(allRows, programCategoryRows);
   const average = rows.length ? rows.reduce((sum, row) => sum + row.percentage, 0) / rows.length : null;
   const activities = req.user.role === 'admin' ? db.prepare(`SELECT l.action,l.details,l.created_at,u.first_name,u.last_name FROM activity_log l JOIN users u ON u.id=l.user_id ORDER BY l.id DESC LIMIT 8`).all()
     : db.prepare('SELECT action,details,created_at FROM activity_log WHERE user_id=? ORDER BY id DESC LIMIT 8').all(req.user.id);
@@ -321,7 +334,7 @@ router.get('/overview', handler((req, res) => {
     distribution: ['Advanced', 'Proficient', 'Developing', 'Beginner', 'Needs Improvement'].map((level) => ({ level, count: rows.filter((row) => row.level === level).length })),
     categories: categoryScores.map((category) => ({ ...category, percentage: Math.round(category.earned / category.possible * 10000) / 100 })),
     history: allRows.slice(0, 500), totalHistory: allRows.length,
-    comparisons: comparisons.slice(0, 500), activities,
+    comparisons: comparisons.slice(0, 500), programComparisons: programComparisons.slice(0, 500), activities,
   });
 }));
 

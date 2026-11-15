@@ -82,6 +82,19 @@ function initializeKnowledge(db) {
       db.prepare('INSERT INTO schema_migrations(version) VALUES(12)').run();
     })();
   }
+  if (!db.prepare('SELECT 1 FROM schema_migrations WHERE version=13').get()) {
+    db.transaction(() => {
+      db.exec('ALTER TABLE quiz_questions ADD COLUMN content_key TEXT;');
+      db.exec('CREATE UNIQUE INDEX uq_quiz_question_content_key ON quiz_questions(content_key) WHERE content_key IS NOT NULL;');
+      db.exec('ALTER TABLE knowledge_quizzes ADD COLUMN curriculum_key TEXT;');
+      db.exec('ALTER TABLE knowledge_quizzes ADD COLUMN program_code TEXT;');
+      db.exec("ALTER TABLE knowledge_quizzes ADD COLUMN stage TEXT CHECK(stage IS NULL OR stage IN ('baseline','follow_up'));");
+      db.exec('ALTER TABLE knowledge_quizzes ADD COLUMN prerequisite_quiz_id INTEGER REFERENCES knowledge_quizzes(id);');
+      db.exec('ALTER TABLE knowledge_quizzes ADD COLUMN auto_assign_verified INTEGER NOT NULL DEFAULT 0 CHECK(auto_assign_verified IN (0,1));');
+      db.exec('CREATE UNIQUE INDEX uq_quiz_curriculum_key ON knowledge_quizzes(curriculum_key) WHERE curriculum_key IS NOT NULL;');
+      db.prepare('INSERT INTO schema_migrations(version) VALUES(13)').run();
+    })();
+  }
 }
 
 module.exports = { initializeKnowledge };
