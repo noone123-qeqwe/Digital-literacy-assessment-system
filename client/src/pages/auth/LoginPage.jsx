@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/useAuth';
 import { useDemoMode } from '../../contexts/useDemoMode';
-import { Lock, Mail, ArrowRight, Sparkles, Eye, EyeOff, ShieldCheck, UserRoundPlus } from 'lucide-react';
+import { Lock, Mail, ArrowRight, Sparkles, Eye, EyeOff, ShieldCheck, UserRoundPlus, CircleAlert, CheckCircle2 } from 'lucide-react';
 import LoginIntro from '../../components/auth/LoginIntro';
 import './LoginPage.css';
 
@@ -26,10 +26,17 @@ export const LoginPage = () => {
   const [mfaSecret, setMfaSecret] = useState('');
   const [mfaBusy, setMfaBusy] = useState(false);
   const [verificationRequired, setVerificationRequired] = useState(false);
+  const [formError, setFormError] = useState('');
+  const headingRef = useRef(null);
+  const submittingRef = useRef(false);
   const [searchParams] = useSearchParams();
   const { login, completeMfaLogin, beginMfaSetup, completeMfaSetup } = useAuth();
   const { available: demoStatusAvailable, freeDemoReadOnly, loading: demoStatusLoading } = useDemoMode();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (authStep !== 'credentials') headingRef.current?.focus();
+  }, [authStep]);
 
   const continueAfterLogin = (user) => {
     if (user.role === 'admin') navigate('/admin/dashboard');
@@ -39,40 +46,49 @@ export const LoginPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!email || !password) return;
-
+    if (!email || !password || submittingRef.current) return;
+    submittingRef.current = true;
+    setFormError('');
+    setVerificationRequired(false);
     setIsLoading(true);
-    const result = await login(email, password);
-    setIsLoading(false);
-
-    if (result.success) {
-      continueAfterLogin(result.user);
-    } else if (result.mfaRequired) {
-      setMfaChallengeId(result.challengeId);
-      setMfaCode('');
-      setAuthStep('mfa');
-    } else if (result.mfaSetupRequired) {
-      setMfaSetupToken(result.setupToken);
-      setMfaBusy(true);
-      const setup = await beginMfaSetup(result.setupToken);
-      setMfaBusy(false);
-      if (setup.success) {
-        setMfaSecret(setup.secret);
-        setAuthStep('mfa-setup');
+    try {
+      const result = await login(email, password);
+      if (result?.success) {
+        continueAfterLogin(result.user);
+      } else if (result?.mfaRequired) {
+        setMfaChallengeId(result.challengeId);
+        setMfaCode('');
+        setAuthStep('mfa');
+      } else if (result?.mfaSetupRequired) {
+        setMfaSetupToken(result.setupToken);
+        const setup = await beginMfaSetup(result.setupToken);
+        if (setup.success) {
+          setMfaSecret(setup.secret);
+          setMfaCode('');
+          setAuthStep('mfa-setup');
+        } else setFormError(setup.message || 'We could not prepare account verification. Please try again.');
+      } else {
+        setVerificationRequired(Boolean(result?.verificationRequired));
+        setFormError(result?.message || 'We could not sign you in. Please try again.');
       }
-    } else if (result.verificationRequired) {
-      setVerificationRequired(true);
-    }
+    } catch { setFormError('We could not connect. Check your internet connection and try again.'); }
+    finally { submittingRef.current = false; setIsLoading(false); }
   };
 
   const handleMfaSubmit = async (event) => {
     event.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setFormError('');
     setMfaBusy(true);
-    const result = authStep === 'mfa-setup'
-      ? await completeMfaSetup(mfaSetupToken, mfaCode)
-      : await completeMfaLogin(mfaChallengeId, mfaCode);
-    setMfaBusy(false);
-    if (result.success) continueAfterLogin(result.user);
+    try {
+      const result = authStep === 'mfa-setup'
+        ? await completeMfaSetup(mfaSetupToken, mfaCode)
+        : await completeMfaLogin(mfaChallengeId, mfaCode);
+      if (result.success) continueAfterLogin(result.user);
+      else setFormError(result.message || 'We could not verify this code. Please try again.');
+    } catch { setFormError('We could not connect. Check your internet connection and try again.'); }
+    finally { submittingRef.current = false; setMfaBusy(false); }
   };
 
   return (
@@ -137,43 +153,46 @@ export const LoginPage = () => {
           </div>
         </section>
 
-        <section className="relative isolate order-1 flex min-h-[calc(100svh-1.5rem)] flex-col justify-center overflow-hidden bg-white/65 px-4 py-5 backdrop-blur-sm sm:min-h-[calc(100svh-2.5rem)] sm:px-7 sm:py-7 lg:order-2 lg:min-h-0 lg:px-8 lg:py-6 xl:px-10">
-          <div className="relative z-10 mx-auto w-full max-w-xl">
-            <div className="mb-4 sm:mb-5">
-              <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.12em] text-green-700 sm:text-xs">{authStep === 'credentials' ? 'College of Computer Studies' : 'Account security'}</p>
-              <h2 data-login-heading tabIndex={-1} className="mt-1 text-3xl font-bold tracking-tight text-slate-900 sm:text-4xl lg:text-4xl xl:text-5xl">{authStep === 'credentials' ? 'Welcome back' : authStep === 'mfa-setup' ? 'Secure your account' : 'Verify it’s you'}</h2>
-              <p className="mt-1 text-sm leading-5 text-slate-600 sm:text-base sm:leading-6">{authStep === 'credentials' ? 'Sign in with the email linked to your account.' : authStep === 'mfa-setup' ? 'Administrators and teachers must set up an authenticator app before using the system.' : 'Enter the current six-digit code from your authenticator app.'}</p>
-            </div>
-
-            <div className="flex flex-col justify-center rounded-2xl border border-white/70 bg-white/95 p-5 shadow-lg shadow-slate-900/10 backdrop-blur-sm sm:p-6 lg:border-slate-200 lg:p-7 lg:shadow-xl">
-              {authStep === 'credentials' ? <form className="space-y-5 sm:space-y-6" onSubmit={handleSubmit} aria-busy={isLoading}>
-                <div>
-                  <label htmlFor="login-email" className="mb-2 block text-sm font-semibold text-slate-800 sm:text-base">
+        <section className="login-form-panel relative isolate order-1 flex min-h-[calc(100svh-1.5rem)] flex-col justify-center overflow-hidden bg-white/65 px-4 py-5 backdrop-blur-sm sm:min-h-[calc(100svh-2.5rem)] sm:px-7 sm:py-7 lg:order-2 lg:min-h-0 lg:px-8 lg:py-6 xl:px-10">
+          <div className="login-form-wrap relative z-10 mx-auto w-full">
+            <div className="login-card">
+              <header className="login-card-heading">
+                <div className="login-card-institution"><img src="/masbate-colleges-logo-login.webp" alt="Masbate Colleges seal" width="40" height="40" /><p>{authStep === 'credentials' ? 'College of Computer Studies' : 'Account security'}</p></div>
+                <h2 ref={headingRef} data-login-heading tabIndex={-1}>{authStep === 'credentials' ? 'Welcome back' : authStep === 'mfa-setup' ? 'Secure your account' : 'Verify it’s you'}</h2>
+                <p>{authStep === 'credentials' ? 'Sign in with the email linked to your account.' : authStep === 'mfa-setup' ? 'Administrators and teachers must set up an authenticator app before using the system.' : 'Enter the current six-digit code from your authenticator app.'}</p>
+              </header>
+              {formError && <div id="login-feedback" className="login-feedback" role="alert"><CircleAlert size={18} aria-hidden="true" /><p>{formError}</p></div>}
+              {searchParams.get('registered') === '1' && authStep === 'credentials' && <div className="login-feedback login-feedback-success" role="status"><CheckCircle2 size={18} aria-hidden="true" /><p>Your account is ready. Verify the email we sent before signing in.</p></div>}
+              {authStep === 'credentials' ? <form className="login-form" onSubmit={handleSubmit} aria-busy={isLoading} aria-describedby={formError ? 'login-feedback' : undefined}>
+                <div className="login-field">
+                  <label htmlFor="login-email">
                     Email address
                   </label>
-                  <div className="relative">
-                    <Mail aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <div className="login-input-shell">
+                    <Mail aria-hidden="true" size={18} />
                     <input
                       id="login-email"
                       name="email"
                       type="email"
                       autoComplete="username"
+                      autoCapitalize="none"
+                      spellCheck={false}
                       required
                       disabled={isLoading}
                       value={email}
-                      onChange={(e) => setEmail(e.target.value)}
+                      onChange={(e) => { setEmail(e.target.value); setFormError(''); }}
                       placeholder="you@example.com"
-                      className="block min-h-12 w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-3.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-500/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-14 sm:text-base"
+                      className="login-input"
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label htmlFor="login-password" className="mb-2 block text-sm font-semibold text-slate-800 sm:text-base">
+                <div className="login-field">
+                  <label htmlFor="login-password">
                     Password
                   </label>
-                  <div className="relative">
-                    <Lock aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <div className="login-input-shell">
+                    <Lock aria-hidden="true" size={18} />
                     <input
                       id="login-password"
                       name="password"
@@ -182,16 +201,17 @@ export const LoginPage = () => {
                       required
                       disabled={isLoading}
                       value={password}
-                      onChange={(e) => setPassword(e.target.value)}
+                      onChange={(e) => { setPassword(e.target.value); setFormError(''); }}
                       placeholder="Enter your password"
-                      className="block min-h-12 w-full rounded-xl border border-slate-200 bg-slate-50 py-3 pl-10 pr-12 text-sm text-slate-900 outline-none transition placeholder:text-slate-500 hover:border-slate-300 focus:border-green-500 focus:bg-white focus:ring-4 focus:ring-green-500/10 disabled:cursor-wait disabled:opacity-70 sm:min-h-14 sm:text-base"
+                      className="login-input login-input-password"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((visible) => !visible)}
                       aria-label={showPassword ? 'Hide password' : 'Show password'}
                       aria-pressed={showPassword}
-                      className="absolute right-1.5 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-green-600 sm:h-11 sm:w-11"
+                      disabled={isLoading}
+                      className="login-password-toggle"
                     >
                       {showPassword ? <EyeOff aria-hidden="true" className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={2.75} /> : <Eye aria-hidden="true" className="h-5 w-5 sm:h-6 sm:w-6" strokeWidth={2.75} />}
                     </button>
@@ -202,7 +222,7 @@ export const LoginPage = () => {
                   <button
                     type="submit"
                     disabled={isLoading}
-                    className="group flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-green-900/15 transition hover:bg-green-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-wait disabled:opacity-60 sm:min-h-14 sm:text-base"
+                    className="login-submit group"
                   >
                     {isLoading ? (
                       <>
@@ -216,11 +236,11 @@ export const LoginPage = () => {
                       </>
                     )}
                   </button>
-                  <div className="mt-1 flex justify-end">
-                    <Link to="/forgot-password" className="inline-flex min-h-11 items-center py-2 text-sm font-semibold text-green-800 underline-offset-4 hover:text-green-900 hover:underline sm:text-base">Forgot password?</Link>
+                  <div className="login-recovery">
+                    <Link to="/forgot-password">Forgot password?</Link>
                   </div>
                 </div>
-              </form> : <form className="space-y-5" onSubmit={handleMfaSubmit} aria-busy={mfaBusy}>
+              </form> : <form className="login-form" onSubmit={handleMfaSubmit} aria-busy={mfaBusy} aria-describedby={formError ? 'login-feedback' : undefined}>
                 {authStep === 'mfa-setup' && (
                   <div className="rounded-xl border border-green-200 bg-green-50 p-4">
                     <div className="flex items-start gap-3">
@@ -233,17 +253,17 @@ export const LoginPage = () => {
                     </div>
                   </div>
                 )}
-                <div>
-                  <label htmlFor="mfa-code" className="mb-2 block text-base font-semibold text-slate-800 sm:text-lg">Authenticator code</label>
-                  <input id="mfa-code" name="mfa-code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,8}" minLength={6} maxLength={8} required value={mfaCode} onChange={(event) => setMfaCode(event.target.value)} placeholder="000000" className="block min-h-14 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 text-center font-mono text-2xl font-bold tracking-[0.35em] text-slate-900 outline-none focus:border-green-600 focus:bg-white focus:ring-4 focus:ring-green-600/10" />
+                <div className="login-field">
+                  <label htmlFor="mfa-code">Authenticator code</label>
+                  <input id="mfa-code" name="mfa-code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,8}" minLength={6} maxLength={8} required disabled={mfaBusy} value={mfaCode} onChange={(event) => { setMfaCode(event.target.value); setFormError(''); }} placeholder="000000" className="login-input login-code-input" />
                 </div>
-                <button type="submit" disabled={mfaBusy} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-3 text-base font-semibold text-white shadow-md transition hover:bg-green-800 disabled:cursor-wait disabled:opacity-60">
+                <button type="submit" disabled={mfaBusy} className="login-submit">
                   {mfaBusy ? 'Verifying…' : authStep === 'mfa-setup' ? 'Enable MFA and sign in' : 'Verify and sign in'}
                 </button>
-                <button type="button" onClick={() => { setAuthStep('credentials'); setMfaCode(''); }} className="w-full text-center text-sm font-semibold text-green-800 hover:underline">Back to sign in</button>
+                <button type="button" disabled={mfaBusy} onClick={() => { setAuthStep('credentials'); setMfaCode(''); setFormError(''); headingRef.current?.focus(); }} className="login-back">Back to sign in</button>
               </form>}
 
-              {authStep === 'credentials' && <div className="mt-4 border-t border-slate-200 pt-3 text-center">
+              {authStep === 'credentials' && <div className="login-registration">
                 <Link to="/register" className="login-create-account" aria-describedby={demoStatusAvailable && freeDemoReadOnly ? 'login-registration-note' : undefined}>
                   <UserRoundPlus aria-hidden="true" size={19} />
                   <span>Create account</span>
@@ -255,8 +275,7 @@ export const LoginPage = () => {
               </div>}
             </div>
 
-            {searchParams.get('registered') === '1' && <p role="status" className="mt-3 text-center text-sm font-medium text-green-900">Your account is ready. Verify the email we sent before signing in.</p>}
-            <p className="mt-3 text-center text-[0.6875rem] text-slate-700 sm:text-xs">Digital Literacy Assessment System · Masbate Colleges</p>
+            <p className="login-institution-footer">Digital Literacy Assessment System · Masbate Colleges</p>
           </div>
         </section>
       </div>

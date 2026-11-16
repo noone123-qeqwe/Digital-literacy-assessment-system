@@ -52,7 +52,7 @@ export const AuthProvider = ({ children }) => {
       const res = await api.post('/auth/login', { email, password });
       if (res.data.success) {
         if (res.data.mfaRequired || res.data.mfaSetupRequired) {
-          return { success: false, ...res.data };
+          return { ...res.data, success: false };
         }
         const currentUser = await api.get('/auth/me').then((me) => me.data.data);
         setUser(currentUser);

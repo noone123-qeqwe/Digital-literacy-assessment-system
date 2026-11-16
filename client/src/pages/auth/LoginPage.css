@@ -38,3 +38,66 @@
 }
 .login-create-account:hover { background: var(--color-green-100); }
 .login-create-account:focus-visible { outline: 3px solid var(--color-green-600); outline-offset: 3px; }
+
+/* The sign-in card is scoped separately from the registration form. */
+.school-login-theme .login-form-wrap { max-width: 480px; }
+.school-login-theme .login-card { position: relative; min-width: 0; padding: 30px; border: 1px solid #dce6df; border-radius: 22px; background: #fffffff7; box-shadow: 0 2px 4px #15332505, 0 18px 46px #15332518; }
+.school-login-theme .login-card::before { content: ''; position: absolute; height: 3px; left: 30px; right: 30px; top: 0; border-radius: 0 0 4px 4px; background: linear-gradient(90deg, #006b3c, #c8ddce); }
+.school-login-theme .login-card-heading { margin-bottom: 26px; }
+.school-login-theme .login-card-institution { display: flex; align-items: center; gap: 12px; }
+.school-login-theme .login-card-institution img { display: block; flex-shrink: 0; width: 40px; height: 40px; padding: 3px; border: 1px solid #e0e9e3; border-radius: 10px; background: white; object-fit: contain; }
+.school-login-theme .login-card-institution p { color: #286344; font-size: 10px; font-weight: 700; line-height: 1.7; letter-spacing: .11em; text-transform: uppercase; }
+.school-login-theme .login-card-heading h2 { margin-top: 20px; color: #152e22; font-size: 34px; font-weight: 750; letter-spacing: -.04em; line-height: 1.2; overflow-wrap: anywhere; }
+.school-login-theme .login-card-heading > p { margin-top: 9px; color: #5f7168; font-size: 14px; line-height: 1.65; }
+.school-login-theme .login-form { display: grid; min-width: 0; gap: 21px; }
+.school-login-theme .login-field { min-width: 0; }
+.school-login-theme .login-field > label { display: block; margin-bottom: 8px; color: #2e4438; font-size: 13px; font-weight: 650; line-height: 1.5; }
+.school-login-theme .login-input-shell { position: relative; }
+.school-login-theme .login-input-shell > svg { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #748a7e; pointer-events: none; }
+.school-login-theme .login-card .login-input { display: block; width: 100%; min-width: 0; min-height: 54px; padding: 13px 16px 13px 44px; border: 1px solid #d8e2dc; border-radius: 11px; background: #f8faf9; color: #203b2c; font-size: 16px; font-weight: 400; line-height: 1.5; outline: none; }
+.school-login-theme .login-card .login-input::placeholder { color: #74877d; opacity: 1; }
+.school-login-theme .login-card .login-input:hover { border-color: #a7bfb0; }
+.school-login-theme .login-card .login-input:focus { border-color: #006b3c; background: white; box-shadow: 0 0 0 3px #006b3c14; }
+.school-login-theme .login-card .login-input-password { padding-right: 58px; }
+.school-login-theme .login-card .login-code-input { padding-inline: 14px; text-align: center; font-size: 25px; font-weight: 650; letter-spacing: .3em; font-family: ui-monospace, monospace; }
+.school-login-theme .login-password-toggle { position: absolute; top: 50%; right: 5px; display: grid; place-items: center; width: 44px; height: 44px; transform: translateY(-50%); border-radius: 8px; color: #506d5c; }
+.school-login-theme .login-password-toggle:hover { background: #eaf2ed; color: #005a32; }
+.school-login-theme .login-submit { display: flex; min-height: 52px; width: 100%; align-items: center; justify-content: center; gap: 9px; padding: 13px 18px; border: 1px solid #005a32; border-radius: 11px; background: linear-gradient(135deg, #006b3c, #005a32); color: white; font-size: 15px; font-weight: 650; line-height: 1.5; box-shadow: 0 3px 7px #005a3218; }
+.school-login-theme .login-submit:hover { background: #004c2c; border-color: #004c2c; box-shadow: 0 4px 12px #005a3226; }
+.school-login-theme .login-card :is(input, button):disabled { cursor: wait; opacity: .65; }
+.school-login-theme .login-card :is(a, button):focus-visible { outline: 2px solid #006b3c; outline-offset: 3px; }
+.school-login-theme .login-recovery { display: flex; justify-content: flex-end; margin-top: 4px; }
+.school-login-theme .login-recovery a { display: inline-flex; min-height: 44px; align-items: center; padding-block: 6px; color: #006039; font-size: 13px; font-weight: 650; text-underline-offset: 4px; }
+.school-login-theme .login-recovery a:hover { color: #003d23; text-decoration: underline; }
+.school-login-theme .login-registration { margin-top: 16px; padding-top: 20px; border-top: 1px solid #e3ebe6; text-align: center; }
+.school-login-theme .login-card .login-create-account { margin-top: 0; min-height: 48px; border-color: #b9cfc1; background: white; color: #285e41; font-size: 14px; box-shadow: 0 1px 2px #15332503; }
+.school-login-theme .login-card .login-create-account:hover { border-color: #7ba58c; background: #f1f7f3; }
+.school-login-theme .login-feedback { display: flex; align-items: flex-start; gap: 9px; margin-bottom: 20px; padding: 12px; border: 1px solid #efccd1; border-radius: 10px; background: #fff5f5; color: #9c3046; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.school-login-theme .login-feedback > svg { flex-shrink: 0; margin-top: 2px; }
+.school-login-theme .login-feedback-success { border-color: #c6dfce; background: #f0f8f2; color: #285b3a; }
+.school-login-theme .login-back { min-height: 44px; width: 100%; border-radius: 8px; color: #285e41; font-size: 14px; font-weight: 600; }
+.school-login-theme .login-back:hover { background: #f1f7f3; }
+.school-login-theme .login-institution-footer { max-width: 390px; margin: 16px auto 0; text-align: center; color: #435c4e; font-size: 12px; font-weight: 500; line-height: 1.7; }
+@media (max-width: 639px) {
+  .school-login-theme .login-form-panel { min-height: calc(100svh - 24px); padding: 28px 16px; }
+  .school-login-theme .login-card { padding: 24px 21px; border-radius: 18px; }
+  .school-login-theme .login-card::before { left: 21px; right: 21px; }
+  .school-login-theme .login-card-heading { margin-bottom: 23px; }
+  .school-login-theme .login-card-heading h2 { font-size: 30px; margin-top: 18px; }
+  .school-login-theme .login-card-heading > p { font-size: 13px; }
+  .school-login-theme .login-form { gap: 19px; }
+  .school-login-theme .login-institution-footer { font-size: 11px; }
+}
+@media (min-width: 1024px) and (max-height: 760px) {
+  .school-login-theme .login-form-panel { padding-block: 16px; }
+  .school-login-theme .login-card { padding: 22px 26px; }
+  .school-login-theme .login-card-institution img { width: 34px; height: 34px; }
+  .school-login-theme .login-card-heading { margin-bottom: 20px; }
+  .school-login-theme .login-card-heading h2 { margin-top: 12px; font-size: 30px; }
+  .school-login-theme .login-card-heading > p { margin-top: 7px; font-size: 13px; line-height: 1.6; }
+  .school-login-theme .login-form { gap: 16px; }
+  .school-login-theme .login-card .login-input { min-height: 50px; padding-block: 12px; }
+  .school-login-theme .login-submit { min-height: 48px; padding-block: 11px; }
+  .school-login-theme .login-registration { margin-top: 12px; padding-top: 14px; }
+  .school-login-theme .login-institution-footer { margin-top: 12px; font-size: 11px; }
+}
