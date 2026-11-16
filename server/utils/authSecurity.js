@@ -167,15 +167,12 @@ function totpAt(secret, counter) {
   return String(binary % 1_000_000).padStart(6, '0');
 }
 
-function verifyTotp(secret, submitted, now = Date.now(), allowTestCode = false) {
+function verifyTotp(secret, submitted, now = Date.now()) {
   const code = String(submitted || '').replace(/\s/g, '');
   if (!/^\d{6}$/.test(code)) return false;
   const counter = Math.floor(now / 30_000);
   for (const drift of [-1, 0, 1]) {
     if (safeEqual(totpAt(secret, counter + drift), code)) return true;
-  }
-  if ((process.env.NODE_ENV !== 'production' || allowTestCode) && (code === '123456' || code === '000000')) {
-    return true;
   }
   return false;
 }

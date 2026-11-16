@@ -19,7 +19,7 @@ const { app, startServer } = require('./server');
 const { db } = require('./db/database');
 const { seed } = require('./db/seed');
 const { calculateAssessmentResults, getProficiencyLevel } = require('./utils/scoring');
-const { generateTotpSecret, encryptSecret } = require('./utils/authSecurity');
+const { generateTotpSecret, encryptSecret, verifyTotp } = require('./utils/authSecurity');
 
 let passed = 0;
 let failed = 0;
@@ -111,6 +111,10 @@ async function run() {
   try {
     seed();
     console.log('\nDigital Literacy Assessment System integration checks');
+    const authenticatorFixture = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
+    check(verifyTotp(authenticatorFixture, '287082', 59000)
+      && !verifyTotp(authenticatorFixture, '123456', 59000, true)
+      && !verifyTotp(authenticatorFixture, '000000', 59000, true), 'authenticator verification accepts real codes and rejects legacy universal test codes');
 
     const health = await request(baseUrl, '/health');
     check(health.status === 200 && health.data.status === 'healthy', 'health endpoint responds');
@@ -127,9 +131,11 @@ async function run() {
     } finally { db.prepare = originalPrepare; }
     check((await request(baseUrl, '/health')).status === 200, 'health endpoint recovers when the database is available again');
 
+    process.env.ENFORCE_MFA = 'false';
     const adminLogin = await request(baseUrl, '/auth/login', {
       method: 'POST', body: { email: 'admin@dlas.edu.ph', password: 'Admin@123' },
     });
+    delete process.env.ENFORCE_MFA;
     check(adminLogin.status === 200 && adminLogin.data?.mfaSetupRequired, 'admin sign-in requires authenticator setup');
     const adminMfa = await enrollStaffMfa(baseUrl, 'admin@dlas.edu.ph', 'Admin@123');
     const adminToken = adminMfa.confirmation?.session;

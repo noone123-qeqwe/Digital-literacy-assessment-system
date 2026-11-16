@@ -8,8 +8,7 @@ async function startProduction() {
   // No sample users, attempts, or results are created by this launcher.
   const { startServer } = require('../server');
   const { db } = require('../db/database');
-  require('../db/ensureStaffAccounts').ensureStaffAccounts(db);
-  const admin = db.prepare("SELECT id FROM users WHERE role='admin' AND is_demo=0").get();
+  const admin = db.prepare("SELECT id FROM users WHERE role='admin' AND status='active'").get();
   if (!admin) await require('./bootstrap-admin').bootstrapAdmin();
   return startServer();
 }

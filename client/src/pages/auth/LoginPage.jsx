@@ -14,12 +14,6 @@ const skillAreas = [
   { name: 'Problem solving', color: 'text-pink-200' },
 ];
 
-const testAccounts = [
-  { role: 'Administrator', email: 'admin@dlas.edu.ph', password: 'Admin@123', label: 'Admin', color: 'bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100' },
-  { role: 'Teacher / Assessor', email: 'teacher@dlas.edu.ph', password: 'Teacher@123', label: 'Teacher', color: 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100' },
-  { role: 'Student / Respondent', email: 'maria.santos@example.com', password: 'User@123', label: 'Student', color: 'bg-sky-50 text-sky-800 border-sky-200 hover:bg-sky-100' },
-];
-
 export const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -169,31 +163,6 @@ export const LoginPage = () => {
               {formError && <div id="login-feedback" className="login-feedback" role="alert"><CircleAlert size={18} aria-hidden="true" /><p>{formError}</p></div>}
               {searchParams.get('registered') === '1' && authStep === 'credentials' && <div className="login-feedback login-feedback-success" role="status"><CheckCircle2 size={18} aria-hidden="true" /><p>Your account is ready. Verify the email we sent before signing in.</p></div>}
               {authStep === 'credentials' ? <form className="login-form" onSubmit={handleSubmit} aria-busy={isLoading} aria-describedby={formError ? 'login-feedback' : undefined}>
-                <div className="rounded-xl border border-slate-200/90 bg-slate-50/80 p-3">
-                  <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-700">
-                    Quick Sign-In Test Accounts:
-                  </p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {testAccounts.map((account) => (
-                      <button
-                        key={account.role}
-                        type="button"
-                        disabled={isLoading}
-                        onClick={() => {
-                          setEmail(account.email);
-                          setPassword(account.password);
-                          setFormError('');
-                        }}
-                        className={`flex flex-col items-center justify-center rounded-lg border p-2 text-center transition ${account.color}`}
-                        title={`${account.email} / ${account.password}`}
-                      >
-                        <span className="text-xs font-bold leading-tight">{account.label}</span>
-                        <span className="text-[10px] opacity-75">{account.role.split(' ')[0]}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 <div className="login-field">
                   <label htmlFor="login-email">
                     Email address
@@ -283,23 +252,6 @@ export const LoginPage = () => {
                     </div>
                   </div>
                 )}
-                <div className="rounded-xl border border-green-200 bg-green-50/90 p-3 text-xs text-green-950">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-bold">🔑 Test OTP Code: 123456</span>
-                    <button
-                      type="button"
-                      disabled={mfaBusy}
-                      onClick={() => { setMfaCode('123456'); setFormError(''); }}
-                      className="rounded-md bg-green-700 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-green-800"
-                    >
-                      Fill 123456
-                    </button>
-                  </div>
-                  <p className="mt-1 text-[11px] text-green-900 leading-relaxed">
-                    In development/test mode, you can enter <strong>123456</strong> or use your authenticator app.
-                  </p>
-                </div>
-
                 <div className="login-field">
                   <label htmlFor="mfa-code">Authenticator code</label>
                   <input id="mfa-code" name="mfa-code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,8}" minLength={6} maxLength={8} required disabled={mfaBusy} value={mfaCode} onChange={(event) => { setMfaCode(event.target.value); setFormError(''); }} placeholder="000000" className="login-input login-code-input" />
