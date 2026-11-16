@@ -15,3 +15,9 @@ The character has a wider, softer face, more natural eyes and smile, curved hair
 All seven hairstyles, three clothing styles, three expressions, glasses, facial hair, skin colors, scene toggles and existing animation modes remain supported. Gradients use a unique ID per illustration, keeping preview colors independent from the saved dashboard character. No raster assets or animation libraries were added, and the banner pause icon remains removed.
 
 Eight additional isolated browser checks passed for valid independent gradient references, appearance options, six skin tones and preview isolation, complete scene toggles, finite SVG paths, save/reload behavior, reduced motion and browser/SVG errors. A seven-character variation sheet and desktop/mobile views were visually inspected. The four-size banner checks passed again, including motion and editor controls. These checks use fixture responses and did not change production appearance settings. Frontend lint and build passed.
+
+## Laptop perspective correction
+
+The laptop now has a taller rear-facing lid without an interior-screen bezel, a connected hinge and a keyboard deck projecting toward the student behind the lid. Hands rest over that deck; the case has a thin side edge, vents and a small status light. The open book and book stack were repositioned to keep the laptop's base clear. Lid and deck shading continue to use the chosen laptop color.
+
+Nine illustration checks and four viewport checks passed, including dark/light laptop color changes, rendering with books hidden, valid SVG paths, animation and editor controls. The laptop was visually inspected both with and without the desk props. Lint and production build passed; no production character settings were changed during checks.

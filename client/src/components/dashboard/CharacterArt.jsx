@@ -56,8 +56,11 @@ export default function CharacterArt({ settings, ...props }) {
         <linearGradient id={`${id}-shirt`} x1="153" y1="186" x2="276" y2="268" gradientUnits="userSpaceOnUse">
           <stop stopColor={tint(shirtColor, '#ffffff', .14)} /><stop offset=".45" stopColor={shirtColor} /><stop offset="1" stopColor={tint(shirtColor, '#000000', .2)} />
         </linearGradient>
-        <linearGradient id={`${id}-laptop`} x1="262" y1="212" x2="391" y2="280" gradientUnits="userSpaceOnUse">
+        <linearGradient id={`${id}-laptop`} x1="280" y1="196" x2="393" y2="275" gradientUnits="userSpaceOnUse">
           <stop stopColor={tint(laptopColor, '#ffffff', .22)} /><stop offset=".6" stopColor={laptopColor} /><stop offset="1" stopColor={tint(laptopColor, '#000000', .12)} />
+        </linearGradient>
+        <linearGradient id={`${id}-laptop-deck`} x1="249" y1="250" x2="317" y2="279" gradientUnits="userSpaceOnUse">
+          <stop stopColor={tint(laptopColor, '#ffffff', .42)} /><stop offset="1" stopColor={tint(laptopColor, '#ffffff', .16)} />
         </linearGradient>
         <linearGradient id={`${id}-paper`} x1="0" y1="0" x2="0" y2="1">
           <stop stopColor={tint(accentColor, '#ffffff', .55)} /><stop offset="1" stopColor={accentColor} />
@@ -123,17 +126,33 @@ export default function CharacterArt({ settings, ...props }) {
         </g>
         <path d="M146 205L132 228L162 242L177 216Z" fill={paint('shirt')} />
         <path d="M134 225L163 238" stroke={accentColor} strokeWidth="3" />
+        {/* The keyboard projects toward the student, behind the rear-facing lid. */}
+        <g className="character-laptop-base">
+          <ellipse cx="312" cy="282" rx="90" ry="4.5" fill={outline} fillOpacity=".12" stroke="none" />
+          <path d="M218 250H354L399 274H263Z" fill={paint('laptop-deck')} strokeWidth="1.3" />
+          <path d="M218 250V255L263 279H399V274H263Z" fill={tint(laptopColor, '#000000', .16)} strokeWidth="1.2" />
+          <g className="character-laptop-keyboard" transform="matrix(1 0 -1.125 -.6 263 274)" stroke="none">
+            <rect x="9" y="4" width="118" height="18" rx="2" fill={outline} fillOpacity=".26" />
+            {[0, 1, 2, 3].map((row) => <g key={row} fill={tint(laptopColor, '#000000', .35)}>
+              {Array.from({ length: 12 }, (_, column) => <rect key={column} x={11 + column * 9.5} y={5 + row * 4} width="7.5" height="2.8" rx=".6" />)}
+            </g>)}
+            <rect x="49" y="26" width="39" height="10" rx="2" fill={laptopColor} fillOpacity=".28" stroke={outline} strokeOpacity=".4" strokeWidth=".7" />
+          </g>
+          <path d="M265 277H395" stroke="white" strokeOpacity=".23" strokeWidth=".8" />
+          <path d="M226 257L233 261M238 264L249 270" stroke={outline} strokeOpacity=".55" strokeWidth="1.3" />
+          <circle className="character-laptop-light" cx="255" cy="273.4" r=".9" fill="#d4f4de" stroke="none" />
+        </g>
         <g className="character-hand character-hand-left">
-          <path d="M134 229L159 239L158 253L216 254C224 250 232 248 239 251L254 262C259 267 253 274 246 274L148 275C131 274 126 258 131 241Z" fill={paint('skin')} />
-          <path d="M138 259C139 266 144 269 152 269H205" stroke="white" strokeOpacity=".2" strokeWidth="3" />
-          <path d="M222 255Q230 257 235 265M231 252Q240 256 244 263M240 254L249 261" strokeOpacity=".35" strokeWidth="1.3" />
-          <path d="M218 265L228 268" strokeOpacity=".22" strokeWidth="1.2" />
+          <path d="M134 229L159 239L158 253L216 254C224 250 232 251 239 255L252 264C257 269 252 274 246 273L224 266L148 275C131 274 126 258 131 241Z" fill={paint('skin')} />
+          <path d="M138 259C139 267 146 271 153 270L207 264" stroke="white" strokeOpacity=".2" strokeWidth="3" />
+          <path d="M222 257Q230 259 236 268M232 256L244 268M240 259L250 267" strokeOpacity=".35" strokeWidth="1.3" />
+          <path d="M216 264L225 267" strokeOpacity=".22" strokeWidth="1.2" />
         </g>
         <path d="M257 208L278 234L255 249L239 221Z" fill={paint('shirt')} />
         <path d="M257 243L276 232" stroke={accentColor} strokeWidth="3" />
         <g className="character-hand character-hand-right">
-          <path d="M275 235L256 246L279 264H315C322 263 326 257 321 253L288 250Z" fill={paint('skin')} />
-          <path d="M285 256H309M302 253L306 258M311 253L315 258" strokeOpacity=".28" strokeWidth="1.3" />
+          <path d="M275 235L256 246L278 265L309 267C316 267 321 262 316 257L286 251Z" fill={paint('skin')} />
+          <path d="M285 258L307 263M300 256L307 263M309 258L314 263" strokeOpacity=".28" strokeWidth="1.3" />
         </g>
 
         <g className="character-head">
@@ -190,14 +209,16 @@ export default function CharacterArt({ settings, ...props }) {
           </g>}
         </g>
 
-        <g>
-          <path d="M263 212H402C408 212 411 216 409 222L395 271H247Z" fill={paint('laptop')} />
-          <path d="M270 219H399L387 262H258Z" stroke="white" strokeOpacity=".16" strokeWidth="1" />
-          <path d="M263 215L250 267" stroke="white" strokeOpacity=".3" strokeWidth="1.5" />
-          <circle className="character-laptop-light" cx="330" cy="242" r="6.5" fill="#f3f8f5" fillOpacity=".65" stroke="none" />
-          <path d="M246 271H395L409 278Q412 282 403 282H237Q232 281 237 277Z" fill={tint(laptopColor, '#ffffff', .22)} />
-          <path d="M284 272H347L351 276H281Z" fill={outline} fillOpacity=".16" stroke="none" />
-          <path d="M240 278H403" stroke="white" strokeOpacity=".25" />
+        <g className="character-laptop-lid">
+          <path d="M280 196H413C420 196 423 201 421 207L398 269Q397 274 391 274H262Q256 274 258 268L275 202Q276 196 280 196Z" fill={paint('laptop')} strokeWidth="1.6" />
+          <path d="M280 199H412Q418 199 418 204" stroke="white" strokeOpacity=".35" strokeWidth="1.3" />
+          <path d="M277 204L261 267" stroke="white" strokeOpacity=".2" strokeWidth="1.2" />
+          <path d="M419 206L396 268Q395 271 390 271H265" stroke={outline} strokeOpacity=".24" strokeWidth="2" />
+          <g transform="translate(339 233) skewX(-16)" stroke="none" fill="#f3f8f5" fillOpacity=".55">
+            <path d="M-7-4Q-3-6 0-3V6Q-3 3-7 5ZM1-3Q4-6 8-4V5Q4 3 1 6Z" />
+          </g>
+          <path d="M266 274H390" stroke={outline} strokeWidth="3" />
+          <path d="M270 273.5H386" stroke={tint(laptopColor, '#ffffff', .32)} strokeWidth=".9" />
         </g>
 
         {showPlant && <g className="character-plant">
@@ -216,6 +237,7 @@ export default function CharacterArt({ settings, ...props }) {
         </g>}
 
         {showBooks && <g className="character-books">
+          <g transform="translate(10 0)">
           <path d="M363 259L443 255V272L363 277Z" fill={paint('paper')} />
           <path d="M362 256L445 252V257L364 262Z" fill={paint('shirt')} />
           <path d="M365 276L444 272" stroke={shirtColor} strokeWidth="3.5" />
@@ -224,6 +246,8 @@ export default function CharacterArt({ settings, ...props }) {
           <path d="M356 278L440 274V278L358 283Z" fill="#c6a45e" />
           <path d="M358 294L439 290" stroke="#b9944f" strokeWidth="3.5" />
           <path d="M366 287L432 282M366 291L432 286" strokeOpacity=".13" strokeWidth=".9" />
+          </g>
+          <g transform="translate(-7 47) scale(.83 .84)">
           <path d="M124 280Q158 266 198 282Q232 268 263 277L278 298Q237 290 198 306Q161 291 117 302Z" fill={paint('paper')} />
           <path d="M124 281Q159 272 195 283L198 301Q159 287 123 297Z" fill="white" fillOpacity=".18" stroke="none" />
           <path d="M202 283Q231 274 260 279L270 294Q238 286 201 301Z" fill="white" fillOpacity=".35" stroke="none" />
@@ -231,6 +255,7 @@ export default function CharacterArt({ settings, ...props }) {
           <path d="M137 281Q159 277 182 284M135 286Q157 282 183 289M135 291Q154 288 175 293M213 284Q234 278 252 283M213 289Q237 284 255 288M213 294Q232 289 249 292" strokeOpacity=".2" strokeWidth="1" />
           <path d="M117 303Q159 293 198 307Q238 293 278 300" stroke={shirtColor} strokeWidth="3" />
           <path d="M248 292L252 306L258 301L261 304L257 291" fill="#c6a45e" stroke="none" />
+          </g>
         </g>}
       </g>
     </svg>
