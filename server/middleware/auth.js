@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { db } = require('../db/database');
 const { SESSION_COOKIE, readCookie, requireCsrf } = require('../utils/authSecurity');
+const { isMfaRequired } = require('../utils/mfaPolicy');
 
 function canAccessAssessment(user, assessmentId) {
   if (user.role === 'admin') return true;
@@ -40,13 +41,18 @@ function authenticate(req, res, next) {
       WHERE id = ? AND user_id = ? AND revoked_at IS NULL AND datetime(expires_at) > datetime('now')
     `).get(decoded.jti, decoded.id);
     if (!session) return res.status(401).json({ success: false, message: 'Session is no longer active. Please sign in again.' });
-    const user = db.prepare('SELECT id, email, first_name, last_name, role, status, email_verified, mfa_enabled FROM users WHERE id = ?').get(decoded.id);
+    const user = db.prepare(
+      "SELECT u.id, u.email, u.first_name, u.last_name, u.role, u.status, u.email_verified, u.mfa_enabled,"
+      + " COALESCE(mfa_policy.setting_value, '0') AS mfa_optional FROM users u"
+      + " LEFT JOIN system_settings mfa_policy ON mfa_policy.setting_key = 'mfa_optional_user:' || u.id"
+      + ' WHERE u.id = ?'
+    ).get(decoded.id);
     if (!user) return res.status(401).json({ success: false, message: 'Invalid token. User not found.' });
     if (user.status !== 'active') {
       return res.status(403).json({ success: false, message: 'Account is deactivated.' });
     }
     if (!user.email_verified) return res.status(403).json({ success: false, message: 'Verify your email address before signing in.' });
-    if (['admin', 'assessor'].includes(user.role) && !user.mfa_enabled) {
+    if (isMfaRequired(user) && !user.mfa_enabled) {
       return res.status(403).json({ success: false, message: 'Multi-factor authentication setup is required for this account.' });
     }
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !requireCsrf(req, res)) return;

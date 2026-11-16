@@ -14,6 +14,7 @@ const {
 } = require('../utils/authSecurity');
 const { sendSecurityEmail, clientUrl } = require('../utils/email');
 const { enrollPublishedQuizzes } = require('../utils/quizEnrollment');
+const { isMfaRequired } = require('../utils/mfaPolicy');
 
 const loginLimit = rateLimit({ id: 'auth-login', windowMs: 15 * 60 * 1000, max: 10, message: 'Too many sign-in attempts. Try again in 15 minutes.' });
 const registrationLimit = rateLimit({ id: 'auth-register', windowMs: 60 * 60 * 1000, max: 10, message: 'Too many registration attempts. Try again later.' });
@@ -113,7 +114,11 @@ router.post('/login', loginLimit, [
 
   const { email, password } = req.body;
   try {
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+  const user = db.prepare(
+    "SELECT u.*, COALESCE(mfa_policy.setting_value, '0') AS mfa_optional FROM users u"
+    + " LEFT JOIN system_settings mfa_policy ON mfa_policy.setting_key = 'mfa_optional_user:' || u.id"
+    + ' WHERE u.email = ?'
+  ).get(email);
 
   if (!user) {
     return res.status(401).json({ success: false, message: 'Invalid email or password.' });
@@ -136,7 +141,7 @@ router.post('/login', loginLimit, [
     });
   }
 
-  if (['admin', 'assessor'].includes(user.role)) {
+  if (isMfaRequired(user)) {
     if (!user.mfa_enabled || !user.mfa_secret) {
       const setupToken = jwt.sign({ id: user.id, scope: 'mfa_setup' }, process.env.JWT_SECRET, { expiresIn: '10m' });
       return res.json({ success: true, mfaSetupRequired: true, setupToken, user: publicUser(user) });
