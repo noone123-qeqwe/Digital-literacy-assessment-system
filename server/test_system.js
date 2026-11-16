@@ -85,18 +85,29 @@ async function request(baseUrl, route, { method = 'GET', token, body } = {}) {
   return { status: response.status, headers: response.headers, data, session: responseCookies(response.headers) };
 }
 
-async function enrollStaffMfa(baseUrl, email, password) {
-  const login = await request(baseUrl, '/auth/login', { method: 'POST', body: { email, password } });
-  if (login.status !== 200 || !login.data?.mfaSetupRequired) return { login, setup: null, confirmation: null };
-  const setup = await request(baseUrl, '/auth/mfa/setup', {
-    method: 'POST', body: { setup_token: login.data.setupToken },
-  });
-  if (setup.status !== 200 || !setup.data?.data?.secret) return { login, setup, confirmation: null };
-  const confirmation = await request(baseUrl, '/auth/mfa/setup/confirm', {
+async function signInStaffWithEmailOtp(baseUrl, email, password) {
+  let capturedOtp = null;
+  const originalInfo = console.info;
+  console.info = (...args) => {
+    const text = args.map(String).join(' ');
+    const match = /Verification Code:\s*(\d{6})/.exec(text);
+    if (match) capturedOtp = match[1];
+    else originalInfo(...args);
+  };
+  let login;
+  try {
+    login = await request(baseUrl, '/auth/login', { method: 'POST', body: { email, password } });
+  } finally {
+    console.info = originalInfo;
+  }
+  if (login.status !== 200 || !login.data?.mfaRequired || !capturedOtp) {
+    return { login, confirmation: null };
+  }
+  const confirmation = await request(baseUrl, '/auth/mfa/verify', {
     method: 'POST',
-    body: { setup_token: login.data.setupToken, code: totpCode(setup.data.data.secret) },
+    body: { challenge_id: login.data.challengeId, code: capturedOtp },
   });
-  return { login, setup, confirmation };
+  return { login, confirmation };
 }
 
 async function run() {
@@ -131,15 +142,37 @@ async function run() {
     } finally { db.prepare = originalPrepare; }
     check((await request(baseUrl, '/health')).status === 200, 'health endpoint recovers when the database is available again');
 
-    process.env.ENFORCE_MFA = 'false';
-    const adminLogin = await request(baseUrl, '/auth/login', {
+    const adminMfa = await signInStaffWithEmailOtp(baseUrl, 'admin@dlas.edu.ph', 'Admin@123');
+    const adminToken = adminMfa.confirmation?.session;
+    check(adminMfa.login.status === 200 && adminMfa.login.data?.mfaRequired && adminMfa.login.data?.methods?.emailOtp === true, 'admin sign-in issues an email 6-digit OTP challenge');
+    check(adminMfa.confirmation?.status === 200 && adminToken?.dlas_session && adminToken?.dlas_csrf, 'admin completes email OTP verification and receives secure session and CSRF cookies');
+
+    // Optional TOTP add-on + Backup Scratch Codes check
+    const totpSetup = await request(baseUrl, '/auth/mfa/totp/setup', { method: 'POST', token: adminToken });
+    const totpConfirm = await request(baseUrl, '/auth/mfa/totp/confirm', {
+      method: 'POST', token: adminToken, body: { code: totpCode(totpSetup.data.data.secret) },
+    });
+    const scratchCodes = totpConfirm.data?.data?.backup_codes || [];
+    check(totpConfirm.status === 200 && scratchCodes.length === 8, 'optional authenticator setup enables TOTP and generates 8 backup scratch codes');
+    const secondLogin = await request(baseUrl, '/auth/login', {
       method: 'POST', body: { email: 'admin@dlas.edu.ph', password: 'Admin@123' },
     });
-    delete process.env.ENFORCE_MFA;
-    check(adminLogin.status === 200 && adminLogin.data?.mfaSetupRequired, 'admin sign-in requires authenticator setup');
-    const adminMfa = await enrollStaffMfa(baseUrl, 'admin@dlas.edu.ph', 'Admin@123');
-    const adminToken = adminMfa.confirmation?.session;
-    check(adminMfa.confirmation?.status === 200 && adminToken?.dlas_session && adminToken?.dlas_csrf, 'admin completes MFA setup and receives secure session and CSRF cookies');
+    const backupVerify = await request(baseUrl, '/auth/mfa/verify', {
+      method: 'POST', body: { challenge_id: secondLogin.data.challengeId, code: scratchCodes[0] },
+    });
+    const reuseLogin = await request(baseUrl, '/auth/login', {
+      method: 'POST', body: { email: 'admin@dlas.edu.ph', password: 'Admin@123' },
+    });
+    const reuseAttempt = await request(baseUrl, '/auth/mfa/verify', {
+      method: 'POST', body: { challenge_id: reuseLogin.data.challengeId, code: scratchCodes[0] },
+    });
+    check(
+      backupVerify.status === 200
+      && backupVerify.data?.data?.verifiedMethod === 'backup_code'
+      && backupVerify.data?.data?.remainingBackupCodes === 7
+      && reuseAttempt.status === 401,
+      'backup scratch codes work once for sign-in and reject reuse'
+    );
     const readiness = await request(baseUrl, '/system/readiness', { token: adminToken });
     check(readiness.status === 200 && readiness.data.data.checks.some((item) => item.id === 'consent') && readiness.data.data.checks.some((item) => item.id === 'backup'), 'administrator can view the safe operational readiness checklist');
     const publicStatus = await request(baseUrl, '/system/status');
@@ -252,6 +285,21 @@ async function run() {
     });
     const savedMale = await request(baseUrl, '/auth/me/dashboard-character', { token: studentToken });
     check(maleCharacter.status === 200 && savedMale.data.data.settings.characterStyle === 'male' && savedMale.data.data.settings.hairStyle === 'short', 'male character style also saves and reloads with customized features');
+    const enhancedCharacter = await request(baseUrl, '/auth/me/dashboard-character', {
+      method: 'PUT', token: studentToken,
+      body: { settings: { ...savedMale.data.data.settings, hairStyle: 'ponytail', outfit: 'blazer', expression: 'happy', glasses: 'browline', showHeadphones: true, showMug: false } },
+    });
+    const savedEnhanced = await request(baseUrl, '/auth/me/dashboard-character', { token: studentToken });
+    check(
+      enhancedCharacter.status === 200
+      && savedEnhanced.data.data.settings.hairStyle === 'ponytail'
+      && savedEnhanced.data.data.settings.outfit === 'blazer'
+      && savedEnhanced.data.data.settings.expression === 'happy'
+      && savedEnhanced.data.data.settings.glasses === 'browline'
+      && savedEnhanced.data.data.settings.showHeadphones === true
+      && savedEnhanced.data.data.settings.showMug === false,
+      'enhanced character hairstyles, outfits, expressions, glasses, and accessories persist'
+    );
 
     const unassigned = await request(baseUrl, '/attempts', { method: 'POST', token: studentToken, body: { assessment_id: 1 } });
     check(unassigned.status === 403, 'respondents cannot start unassigned assessments');
@@ -432,7 +480,7 @@ async function run() {
       body: { first_name: 'Avery', last_name: 'Assessor', email: 'assessor@example.test', password: 'SecureAssessor123!', role: 'assessor' },
     });
     db.prepare("UPDATE users SET email_verified = 1 WHERE email = 'assessor@example.test'").run();
-    const assessorMfa = await enrollStaffMfa(baseUrl, 'assessor@example.test', 'SecureAssessor123!');
+    const assessorMfa = await signInStaffWithEmailOtp(baseUrl, 'assessor@example.test', 'SecureAssessor123!');
     const assessorToken = assessorMfa.confirmation?.session;
     const assessorDirectory = await request(baseUrl, '/users?role=respondent&status=active', { token: assessorToken });
     const assessorAssessment = await request(baseUrl, '/assessments', {

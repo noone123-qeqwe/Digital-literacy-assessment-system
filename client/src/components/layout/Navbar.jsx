@@ -57,7 +57,7 @@ export const Navbar = ({ setIsSidebarOpen, isSidebarOpen, dashboardMode = false 
   const roleLabel = user?.role === 'respondent' ? 'Student' : user?.role === 'assessor' ? 'Teacher / Assessor' : 'Administrator';
   const isStudent = user?.role === 'respondent';
   const takingAssessment = /^\/respondent\/(assessments\/\d+\/take|knowledge\/attempts\/\d+)\/?$/.test(location.pathname);
-  const profileLink = user?.role === 'admin' || (isStudent && !takingAssessment);
+  const profileLink = user?.role === 'admin' || user?.role === 'assessor' || (isStudent && !takingAssessment);
   const ProfileWrapper = profileLink ? Link : 'div';
 
   return (

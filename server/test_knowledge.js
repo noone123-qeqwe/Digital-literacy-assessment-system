@@ -23,7 +23,7 @@ function check(condition, message) { assert.ok(condition, message); checks++; co
 function session(user) {
   const sessionId = crypto.randomUUID();
   db.prepare("UPDATE users SET email_verified=1,mfa_enabled=CASE WHEN role='respondent' THEN 0 ELSE 1 END WHERE id=?").run(user.id);
-  db.prepare('INSERT INTO auth_sessions(id,user_id,expires_at) VALUES(?,?,?)').run(sessionId, user.id, new Date(Date.now() + 3600000).toISOString());
+  db.prepare('INSERT INTO auth_sessions(id,user_id,expires_at,mfa_verified) VALUES(?,?,?,1)').run(sessionId, user.id, new Date(Date.now() + 3600000).toISOString());
   const token = jwt.sign({ id: user.id, jti: sessionId }, process.env.JWT_SECRET, { expiresIn: '1h' });
   const csrf = crypto.randomBytes(16).toString('hex');
   return { cookie: `dlas_session=${token}; dlas_csrf=${csrf}`, csrf, id: user.id };

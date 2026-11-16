@@ -553,6 +553,30 @@ function initializeDatabase() {
       db.prepare('INSERT INTO schema_migrations (version) VALUES (11)').run();
     })();
   }
+  const emailOtpAndBackupCodesMigration = db.prepare('SELECT version FROM schema_migrations WHERE version = 14').get();
+  if (!emailOtpAndBackupCodesMigration) {
+    db.transaction(() => {
+      const challengeColumns = new Set(db.prepare('PRAGMA table_info(mfa_challenges)').all().map((column) => column.name));
+      if (!challengeColumns.has('otp_hash')) db.exec('ALTER TABLE mfa_challenges ADD COLUMN otp_hash TEXT;');
+
+      const sessionColumns = new Set(db.prepare('PRAGMA table_info(auth_sessions)').all().map((column) => column.name));
+      if (!sessionColumns.has('mfa_verified')) {
+        db.exec('ALTER TABLE auth_sessions ADD COLUMN mfa_verified INTEGER NOT NULL DEFAULT 0 CHECK (mfa_verified IN (0, 1));');
+      }
+
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS mfa_backup_codes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          code_hash TEXT NOT NULL,
+          used_at DATETIME,
+          created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_mfa_backup_codes_user ON mfa_backup_codes(user_id, used_at);
+      `);
+      db.prepare('INSERT INTO schema_migrations (version) VALUES (14)').run();
+    })();
+  }
   require('./knowledge').initializeKnowledge(db);
   require('./bookmarks').initializeBookmarks(db);
 }

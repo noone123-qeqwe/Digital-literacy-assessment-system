@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Pause, Pencil, Play, RotateCcw } from 'lucide-react';
+import { Check, Pause, Pencil, Play, RotateCcw, Shuffle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
 import { useAuth } from '../../contexts/useAuth';
@@ -13,6 +13,26 @@ import './DashboardCharacter.css';
 const { defaults, choices, presets, ranges } = characterSchema;
 const panels = ['Character', 'Clothing', 'Scene', 'Motion'];
 const skinTones = ['#f6d8bb', '#e8ba91', '#d99e6c', '#bd8154', '#925f41', '#613d30'];
+const hairSwatches = ['#2d2926', '#4a3222', '#7c4d2b', '#b88642', '#8f3428', '#1e3a8a'];
+const shirtSwatches = ['#1d4ed8', '#0f766e', '#7c3aed', '#be123c', '#334155', '#006b3c'];
+const laptopSwatches = ['#475569', '#1e293b', '#64748b', '#1d4ed8', '#7c3aed'];
+const backdropSwatches = ['#dbeafe', '#e0e7ff', '#dcfce7', '#fef3c7', '#fce7f3'];
+
+const optionLabels = {
+  tshirt: 'T-shirt',
+  browline: 'Browline',
+  ponytail: 'Ponytail',
+  bob: 'Bob cut',
+  sweater: 'Sweater',
+  blazer: 'Blazer',
+  happy: 'Happy',
+  focused: 'Focused',
+  float: 'Animated',
+};
+
+function formatOptionLabel(option) {
+  return optionLabels[option] || option.charAt(0).toUpperCase() + option.slice(1);
+}
 
 function CharacterScene({ settings, preview = false, paused = false }) {
   const sceneRef = useRef(null);
@@ -91,6 +111,28 @@ export default function DashboardCharacter() {
     setDraft((current) => current.characterStyle === characterStyle ? current : { ...current, ...presets[characterStyle], characterStyle });
     setSaveError('');
   };
+  const randomizeDraft = () => {
+    const pick = (items) => items[Math.floor(Math.random() * items.length)];
+    const characterStyle = pick(choices.characterStyle);
+    const availableHair = choices.hairStyle.filter((style) => style !== 'none');
+    setDraft((current) => ({
+      ...current,
+      characterStyle,
+      hairStyle: pick(availableHair),
+      hairColor: pick(hairSwatches),
+      skinColor: pick(skinTones),
+      outfit: pick(choices.outfit),
+      shirtColor: pick(shirtSwatches),
+      expression: pick(choices.expression),
+      glasses: pick(choices.glasses),
+      facialHair: characterStyle === 'female' ? 'none' : pick(choices.facialHair),
+      showHeadphones: Math.random() > 0.55,
+      laptopColor: pick(laptopSwatches),
+      backdropColor: pick(backdropSwatches),
+      showMug: Math.random() > 0.3,
+    }));
+    setSaveError('');
+  };
   const close = () => { if (!saving) setIsOpen(false); };
   const open = () => {
     setDraft({ ...settings });
@@ -114,6 +156,25 @@ export default function DashboardCharacter() {
       setSaving(false);
     }
   };
+  const swatchRow = (key, label, swatches) => (
+    <fieldset className="character-skin-tones" key={`${key}-swatches`}>
+      <legend>{label}</legend>
+      <div>
+        {swatches.map((tone, index) => (
+          <button
+            type="button"
+            key={tone}
+            onClick={() => update(key, tone)}
+            aria-label={`${label} option ${index + 1}`}
+            aria-pressed={draft[key]?.toLowerCase() === tone.toLowerCase()}
+            style={{ backgroundColor: tone }}
+          >
+            {draft[key]?.toLowerCase() === tone.toLowerCase() && <Check aria-hidden="true" size={16} />}
+          </button>
+        ))}
+      </div>
+    </fieldset>
+  );
   const colorControl = (key, label) => (
     <label className="character-color-control" key={key}>
       <span>{label}</span>
@@ -124,7 +185,7 @@ export default function DashboardCharacter() {
     <label className="character-field" key={key}>
       <span>{label}</span>
       <select value={draft[key]} onChange={(event) => update(key, event.target.value)}>
-        {choices[key].map((option) => <option key={option} value={option}>{key === 'animation' && option === 'float' ? 'Animated' : option === 'tshirt' ? 'T-shirt' : option.charAt(0).toUpperCase() + option.slice(1)}</option>)}
+        {choices[key].map((option) => <option key={option} value={option}>{formatOptionLabel(option)}</option>)}
       </select>
     </label>
   );
@@ -170,7 +231,10 @@ export default function DashboardCharacter() {
             <div className="character-preview">
               <div className="character-preview-frame"><CharacterScene settings={draft} paused={motionPaused} preview /></div>
               <p>Live preview</p>
-              <button type="button" disabled={loading || saving} className="character-reset" onClick={() => setDraft({ ...defaults })}><RotateCcw aria-hidden="true" size={15} />Reset to default</button>
+              <div className="character-preview-actions">
+                <button type="button" disabled={loading || saving} className="character-reset" onClick={randomizeDraft}><Shuffle aria-hidden="true" size={15} />Surprise me</button>
+                <button type="button" disabled={loading || saving} className="character-reset" onClick={() => setDraft({ ...defaults })}><RotateCcw aria-hidden="true" size={15} />Reset</button>
+              </div>
             </div>
             <div className="character-controls">
               <div className="character-panel-switcher" role="group" aria-label="Character settings sections">
@@ -189,7 +253,7 @@ export default function DashboardCharacter() {
                         aria-pressed={draft.characterStyle === characterStyle}
                         onClick={() => chooseCharacterStyle(characterStyle)}
                       >
-                        <CharacterArt className="character-style-thumbnail" settings={{ ...draft, ...presets[characterStyle], characterStyle, showBooks: false, showPlant: false, showBackdrop: false }} viewBox="138 20 126 162" aria-hidden="true" />
+                        <CharacterArt className="character-style-thumbnail" settings={{ ...draft, ...presets[characterStyle], characterStyle, showBooks: false, showPlant: false, showMug: false, showBackdrop: false }} viewBox="138 20 126 162" aria-hidden="true" />
                         <span>{characterStyle === 'male' ? 'Male' : 'Female'}</span>
                         {draft.characterStyle === characterStyle && <Check size={16} aria-hidden="true" />}
                       </button>)}
@@ -202,35 +266,35 @@ export default function DashboardCharacter() {
                     {selectControl('glasses', 'Glasses')}
                     {selectControl('facialHair', 'Facial hair')}
                   </div>
-                  <fieldset className="character-skin-tones">
-                    <legend>Skin tone</legend>
-                    <div>{skinTones.map((tone, index) => (
-                      <button type="button" key={tone} onClick={() => update('skinColor', tone)} aria-label={`Skin tone ${index + 1}`} aria-pressed={draft.skinColor === tone} style={{ backgroundColor: tone }}>
-                        {draft.skinColor === tone && <Check aria-hidden="true" size={18} />}
-                      </button>
-                    ))}</div>
-                  </fieldset>
+                  {toggleControl('showHeadphones', 'Wear studio headphones')}
+                  {swatchRow('skinColor', 'Skin tone', skinTones)}
+                  {swatchRow('hairColor', 'Hair color presets', hairSwatches)}
                   <div className="character-color-grid">
                     {colorControl('skinColor', 'Custom skin color')}
-                    {colorControl('hairColor', 'Hair color')}
+                    {colorControl('hairColor', 'Custom hair color')}
                     {colorControl('eyeColor', 'Eye color')}
                   </div>
                 </>}
                 {panel === 'Clothing' && <>
                   {selectControl('outfit', 'Clothing style')}
+                  {swatchRow('shirtColor', 'Clothing color presets', shirtSwatches)}
                   <div className="character-color-grid">
                     {colorControl('shirtColor', 'Main clothing color')}
                     {colorControl('accentColor', 'Collar and trim')}
                   </div>
                 </>}
                 {panel === 'Scene' && <>
+                  {swatchRow('backdropColor', 'Backdrop color presets', backdropSwatches)}
                   <div className="character-color-grid">
                     {colorControl('laptopColor', 'Laptop color')}
-                    {colorControl('backdropColor', 'Backdrop color')}
+                    {colorControl('backdropColor', 'Custom backdrop')}
                   </div>
-                  {toggleControl('showBackdrop', 'Show backdrop')}
-                  {toggleControl('showBooks', 'Show books')}
-                  {toggleControl('showPlant', 'Show plant')}
+                  <div className="character-toggle-grid">
+                    {toggleControl('showBackdrop', 'Show backdrop')}
+                    {toggleControl('showBooks', 'Show books')}
+                    {toggleControl('showPlant', 'Show plant')}
+                    {toggleControl('showMug', 'Show study mug')}
+                  </div>
                 </>}
                 {panel === 'Motion' && <>
                   {selectControl('animation', 'Animation')}

@@ -22,6 +22,10 @@ export const LoginPage = () => {
   const [authStep, setAuthStep] = useState('credentials');
   const [mfaCode, setMfaCode] = useState('');
   const [mfaChallengeId, setMfaChallengeId] = useState('');
+  const [mfaMaskedEmail, setMfaMaskedEmail] = useState('');
+  const [mfaMethods, setMfaMethods] = useState({ emailOtp: true, totp: false, backupCode: false });
+  const [useBackupCode, setUseBackupCode] = useState(false);
+  const [resendingOtp, setResendingOtp] = useState(false);
   const [mfaSetupToken, setMfaSetupToken] = useState('');
   const [mfaSecret, setMfaSecret] = useState('');
   const [mfaBusy, setMfaBusy] = useState(false);
@@ -30,7 +34,7 @@ export const LoginPage = () => {
   const headingRef = useRef(null);
   const submittingRef = useRef(false);
   const [searchParams] = useSearchParams();
-  const { login, completeMfaLogin, beginMfaSetup, completeMfaSetup } = useAuth();
+  const { login, completeMfaLogin, resendMfaOtp, beginMfaSetup, completeMfaSetup } = useAuth();
   const { available: demoStatusAvailable, freeDemoReadOnly, loading: demoStatusLoading } = useDemoMode();
   const navigate = useNavigate();
 
@@ -57,6 +61,9 @@ export const LoginPage = () => {
         continueAfterLogin(result.user);
       } else if (result?.mfaRequired) {
         setMfaChallengeId(result.challengeId);
+        setMfaMaskedEmail(result.maskedEmail || '');
+        setMfaMethods(result.methods || { emailOtp: true, totp: false, backupCode: false });
+        setUseBackupCode(false);
         setMfaCode('');
         setAuthStep('mfa');
       } else if (result?.mfaSetupRequired) {
@@ -157,10 +164,19 @@ export const LoginPage = () => {
           <div className="login-form-wrap relative z-10 mx-auto w-full">
             <div className="login-card">
               <header className="login-card-heading">
-                <h2 ref={headingRef} data-login-heading tabIndex={-1}>{authStep === 'credentials' ? 'Welcome back' : authStep === 'mfa-setup' ? 'Secure your account' : 'Verify it’s you'}</h2>
-                <p>{authStep === 'credentials' ? 'Sign in with the email linked to your account.' : authStep === 'mfa-setup' ? 'Administrators and teachers must set up an authenticator app before using the system.' : 'Enter the current six-digit code from your authenticator app.'}</p>
+                <h2 ref={headingRef} data-login-heading tabIndex={-1}>{authStep === 'credentials' ? 'Welcome back' : authStep === 'mfa-setup' ? 'Secure your account' : 'Verify your sign-in'}</h2>
+                <p>
+                  {authStep === 'credentials'
+                    ? 'Sign in with the email linked to your account.'
+                    : authStep === 'mfa-setup'
+                      ? 'Set up an authenticator app for your account.'
+                      : useBackupCode
+                        ? 'Enter one of your single-use backup scratch codes.'
+                        : `We emailed a 6-digit verification code to ${mfaMaskedEmail || 'your inbox'}.${mfaMethods.totp ? ' You can also use your authenticator app code.' : ''}`}
+                </p>
               </header>
               {formError && <div id="login-feedback" className="login-feedback" role="alert"><CircleAlert size={18} aria-hidden="true" /><p>{formError}</p></div>}
+              {!formError && searchParams.get('reason') === 'expired' && authStep === 'credentials' && <div className="login-feedback" role="status"><CircleAlert size={18} aria-hidden="true" /><p>Your session expired. Sign in again to continue.</p></div>}
               {searchParams.get('registered') === '1' && authStep === 'credentials' && <div className="login-feedback login-feedback-success" role="status"><CheckCircle2 size={18} aria-hidden="true" /><p>Your account is ready. Verify the email we sent before signing in.</p></div>}
               {authStep === 'credentials' ? <form className="login-form" onSubmit={handleSubmit} aria-busy={isLoading} aria-describedby={formError ? 'login-feedback' : undefined}>
                 <div className="login-field">
@@ -253,13 +269,69 @@ export const LoginPage = () => {
                   </div>
                 )}
                 <div className="login-field">
-                  <label htmlFor="mfa-code">Authenticator code</label>
-                  <input id="mfa-code" name="mfa-code" type="text" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9 ]{6,8}" minLength={6} maxLength={8} required disabled={mfaBusy} value={mfaCode} onChange={(event) => { setMfaCode(event.target.value); setFormError(''); }} placeholder="000000" className="login-input login-code-input" />
+                  <label htmlFor="mfa-code">
+                    {authStep === 'mfa-setup'
+                      ? 'Authenticator code'
+                      : useBackupCode
+                        ? 'Backup scratch code'
+                        : mfaMethods.totp
+                          ? '6-digit email or authenticator code'
+                          : '6-digit email verification code'}
+                  </label>
+                  <input
+                    id="mfa-code"
+                    name="mfa-code"
+                    type="text"
+                    inputMode={useBackupCode ? 'text' : 'numeric'}
+                    autoComplete="one-time-code"
+                    autoCapitalize={useBackupCode ? 'characters' : 'none'}
+                    pattern={useBackupCode ? '[A-Za-z0-9- ]{6,16}' : '[0-9 ]{6,8}'}
+                    minLength={6}
+                    maxLength={useBackupCode ? 16 : 8}
+                    required
+                    disabled={mfaBusy}
+                    value={mfaCode}
+                    onChange={(event) => { setMfaCode(event.target.value); setFormError(''); }}
+                    placeholder={useBackupCode ? 'XXXX-XXXX' : '000000'}
+                    className="login-input login-code-input"
+                  />
                 </div>
                 <button type="submit" disabled={mfaBusy} className="login-submit">
                   {mfaBusy ? 'Verifying…' : authStep === 'mfa-setup' ? 'Enable MFA and sign in' : 'Verify and sign in'}
                 </button>
-                <button type="button" disabled={mfaBusy} onClick={() => { setAuthStep('credentials'); setMfaCode(''); setFormError(''); headingRef.current?.focus(); }} className="login-back">Back to sign in</button>
+                {authStep === 'mfa' && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-green-800">
+                    {!useBackupCode && (
+                      <button
+                        type="button"
+                        disabled={mfaBusy || resendingOtp}
+                        onClick={async () => {
+                          setResendingOtp(true);
+                          setFormError('');
+                          const res = await resendMfaOtp(mfaChallengeId);
+                          if (!res.success) setFormError(res.message);
+                          setResendingOtp(false);
+                        }}
+                        className="underline-offset-4 hover:underline disabled:opacity-50"
+                      >
+                        {resendingOtp ? 'Sending code…' : 'Resend email code'}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      disabled={mfaBusy}
+                      onClick={() => {
+                        setUseBackupCode((prev) => !prev);
+                        setMfaCode('');
+                        setFormError('');
+                      }}
+                      className="ml-auto underline-offset-4 hover:underline disabled:opacity-50"
+                    >
+                      {useBackupCode ? 'Use 6-digit email code' : 'Use backup scratch code'}
+                    </button>
+                  </div>
+                )}
+                <button type="button" disabled={mfaBusy} onClick={() => { setAuthStep('credentials'); setMfaCode(''); setUseBackupCode(false); setFormError(''); headingRef.current?.focus(); }} className="login-back">Back to sign in</button>
               </form>}
 
               {authStep === 'credentials' && <div className="login-registration">

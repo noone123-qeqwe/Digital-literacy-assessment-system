@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import api from '../../api/axios';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Badge from '../../components/common/Badge';
@@ -28,29 +28,51 @@ export const ReportsAnalytics = () => {
   const [reviewConfirmations, setReviewConfirmations] = useState({});
   const [reviewSavingId, setReviewSavingId] = useState(null);
   const [assessments, setAssessments] = useState([]);
+  const [assessmentsLoaded, setAssessmentsLoaded] = useState(false);
   const [selectedAssessmentId, setSelectedAssessmentId] = useState('');
   const [analyticsAssessmentId, setAnalyticsAssessmentId] = useState('');
   const [loading, setLoading] = useState(true);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('tables'); // 'tables', 'enhancement', 'matrix'
-  const hasInitializedAnalyticsFilter = useRef(false);
   const visiblePrivacyReviewQueue = isAdmin && privacyReviewAssessmentId === analyticsAssessmentId
     ? privacyReviewQueue
     : [];
 
-  const fetchReports = useCallback(async () => {
+  useEffect(() => {
+    let active = true;
+    api.get('/assessments')
+      .then((assessmentRes) => {
+        if (!active) return;
+        if (assessmentRes.data.success) {
+          const list = assessmentRes.data.data || [];
+          setAssessments(list);
+          const firstId = list[0]?.id ? String(list[0].id) : '';
+          if (firstId) {
+            setSelectedAssessmentId((current) => current || firstId);
+            setAnalyticsAssessmentId((current) => current || firstId);
+          }
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (active) setAssessmentsLoaded(true);
+      });
+    return () => { active = false; };
+  }, []);
+
+  const fetchReports = useCallback(async (signal) => {
     try {
       const query = analyticsAssessmentId
-        ? { params: { assessment_id: analyticsAssessmentId } }
-        : undefined;
-      const [demoRes, dashRes, matrixRes, inferentialRes, desiredSkillsRes, assessmentRes] = await Promise.all([
+        ? { params: { assessment_id: analyticsAssessmentId }, ...(signal ? { signal } : {}) }
+        : signal ? { signal } : undefined;
+      const [demoRes, dashRes, matrixRes, inferentialRes, desiredSkillsRes] = await Promise.all([
         api.get('/analytics/demographics', query),
         api.get('/analytics/dashboard', query),
         api.get('/analytics/competence-matrix', query),
         api.get('/analytics/inferential', query),
         api.get('/analytics/desired-skills', query),
-        api.get('/assessments'),
       ]);
+      if (signal?.aborted) return;
 
       if (demoRes.data.success) setDemographics(demoRes.data.data);
       if (dashRes.data.success) setDashboardData(dashRes.data.data);
@@ -64,72 +86,24 @@ export const ReportsAnalytics = () => {
           minimumReportGroupSize: desiredSkillsRes.data.minimumReportGroupSize || 5,
         });
       }
-      if (assessmentRes.data.success) {
-        setAssessments(assessmentRes.data.data);
-        setSelectedAssessmentId((current) => current || String(assessmentRes.data.data[0]?.id || ''));
-        if (!hasInitializedAnalyticsFilter.current && assessmentRes.data.data[0]?.id) {
-          hasInitializedAnalyticsFilter.current = true;
-          setAnalyticsAssessmentId((current) => current || String(assessmentRes.data.data[0].id));
-        }
-      }
     } catch {
-      toast.error('Failed to load analytical reports');
+      if (!signal?.aborted) toast.error('Failed to load analytical reports');
     } finally {
-      setLoading(false);
-      setAnalyticsLoading(false);
+      if (!signal?.aborted) {
+        setLoading(false);
+        setAnalyticsLoading(false);
+      }
     }
   }, [analyticsAssessmentId]);
 
   useEffect(() => {
-    let active = true;
-    const loadInitialReports = async () => {
-      try {
-        const query = analyticsAssessmentId
-          ? { params: { assessment_id: analyticsAssessmentId } }
-          : undefined;
-        const [demoRes, dashRes, matrixRes, inferentialRes, desiredSkillsRes, assessmentRes] = await Promise.all([
-          api.get('/analytics/demographics', query),
-          api.get('/analytics/dashboard', query),
-          api.get('/analytics/competence-matrix', query),
-          api.get('/analytics/inferential', query),
-          api.get('/analytics/desired-skills', query),
-          api.get('/assessments'),
-        ]);
-        if (!active) return;
-
-        if (demoRes.data.success) setDemographics(demoRes.data.data);
-        if (dashRes.data.success) setDashboardData(dashRes.data.data);
-        if (matrixRes.data.success) setCompetenceMatrix(matrixRes.data.data);
-        if (inferentialRes.data.success) setInferentialData(inferentialRes.data.data);
-        if (desiredSkillsRes.data.success) {
-          setDesiredSkillsResponses(desiredSkillsRes.data.data);
-          setDesiredSkillsMeta({
-            pendingReviewCount: desiredSkillsRes.data.pendingReviewCount || 0,
-            suppressedForSmallCohort: Boolean(desiredSkillsRes.data.suppressedForSmallCohort),
-            minimumReportGroupSize: desiredSkillsRes.data.minimumReportGroupSize || 5,
-          });
-        }
-        if (assessmentRes.data.success) {
-          setAssessments(assessmentRes.data.data);
-          setSelectedAssessmentId((current) => current || String(assessmentRes.data.data[0]?.id || ''));
-          if (!hasInitializedAnalyticsFilter.current && assessmentRes.data.data[0]?.id) {
-            hasInitializedAnalyticsFilter.current = true;
-            setAnalyticsAssessmentId((current) => current || String(assessmentRes.data.data[0].id));
-          }
-        }
-      } catch {
-        if (active) toast.error('Failed to load analytical reports');
-      } finally {
-        if (active) {
-          setLoading(false);
-          setAnalyticsLoading(false);
-        }
-      }
-    };
-
-    void loadInitialReports();
-    return () => { active = false; };
-  }, [analyticsAssessmentId]);
+    if (!assessmentsLoaded) return undefined;
+    const controller = new AbortController();
+    Promise.resolve().then(() => {
+      if (!controller.signal.aborted) void fetchReports(controller.signal);
+    });
+    return () => controller.abort();
+  }, [assessmentsLoaded, fetchReports]);
 
   useEffect(() => {
     if (!analyticsAssessmentId) return undefined;

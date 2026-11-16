@@ -10,7 +10,8 @@ const { defaults: characterDefaults, validateCharacterSettings } = require('../u
 const { rateLimit } = require('../middleware/rateLimit');
 const {
   issueSession, revokeSession, revokeUserSessions, clearSessionCookies,
-  encryptSecret, decryptSecret, generateTotpSecret, verifyTotp,
+  encryptSecret, decryptSecret, generateTotpSecret, verifyTotp, safeEqual,
+  generateEmailOtp, hashCode, normalizeBackupCode, generateBackupCodes,
 } = require('../utils/authSecurity');
 const { sendSecurityEmail, clientUrl } = require('../utils/email');
 const { enrollPublishedQuizzes } = require('../utils/quizEnrollment');
@@ -75,12 +76,36 @@ function verifiedMfaRecoveryToken(token) {
   `).get(tokenHash) || null;
 }
 
-function createMfaChallenge(userId, challengeType) {
+function maskEmail(email = '') {
+  const [local = '', domain = ''] = String(email).split('@');
+  if (!domain) return '';
+  const head = local.slice(0, 1);
+  const tail = local.length > 2 ? local.slice(-1) : '';
+  return `${head}***${tail}@${domain}`;
+}
+
+function createEmailOtpChallenge(userId) {
   const id = crypto.randomBytes(32).toString('base64url');
-  const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString();
-  db.prepare(`DELETE FROM mfa_challenges WHERE user_id = ? AND challenge_type = ?`).run(userId, challengeType);
-  db.prepare(`INSERT INTO mfa_challenges (id, user_id, challenge_type, expires_at) VALUES (?, ?, ?, ?)`).run(id, userId, challengeType, expiresAt);
-  return id;
+  const otpCode = generateEmailOtp();
+  const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+  db.prepare(`DELETE FROM mfa_challenges WHERE user_id = ? AND challenge_type = 'login'`).run(userId);
+  db.prepare(`INSERT INTO mfa_challenges (id, user_id, challenge_type, otp_hash, expires_at) VALUES (?, ?, 'login', ?, ?)`)
+    .run(id, userId, hashCode(otpCode), expiresAt);
+  return { id, otpCode };
+}
+
+function saveBackupCodesForUser(userId) {
+  const { plainCodes, hashedCodes } = generateBackupCodes(8);
+  db.transaction(() => {
+    db.prepare('DELETE FROM mfa_backup_codes WHERE user_id = ?').run(userId);
+    const insert = db.prepare('INSERT INTO mfa_backup_codes (user_id, code_hash) VALUES (?, ?)');
+    for (const digest of hashedCodes) insert.run(userId, digest);
+  })();
+  return plainCodes;
+}
+
+function backupCodesRemainingCount(userId) {
+  return db.prepare('SELECT COUNT(*) AS count FROM mfa_backup_codes WHERE user_id = ? AND used_at IS NULL').get(userId)?.count || 0;
 }
 
 function cleanUserForSession(userId) {
@@ -142,14 +167,27 @@ router.post('/login', loginLimit, [
   }
 
   if (isMfaRequired(user)) {
-    if (!user.mfa_enabled || !user.mfa_secret) {
-      const setupToken = jwt.sign({ id: user.id, scope: 'mfa_setup' }, process.env.JWT_SECRET, { expiresIn: '10m' });
-      return res.json({ success: true, mfaSetupRequired: true, setupToken, user: publicUser(user) });
-    }
-    return res.json({ success: true, mfaRequired: true, challengeId: createMfaChallenge(user.id, 'login') });
+    const { id: challengeId, otpCode } = createEmailOtpChallenge(user.id);
+    await sendSecurityEmail({
+      to: user.email,
+      subject: 'Your DLAS sign-in verification code',
+      text: 'Enter this 6-digit verification code to complete your Digital Literacy Assessment System sign-in.',
+      otpCode,
+    });
+    return res.json({
+      success: true,
+      mfaRequired: true,
+      challengeId,
+      maskedEmail: maskEmail(user.email),
+      methods: {
+        emailOtp: true,
+        totp: Boolean(user.mfa_enabled && user.mfa_secret),
+        backupCode: backupCodesRemainingCount(user.id) > 0,
+      },
+    });
   }
 
-  issueSession(res, user, req);
+  issueSession(res, user, req, { mfaVerified: false });
   logActivity(user.id, 'LOGIN', 'User logged in');
 
   return res.json({
@@ -318,29 +356,115 @@ router.post('/reset-password', tokenUseLimit, [
   } catch (err) { return next(err); }
 });
 
+router.post('/mfa/resend-otp', tokenRequestLimit, [
+  body('challenge_id').isString().isLength({ min: 30, max: 100 }),
+], async (req, res, next) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, message: 'Verification session expired. Sign in again.' });
+  }
+  try {
+    const challenge = db.prepare(`
+      SELECT c.id, c.user_id, u.email, u.status
+      FROM mfa_challenges c JOIN users u ON u.id = c.user_id
+      WHERE c.id = ? AND c.challenge_type = 'login' AND datetime(c.expires_at) > datetime('now')
+    `).get(req.body.challenge_id);
+    if (!challenge || challenge.status !== 'active') {
+      return res.status(401).json({ success: false, message: 'The verification challenge expired. Sign in again.' });
+    }
+    const otpCode = generateEmailOtp();
+    const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+    db.prepare('UPDATE mfa_challenges SET otp_hash = ?, attempts = 0, expires_at = ? WHERE id = ?')
+      .run(hashCode(otpCode), expiresAt, challenge.id);
+    await sendSecurityEmail({
+      to: challenge.email,
+      subject: 'Your DLAS sign-in verification code',
+      text: 'Enter this 6-digit verification code to complete your Digital Literacy Assessment System sign-in.',
+      otpCode,
+    });
+    return res.json({ success: true, message: 'A new 6-digit verification code has been sent to your email.' });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 router.post('/mfa/verify', mfaLimit, [
   body('challenge_id').isString().isLength({ min: 30, max: 100 }),
-  body('code').isString().isLength({ min: 6, max: 8 }),
+  body('code').isString().trim().isLength({ min: 6, max: 16 }),
 ], (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, message: 'Enter a valid 6-digit code or backup scratch code.' });
+  }
   const challenge = db.prepare(`
-    SELECT c.id, c.user_id, c.attempts, u.mfa_secret, u.mfa_enabled
+    SELECT c.id, c.user_id, c.attempts, c.otp_hash, u.mfa_secret, u.mfa_enabled
     FROM mfa_challenges c JOIN users u ON u.id = c.user_id
     WHERE c.id = ? AND c.challenge_type = 'login' AND datetime(c.expires_at) > datetime('now')
   `).get(req.body.challenge_id);
-  if (!challenge || challenge.attempts >= 5 || !challenge.mfa_enabled || !challenge.mfa_secret) {
+  if (!challenge || challenge.attempts >= 5) {
     return res.status(401).json({ success: false, message: 'The verification challenge expired. Sign in again.' });
   }
-  let isValid = false;
-  try { isValid = verifyTotp(decryptSecret(challenge.mfa_secret), req.body.code); } catch {}
-  if (!isValid) {
+
+  const trimmed = String(req.body.code || '').replace(/\s/g, '');
+  let verifiedMethod = null;
+  let usedBackupCodeId = null;
+
+  if (/^\d{6}$/.test(trimmed)) {
+    if (challenge.otp_hash && safeEqual(challenge.otp_hash, hashCode(trimmed))) {
+      verifiedMethod = 'email_otp';
+    } else if (challenge.mfa_enabled && challenge.mfa_secret) {
+      try {
+        if (verifyTotp(decryptSecret(challenge.mfa_secret), trimmed)) {
+          verifiedMethod = 'totp';
+        }
+      } catch {}
+    }
+  } else {
+    const normalized = normalizeBackupCode(trimmed);
+    if (normalized.length >= 6 && normalized.length <= 12) {
+      const digest = hashCode(normalized);
+      const unusedCodes = db.prepare('SELECT id, code_hash FROM mfa_backup_codes WHERE user_id = ? AND used_at IS NULL').all(challenge.user_id);
+      const match = unusedCodes.find((row) => safeEqual(row.code_hash, digest));
+      if (match) {
+        verifiedMethod = 'backup_code';
+        usedBackupCodeId = match.id;
+      }
+    }
+  }
+
+  if (!verifiedMethod) {
     db.prepare('UPDATE mfa_challenges SET attempts = attempts + 1 WHERE id = ?').run(challenge.id);
     return res.status(401).json({ success: false, message: 'Verification code is incorrect.' });
   }
-  db.prepare('DELETE FROM mfa_challenges WHERE id = ?').run(challenge.id);
+
+  db.transaction(() => {
+    if (usedBackupCodeId) {
+      db.prepare("UPDATE mfa_backup_codes SET used_at = datetime('now') WHERE id = ? AND used_at IS NULL").run(usedBackupCodeId);
+    }
+    db.prepare('DELETE FROM mfa_challenges WHERE id = ?').run(challenge.id);
+  })();
+
   const user = cleanUserForSession(challenge.user_id);
-  issueSession(res, user, req);
-  logActivity(user.id, 'LOGIN', 'User completed multi-factor sign-in');
-  return res.json({ success: true, message: 'Sign-in successful', data: { user } });
+  const remainingBackupCodes = backupCodesRemainingCount(user.id);
+  issueSession(res, user, req, { mfaVerified: true });
+  logActivity(
+    user.id,
+    'LOGIN',
+    verifiedMethod === 'backup_code'
+      ? 'User completed sign-in with a backup scratch code'
+      : verifiedMethod === 'totp'
+        ? 'User completed sign-in with an authenticator code'
+        : 'User completed sign-in with an email verification code'
+  );
+  return res.json({
+    success: true,
+    message: 'Sign-in successful',
+    data: {
+      user: { ...user, backup_codes_remaining: remainingBackupCodes },
+      verifiedMethod,
+      remainingBackupCodes,
+    },
+  });
 });
 
 router.post('/mfa/setup', mfaLimit, [body('setup_token').isString().isLength({ min: 20, max: 2000 })], (req, res) => {
@@ -389,9 +513,114 @@ router.post('/mfa/setup/confirm', mfaLimit, [
     db.prepare('DELETE FROM mfa_challenges WHERE user_id = ? AND challenge_type = ?').run(decoded.id, 'setup');
   })();
   const user = cleanUserForSession(decoded.id);
-  issueSession(res, user, req);
+  const backupCodes = backupCodesRemainingCount(user.id) === 0 ? saveBackupCodesForUser(user.id) : null;
+  issueSession(res, user, req, { mfaVerified: true });
   logActivity(user.id, 'MFA_ENABLED', 'Multi-factor authentication enabled');
-  return res.json({ success: true, message: 'MFA is enabled and sign-in is complete.', data: { user } });
+  return res.json({
+    success: true,
+    message: 'MFA is enabled and sign-in is complete.',
+    data: { user, ...(backupCodes ? { backup_codes: backupCodes } : {}) },
+  });
+});
+
+// Optional authenticator (TOTP) add-on + backup scratch codes for signed-in staff
+router.post('/mfa/totp/setup', authenticate, authorize('admin', 'assessor'), mfaLimit, (req, res) => {
+  const secret = generateTotpSecret();
+  const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+  db.prepare("DELETE FROM mfa_challenges WHERE user_id = ? AND challenge_type = 'setup'").run(req.user.id);
+  db.prepare("INSERT INTO mfa_challenges (id, user_id, challenge_type, secret_encrypted, expires_at) VALUES (?, ?, 'setup', ?, ?)")
+    .run(crypto.randomBytes(24).toString('base64url'), req.user.id, encryptSecret(secret), expiresAt);
+  const label = encodeURIComponent(`DLAS:${req.user.email}`);
+  const issuer = encodeURIComponent('Digital Literacy Assessment System');
+  return res.json({
+    success: true,
+    data: {
+      secret,
+      otpauth_url: `otpauth://totp/${label}?secret=${secret}&issuer=${issuer}&algorithm=SHA1&digits=6&period=30`,
+    },
+  });
+});
+
+router.post('/mfa/totp/confirm', authenticate, authorize('admin', 'assessor'), mfaLimit, [
+  body('code').isString().isLength({ min: 6, max: 8 }),
+], (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, message: 'Enter the 6-digit code from your authenticator app.' });
+  }
+  const challenge = db.prepare(`
+    SELECT id, user_id, secret_encrypted, attempts FROM mfa_challenges
+    WHERE user_id = ? AND challenge_type = 'setup' AND datetime(expires_at) > datetime('now')
+  `).get(req.user.id);
+  if (!challenge || challenge.attempts >= 5) {
+    return res.status(401).json({ success: false, message: 'Authenticator setup expired. Start setup again.' });
+  }
+  let secret;
+  let isValid = false;
+  try { secret = decryptSecret(challenge.secret_encrypted); isValid = verifyTotp(secret, req.body.code); } catch {}
+  if (!isValid) {
+    db.prepare('UPDATE mfa_challenges SET attempts = attempts + 1 WHERE id = ?').run(challenge.id);
+    return res.status(401).json({ success: false, message: 'Code not accepted. Check your authenticator and try again.' });
+  }
+  const backupCodes = saveBackupCodesForUser(req.user.id);
+  db.transaction(() => {
+    db.prepare("UPDATE users SET mfa_secret = ?, mfa_enabled = 1, updated_at = datetime('now') WHERE id = ?").run(encryptSecret(secret), req.user.id);
+    db.prepare('DELETE FROM mfa_challenges WHERE user_id = ? AND challenge_type = ?').run(req.user.id, 'setup');
+    db.prepare('UPDATE auth_sessions SET mfa_verified = 1 WHERE id = ?').run(req.sessionId);
+  })();
+  logActivity(req.user.id, 'MFA_ENABLED', 'Optional authenticator app enabled with backup scratch codes');
+  return res.json({
+    success: true,
+    message: 'Authenticator app enabled. Save your backup scratch codes in a safe place.',
+    data: {
+      mfa_enabled: 1,
+      backup_codes: backupCodes,
+      backup_codes_remaining: backupCodes.length,
+    },
+  });
+});
+
+router.delete('/mfa/totp', authenticate, authorize('admin', 'assessor'), [
+  body('current_password').notEmpty().withMessage('Current password is required'),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, message: 'Enter your current password to disable the authenticator app.' });
+  }
+  const row = db.prepare('SELECT password FROM users WHERE id = ?').get(req.user.id);
+  if (!row || !await bcrypt.compare(req.body.current_password, row.password)) {
+    return res.status(400).json({ success: false, message: 'Current password is incorrect.' });
+  }
+  db.prepare("UPDATE users SET mfa_secret = NULL, mfa_enabled = 0, updated_at = datetime('now') WHERE id = ?").run(req.user.id);
+  logActivity(req.user.id, 'MFA_TOTP_DISABLED', 'Authenticator app disabled; email OTP remains active');
+  return res.json({
+    success: true,
+    message: 'Authenticator app removed. Email 6-digit verification remains active.',
+    data: { mfa_enabled: 0 },
+  });
+});
+
+router.post('/mfa/backup-codes/regenerate', authenticate, authorize('admin', 'assessor'), [
+  body('current_password').notEmpty().withMessage('Current password is required'),
+], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ success: false, message: 'Enter your current password to generate new backup scratch codes.' });
+  }
+  const row = db.prepare('SELECT password FROM users WHERE id = ?').get(req.user.id);
+  if (!row || !await bcrypt.compare(req.body.current_password, row.password)) {
+    return res.status(400).json({ success: false, message: 'Current password is incorrect.' });
+  }
+  const backupCodes = saveBackupCodesForUser(req.user.id);
+  logActivity(req.user.id, 'MFA_BACKUP_CODES_REGENERATED', 'Generated new single-use backup scratch codes');
+  return res.json({
+    success: true,
+    message: 'New backup scratch codes generated. Previous unused codes are now invalid.',
+    data: {
+      backup_codes: backupCodes,
+      backup_codes_remaining: backupCodes.length,
+    },
+  });
 });
 
 router.post('/logout', authenticate, (req, res) => {
@@ -434,7 +663,12 @@ router.get('/me', authenticate, (req, res) => {
 
   res.json({
     success: true,
-    data: { ...user, profile },
+    data: {
+      ...user,
+      mfa_required: isMfaRequired(req.user),
+      backup_codes_remaining: ['admin', 'assessor'].includes(user.role) ? backupCodesRemainingCount(user.id) : 0,
+      profile,
+    },
   });
 });
 

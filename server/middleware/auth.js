@@ -37,7 +37,7 @@ function authenticate(req, res, next) {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     if (!decoded.jti) return res.status(401).json({ success: false, message: 'Session is no longer valid. Please sign in again.' });
     const session = db.prepare(`
-      SELECT id FROM auth_sessions
+      SELECT id, mfa_verified FROM auth_sessions
       WHERE id = ? AND user_id = ? AND revoked_at IS NULL AND datetime(expires_at) > datetime('now')
     `).get(decoded.jti, decoded.id);
     if (!session) return res.status(401).json({ success: false, message: 'Session is no longer active. Please sign in again.' });
@@ -52,8 +52,8 @@ function authenticate(req, res, next) {
       return res.status(403).json({ success: false, message: 'Account is deactivated.' });
     }
     if (!user.email_verified) return res.status(403).json({ success: false, message: 'Verify your email address before signing in.' });
-    if (isMfaRequired(user) && !user.mfa_enabled) {
-      return res.status(403).json({ success: false, message: 'Multi-factor authentication setup is required for this account.' });
+    if (isMfaRequired(user) && !session.mfa_verified) {
+      return res.status(403).json({ success: false, message: 'Multi-factor verification is required for this account.' });
     }
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && !requireCsrf(req, res)) return;
     req.user = user;

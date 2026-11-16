@@ -133,16 +133,39 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const res = await api.get('/auth/me');
+      if (res.data.success) {
+        setUser(res.data.data);
+        return res.data.data;
+      }
+    } catch {}
+    return null;
+  }, []);
+
   const completeMfaLogin = async (challenge_id, code) => {
     try {
       const res = await api.post('/auth/mfa/verify', { challenge_id, code });
-      const currentUser = res.data.data.user;
+      const currentUser = (await refreshUser()) || res.data.data.user;
       setUser(currentUser);
       await refreshProfilePicture();
       toast.success(`Welcome back, ${currentUser.first_name}!`);
-      return { success: true, user: currentUser };
+      return { success: true, user: currentUser, verifiedMethod: res.data.data.verifiedMethod };
     } catch (err) {
       const msg = err.response?.data?.message || 'Unable to verify the code.';
+      toast.error(msg);
+      return { success: false, message: msg };
+    }
+  };
+
+  const resendMfaOtp = async (challenge_id) => {
+    try {
+      const res = await api.post('/auth/mfa/resend-otp', { challenge_id });
+      toast.success(res.data.message || 'Verification code resent.');
+      return { success: true, message: res.data.message };
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Unable to resend verification code.';
       toast.error(msg);
       return { success: false, message: msg };
     }
@@ -186,7 +209,9 @@ export const AuthProvider = ({ children }) => {
         updateProfile,
         uploadProfilePicture,
         changePassword,
+        refreshUser,
         completeMfaLogin,
+        resendMfaOtp,
         beginMfaSetup,
         completeMfaSetup,
         isAdmin: user?.role === 'admin',

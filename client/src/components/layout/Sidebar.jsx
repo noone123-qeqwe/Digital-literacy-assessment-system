@@ -13,6 +13,7 @@ import {
   X,
   BookOpen,
   CircleHelp,
+  FileSpreadsheet,
   Layers3, Award, TrendingUp, ListChecks, ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/useAuth';
@@ -83,6 +84,7 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
     { name: 'Knowledge Assessments', path: '/assessor/knowledge', icon: Layers3 },
     { name: 'Assessment Results', path: '/assessor/results', icon: ListChecks },
     { name: 'Reports and Analytics', path: '/assessor/analytics', icon: BarChart3 },
+    { name: 'Research Reports', path: '/admin/reports', icon: FileSpreadsheet },
     { name: 'Progress Tracking', path: '/assessor/progress', icon: TrendingUp },
     { name: 'Certificates', path: '/assessor/certificates', icon: Award },
     { name: 'Security', path: '/security', icon: ShieldCheck },
@@ -91,6 +93,7 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
   const respondentNav = [
     { name: 'Student Dashboard', path: '/respondent/dashboard', icon: LayoutDashboard },
     { name: 'Take Assessment', path: '/respondent/knowledge', icon: ClipboardList },
+    { name: 'Research Questionnaires', path: '/respondent/assessments', icon: FileSpreadsheet },
     { name: 'My Results', path: '/respondent/results', icon: ListChecks },
     { name: 'Learning Materials', path: '/respondent/materials', icon: BookOpen },
     { name: 'My Progress', path: '/respondent/progress', icon: TrendingUp },

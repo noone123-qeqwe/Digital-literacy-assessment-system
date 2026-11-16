@@ -8,20 +8,6 @@ DLAS is a role-based digital literacy platform with scored knowledge quizzes, th
 - React 19, Vite, React Router, Tailwind CSS, Chart.js, and Axios
 - PDFKit and ExcelJS for result and cohort downloads
 
-## Demonstration & Test Accounts
-
-For local development and testing, the following accounts are pre-configured:
-
-| Role | Email | Password | OTP / Authenticator Code (Test Mode) | Primary Capabilities |
-| :--- | :--- | :--- | :--- | :--- |
-| **Administrator** | `admin@dlas.edu.ph` | `Admin@123` | `123456` (or any TOTP app) | Manage users, questions, assessments, system readiness, and institution-wide analytics |
-| **Teacher / Assessor** | `teacher@dlas.edu.ph` | `Teacher@123` | `123456` (or any TOTP app) | Faculty workspace, monitor student cohorts, review evaluations, export cohort rosters |
-| **Student / Respondent** | `maria.santos@example.com` | `User@123` | *Password only (no OTP)* | Take assessments, view personal DigComp proficiency scores, certificates, learning path |
-
-*Alternative student accounts:* `juan.delacruz@example.com` and `ana.reyes@example.com` (Password: `User@123`).
-
-*Note: In development/test mode, the authenticator prompt accepts `123456` directly or you can click "Fill 123456" on the sign-in screen.*
-
 ## Run locally
 
 Install dependencies in both `server` and `client`:

@@ -63,6 +63,8 @@ export const UsersManagement = () => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [deactivateTarget, setDeactivateTarget] = useState(null);
+  const [isDeactivating, setIsDeactivating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState({
     first_name: '',
@@ -220,16 +222,20 @@ export const UsersManagement = () => {
     }
   };
 
-  const handleDeactivate = async (id) => {
-    if (!window.confirm('Are you sure you want to deactivate this account?')) return;
+  const confirmDeactivate = async () => {
+    if (!deactivateTarget) return;
     try {
-      const res = await api.delete(`/users/${id}`);
+      setIsDeactivating(true);
+      const res = await api.delete(`/users/${deactivateTarget.id}`);
       if (res.data.success) {
-        toast.success('User deactivated');
+        toast.success(`${deactivateTarget.first_name} ${deactivateTarget.last_name} deactivated`);
+        setDeactivateTarget(null);
         fetchUsers();
       }
-    } catch {
-      toast.error('Failed to deactivate user');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to deactivate user');
+    } finally {
+      setIsDeactivating(false);
     }
   };
 
@@ -340,7 +346,7 @@ export const UsersManagement = () => {
           <>
           <div className="admin-user-mobile-list">
             {!users.length && <p className="p-6 text-sm text-slate-500">No accounts match these filters. Try a different name, role, or status.</p>}
-            {users.map((u) => <article key={u.id}><header><div><h3>{u.first_name} {u.last_name}</h3><p>{u.email}</p></div><span className={`admin-tag ${u.status === 'active' ? 'admin-tag-ready' : 'admin-tag-pending'}`}>{u.status}</span></header><dl><div><dt>Role</dt><dd>{u.role === 'respondent' ? 'Student' : u.role === 'assessor' ? 'Teacher / Assessor' : 'Administrator'}</dd></div><div><dt>Research submissions</dt><dd>{u.completed_assessments || 0}</dd></div><div><dt>Research profile</dt><dd>{u.role === 'respondent' ? u.municipality || 'Profile pending' : 'Not applicable'}</dd></div>{u.role === 'respondent' && u.municipality && <div><dt>Demographics</dt><dd>{u.sex || 'Unspecified'}{u.age ? ` · ${u.age} y/o` : ''}{u.shs_strand ? ` · ${u.shs_strand}` : ''}</dd></div>}</dl><footer><button type="button" className="admin-button admin-button-secondary" onClick={() => openEditUser(u)} aria-label={`Edit ${u.first_name} ${u.last_name}`}><Edit2 size={16} aria-hidden="true" />Edit account</button>{u.status === 'active' && <button type="button" className="admin-button admin-button-secondary admin-deactivate" disabled={u.id === currentUser?.id} onClick={() => handleDeactivate(u.id)} aria-label={`Deactivate ${u.first_name} ${u.last_name}`}><Trash2 size={16} aria-hidden="true" />Deactivate</button>}</footer></article>)}
+            {users.map((u) => <article key={u.id}><header><div><h3>{u.first_name} {u.last_name}</h3><p>{u.email}</p></div><span className={`admin-tag ${u.status === 'active' ? 'admin-tag-ready' : 'admin-tag-pending'}`}>{u.status}</span></header><dl><div><dt>Role</dt><dd>{u.role === 'respondent' ? 'Student' : u.role === 'assessor' ? 'Teacher / Assessor' : 'Administrator'}</dd></div><div><dt>Research submissions</dt><dd>{u.completed_assessments || 0}</dd></div><div><dt>Research profile</dt><dd>{u.role === 'respondent' ? u.municipality || 'Profile pending' : 'Not applicable'}</dd></div>{u.role === 'respondent' && u.municipality && <div><dt>Demographics</dt><dd>{u.sex || 'Unspecified'}{u.age ? ` · ${u.age} y/o` : ''}{u.shs_strand ? ` · ${u.shs_strand}` : ''}</dd></div>}</dl><footer><button type="button" className="admin-button admin-button-secondary" onClick={() => openEditUser(u)} aria-label={`Edit ${u.first_name} ${u.last_name}`}><Edit2 size={16} aria-hidden="true" />Edit account</button>{u.status === 'active' && <button type="button" className="admin-button admin-button-secondary admin-deactivate" disabled={u.id === currentUser?.id} onClick={() => setDeactivateTarget(u)} aria-label={`Deactivate ${u.first_name} ${u.last_name}`}><Trash2 size={16} aria-hidden="true" />Deactivate</button>}</footer></article>)}
           </div>
           <div className="admin-user-table overflow-x-auto" tabIndex={0} role="region" aria-label="User directory table; scroll horizontally to see all columns">
             <table className="w-full text-left text-xs">
@@ -432,7 +438,7 @@ export const UsersManagement = () => {
                       {u.status === 'active' ? (
                         <button
                           type="button"
-                          onClick={() => handleDeactivate(u.id)}
+                          onClick={() => setDeactivateTarget(u)}
                           disabled={u.id === currentUser?.id}
                           aria-label={`Deactivate ${u.first_name} ${u.last_name}`}
                           className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
@@ -612,6 +618,39 @@ export const UsersManagement = () => {
             <button type="submit" disabled={isSaving} className="px-5 py-2.5 rounded-xl bg-green-600 text-xs font-bold text-white disabled:opacity-50">{isSaving ? 'Saving…' : 'Save Changes'}</button>
           </div>
         </form>}
+      </Modal>
+
+      <Modal
+        isOpen={Boolean(deactivateTarget)}
+        onClose={() => { if (!isDeactivating) setDeactivateTarget(null); }}
+        title="Deactivate User Account"
+        maxWidth="max-w-md"
+      >
+        {deactivateTarget && (
+          <div className="space-y-4">
+            <p className="text-sm leading-6 text-slate-600">
+              Deactivating <strong className="text-slate-900">{deactivateTarget.first_name} {deactivateTarget.last_name}</strong> ({deactivateTarget.email}) will block sign-in while preserving their assessment history and audit records.
+            </p>
+            <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                disabled={isDeactivating}
+                onClick={() => setDeactivateTarget(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeactivating}
+                onClick={confirmDeactivate}
+                className="rounded-xl bg-rose-600 px-4 py-2.5 text-xs font-bold text-white shadow-xs transition-colors hover:bg-rose-700 disabled:opacity-50"
+              >
+                {isDeactivating ? 'Deactivating…' : 'Deactivate account'}
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

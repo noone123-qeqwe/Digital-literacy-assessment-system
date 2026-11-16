@@ -60,7 +60,7 @@ function requireCsrf(req, res) {
   return false;
 }
 
-function issueSession(res, user, req) {
+function issueSession(res, user, req, { mfaVerified = false } = {}) {
   const id = crypto.randomUUID();
   const maxAge = durationMs(SESSION_DURATION);
   const expiresAt = new Date(Date.now() + maxAge).toISOString();
@@ -70,9 +70,9 @@ function issueSession(res, user, req) {
     { expiresIn: SESSION_DURATION }
   );
   db.prepare(`
-    INSERT INTO auth_sessions (id, user_id, user_agent, expires_at)
-    VALUES (?, ?, ?, ?)
-  `).run(id, user.id, String(req.get('user-agent') || '').slice(0, 500) || null, expiresAt);
+    INSERT INTO auth_sessions (id, user_id, user_agent, expires_at, mfa_verified)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, user.id, String(req.get('user-agent') || '').slice(0, 500) || null, expiresAt, mfaVerified ? 1 : 0);
   res.cookie(SESSION_COOKIE, token, cookieOptions(true, maxAge));
   setCsrfCookie(res);
   return id;
@@ -177,6 +177,38 @@ function verifyTotp(secret, submitted, now = Date.now()) {
   return false;
 }
 
+function generateEmailOtp() {
+  return String(crypto.randomInt(0, 1_000_000)).padStart(6, '0');
+}
+
+function hashCode(value) {
+  return crypto.createHash('sha256').update(String(value || '')).digest('hex');
+}
+
+function normalizeBackupCode(value) {
+  return String(value || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+}
+
+function generateBackupCodes(count = 8) {
+  // Unambiguous Crockford-like character set (no 0/O or 1/I/L).
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const plainCodes = [];
+  const seen = new Set();
+  while (plainCodes.length < count) {
+    let raw = '';
+    for (let i = 0; i < 8; i++) {
+      raw += alphabet[crypto.randomInt(0, alphabet.length)];
+    }
+    if (seen.has(raw)) continue;
+    seen.add(raw);
+    plainCodes.push(`${raw.slice(0, 4)}-${raw.slice(4)}`);
+  }
+  return {
+    plainCodes,
+    hashedCodes: plainCodes.map((code) => hashCode(normalizeBackupCode(code))),
+  };
+}
+
 module.exports = {
   SESSION_COOKIE,
   CSRF_COOKIE,
@@ -185,6 +217,7 @@ module.exports = {
   readCookie,
   setCsrfCookie,
   requireCsrf,
+  safeEqual,
   issueSession,
   revokeSession,
   revokeUserSessions,
@@ -193,4 +226,8 @@ module.exports = {
   decryptSecret,
   generateTotpSecret,
   verifyTotp,
+  generateEmailOtp,
+  hashCode,
+  normalizeBackupCode,
+  generateBackupCodes,
 };

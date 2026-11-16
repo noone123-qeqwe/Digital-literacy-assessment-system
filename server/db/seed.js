@@ -13,9 +13,9 @@ function seed() {
   initializeInstrument(db);
   ensureDigCompSatQuestionBank(db);
 
-  // Check if already seeded with sample attempts
-  const alreadySeeded = db.prepare("SELECT 1 FROM assessment_attempts LIMIT 1").get();
-  if (alreadySeeded) {
+  // Check if already seeded
+  const existingAdmin = db.prepare("SELECT id FROM users WHERE email = ?").get('admin@dlas.edu.ph');
+  if (existingAdmin) {
     console.log('Database already seeded. Skipping.');
     return;
   }
@@ -30,27 +30,9 @@ function seed() {
     VALUES (?, ?, ?, ?, ?, ?)
   `);
 
-  let adminId;
-  const existingAdmin = db.prepare("SELECT id FROM users WHERE email = ?").get('admin@dlas.edu.ph');
-  if (existingAdmin) {
-    adminId = existingAdmin.id;
-  } else {
-    const adminResult = insertUser.run('admin@dlas.edu.ph', hashedPassword, 'System', 'Administrator', 'admin', 'active');
-    adminId = adminResult.lastInsertRowid;
-  }
-  console.log('Local demonstration administrator ready.');
-
-  // Insert teacher / assessor test user
-  const teacherPassword = bcrypt.hashSync('Teacher@123', 10);
-  let teacherId;
-  const existingTeacher = db.prepare("SELECT id FROM users WHERE email = ?").get('teacher@dlas.edu.ph');
-  if (existingTeacher) {
-    teacherId = existingTeacher.id;
-  } else {
-    const teacherResult = insertUser.run('teacher@dlas.edu.ph', teacherPassword, 'Faculty', 'Teacher', 'assessor', 'active');
-    teacherId = teacherResult.lastInsertRowid;
-  }
-  console.log('Local demonstration teacher ready.');
+  const adminResult = insertUser.run('admin@dlas.edu.ph', hashedPassword, 'System', 'Administrator', 'admin', 'active');
+  const adminId = adminResult.lastInsertRowid;
+  console.log('Local demonstration administrator created.');
 
   const areaIds = Object.fromEntries(db.prepare('SELECT id, code FROM competence_areas').all().map((row) => [row.code, row.id]));
   console.log('The five competence areas and 30 questionnaire items are ready.');
@@ -66,19 +48,14 @@ function seed() {
 
   const respondentIds = [];
   for (const r of respondents) {
-    const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(r.email);
-    if (existing) {
-      respondentIds.push(existing.id);
-    } else {
-      const result = insertUser.run(r.email, respondentPassword, r.first, r.last, 'respondent', 'active');
-      respondentIds.push(result.lastInsertRowid);
-    }
+    const result = insertUser.run(r.email, respondentPassword, r.first, r.last, 'respondent', 'active');
+    respondentIds.push(result.lastInsertRowid);
   }
   console.log('3 sample respondent users created.');
 
   // Create respondent profiles
   const insertProfile = db.prepare(`
-    INSERT OR REPLACE INTO respondent_profiles (user_id, age, sex, municipality, barangay, junior_high_school, junior_high_school_type, senior_high_school, senior_high_school_type, shs_strand, monthly_family_income, monthly_family_income_amount, has_computer_at_home, internet_access_type)
+    INSERT INTO respondent_profiles (user_id, age, sex, municipality, barangay, junior_high_school, junior_high_school_type, senior_high_school, senior_high_school_type, shs_strand, monthly_family_income, monthly_family_income_amount, has_computer_at_home, internet_access_type)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
@@ -118,10 +95,10 @@ function seed() {
     insertAQ.run(assessmentId, q.id);
   }
 
-  // Assign assessment to all 3 respondents (assigned by teacher so teacher monitors this cohort)
+  // Assign assessment to all 3 respondents
   const insertAssignment = db.prepare('INSERT INTO assessment_assignments (assessment_id, user_id, assigned_by) VALUES (?, ?, ?)');
   for (const rid of respondentIds) {
-    insertAssignment.run(assessmentId, rid, teacherId);
+    insertAssignment.run(assessmentId, rid, adminId);
   }
 
   console.log('Sample assessment created and assigned.');
@@ -200,7 +177,7 @@ function seed() {
   }
   console.log('Sample assessment attempts and results created.');
 
-  db.prepare("UPDATE users SET is_demo = 1 WHERE id IN (?, ?) OR email LIKE '%@example.com'").run(adminId, teacherId);
+  db.prepare("UPDATE users SET is_demo = 1 WHERE id = ? OR email LIKE '%@example.com'").run(adminId);
   db.prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES ('demo_mode', '1') ON CONFLICT(setting_key) DO UPDATE SET setting_value = '1', updated_at = datetime('now')").run();
 
   // Log the seeding activity

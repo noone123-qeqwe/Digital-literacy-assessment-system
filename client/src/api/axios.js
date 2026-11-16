@@ -43,8 +43,7 @@ api.interceptors.response.use(
       localStorage.removeItem('user');
       const publicPaths = ['/login', '/register', ...accountActionPaths, '/guardian-consent', '/'];
       if (!publicPaths.includes(pathname)) {
-        window.location.href = '/login';
-        if (showErrorToast) toast.error('Session expired. Please login again.');
+        window.location.href = '/login?reason=expired';
       }
     } else if (error.response?.status === 403) {
       if (showErrorToast) toast.error('You do not have permission to perform this action.');

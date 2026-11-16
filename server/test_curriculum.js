@@ -25,7 +25,7 @@ function fixtureCourse() {
 }
 function addUser(email, role = 'respondent', verified = 1, status = 'active') {
   const id = db.prepare('INSERT INTO users(email,password,first_name,last_name,role,status,email_verified,is_demo,mfa_enabled) VALUES(?,?,?,?,?,?,?,0,?)').run(email, 'isolated-test-only', 'Fixture', role, role, status, verified, role === 'respondent' ? 0 : 1).lastInsertRowid;
-  const sid = crypto.randomUUID(); db.prepare('INSERT INTO auth_sessions(id,user_id,expires_at) VALUES(?,?,?)').run(sid, id, new Date(Date.now() + 3600000).toISOString());
+  const sid = crypto.randomUUID(); db.prepare('INSERT INTO auth_sessions(id,user_id,expires_at,mfa_verified) VALUES(?,?,?,1)').run(sid, id, new Date(Date.now() + 3600000).toISOString());
   const csrf = crypto.randomBytes(20).toString('hex');
   return { id: Number(id), cookies: `dlas_session=${jwt.sign({ id: Number(id), jti: sid }, process.env.JWT_SECRET, { expiresIn: '1h' })}; dlas_csrf=${csrf}`, csrf };
 }

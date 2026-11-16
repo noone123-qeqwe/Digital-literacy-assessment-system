@@ -58,16 +58,25 @@ function createEmailService({ env = process.env, fetchFn = (...args) => fetch(..
   const status = { lastAcceptedProvider: null, lastAcceptedAt: null, lastAttemptAt: null, lastAttemptedProviders: [], lastFailure: null };
   const getStatus = () => ({ ...status, lastAttemptedProviders: [...status.lastAttemptedProviders], configuredProviders: configuredProviders(env) });
 
-  async function sendSecurityEmail({ to, subject, text, actionUrl }) {
+  async function sendSecurityEmail({ to, subject, text, actionUrl, otpCode }) {
     const providers = configuredProviders(env);
     if (!providers.length) {
       const hasConfiguration = ['BREVO_API_KEY', 'RESEND_API_KEY', 'MAIL_HOST', 'MAIL_USER', 'MAIL_USERNAME', 'MAIL_PASS', 'MAIL_PASSWORD', 'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS'].some((key) => nonempty(env[key]));
       if (env.NODE_ENV === 'production' || hasConfiguration) throw new Error('Email delivery is not configured. Add an API key with its verified sender, or complete Gmail/SMTP settings.');
-      developmentLog(`[DLAS development email] To: ${to}\n${subject}\n${actionUrl}`);
-      return { delivered: false, developmentLink: actionUrl };
+      const devDetails = otpCode ? `Verification Code: ${otpCode}` : actionUrl;
+      developmentLog(`[DLAS development email] To: ${to}\n${subject}\n${devDetails}`);
+      return {
+        delivered: false,
+        ...(actionUrl ? { developmentLink: actionUrl } : {}),
+        ...(otpCode ? { developmentOtp: otpCode } : {}),
+      };
     }
-    const textContent = `${text}\n\n${actionUrl}\n\nIf you did not request this, you can ignore this email.`;
-    const htmlContent = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a"><p>${escapeHtml(text)}</p><p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:12px 18px;background:#006b3c;color:#fff;border-radius:8px;text-decoration:none">Continue</a></p><p>If you did not request this, you can ignore this email.</p></div>`;
+    const textContent = otpCode
+      ? `${text}\n\nVerification code: ${otpCode}\n\nThis code expires in 10 minutes. If you did not request this, you can ignore this email.`
+      : `${text}\n\n${actionUrl}\n\nIf you did not request this, you can ignore this email.`;
+    const htmlContent = otpCode
+      ? `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a"><p>${escapeHtml(text)}</p><div style="margin:16px 0;padding:14px 20px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;font-size:26px;font-weight:700;letter-spacing:6px;color:#1e3a8a;display:inline-block">${escapeHtml(otpCode)}</div><p style="font-size:13px;color:#475569">This code expires in 10 minutes. If you did not request this, you can ignore this email.</p></div>`
+      : `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#0f172a"><p>${escapeHtml(text)}</p><p><a href="${escapeHtml(actionUrl)}" style="display:inline-block;padding:12px 18px;background:#006b3c;color:#fff;border-radius:8px;text-decoration:none">Continue</a></p><p>If you did not request this, you can ignore this email.</p></div>`;
     // Each intentional send gets its own identity, so repeating an administrator
     // delivery test is not silently deduplicated by the provider for 24 hours.
     const idempotencyKey = crypto.randomUUID();
