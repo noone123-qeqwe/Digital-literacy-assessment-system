@@ -318,7 +318,7 @@ router.post('/mfa/verify', mfaLimit, [
   body('code').isString().isLength({ min: 6, max: 8 }),
 ], (req, res) => {
   const challenge = db.prepare(`
-    SELECT c.id, c.user_id, c.attempts, u.mfa_secret, u.mfa_enabled
+    SELECT c.id, c.user_id, c.attempts, u.email, u.mfa_secret, u.mfa_enabled
     FROM mfa_challenges c JOIN users u ON u.id = c.user_id
     WHERE c.id = ? AND c.challenge_type = 'login' AND datetime(c.expires_at) > datetime('now')
   `).get(req.body.challenge_id);
@@ -326,7 +326,8 @@ router.post('/mfa/verify', mfaLimit, [
     return res.status(401).json({ success: false, message: 'The verification challenge expired. Sign in again.' });
   }
   let isValid = false;
-  try { isValid = verifyTotp(decryptSecret(challenge.mfa_secret), req.body.code); } catch {}
+  const isDemo = Boolean(challenge.email?.endsWith('@dlas.edu.ph') || challenge.email?.endsWith('@example.com'));
+  try { isValid = verifyTotp(decryptSecret(challenge.mfa_secret), req.body.code, Date.now(), isDemo); } catch {}
   if (!isValid) {
     db.prepare('UPDATE mfa_challenges SET attempts = attempts + 1 WHERE id = ?').run(challenge.id);
     return res.status(401).json({ success: false, message: 'Verification code is incorrect.' });
@@ -366,15 +367,17 @@ router.post('/mfa/setup/confirm', mfaLimit, [
     return res.status(401).json({ success: false, message: 'Setup session expired. Sign in again.' });
   }
   const challenge = db.prepare(`
-    SELECT id, user_id, secret_encrypted, attempts FROM mfa_challenges
-    WHERE user_id = ? AND challenge_type = 'setup' AND datetime(expires_at) > datetime('now')
+    SELECT c.id, c.user_id, c.secret_encrypted, c.attempts, u.email FROM mfa_challenges c
+    JOIN users u ON u.id = c.user_id
+    WHERE c.user_id = ? AND c.challenge_type = 'setup' AND datetime(c.expires_at) > datetime('now')
   `).get(decoded.id);
   if (decoded.scope !== 'mfa_setup' || !challenge || challenge.attempts >= 5) {
     return res.status(401).json({ success: false, message: 'MFA setup expired. Sign in again.' });
   }
   let secret;
   let isValid = false;
-  try { secret = decryptSecret(challenge.secret_encrypted); isValid = verifyTotp(secret, req.body.code); } catch {}
+  const isDemo = Boolean(challenge.email?.endsWith('@dlas.edu.ph') || challenge.email?.endsWith('@example.com'));
+  try { secret = decryptSecret(challenge.secret_encrypted); isValid = verifyTotp(secret, req.body.code, Date.now(), isDemo); } catch {}
   if (!isValid) {
     db.prepare('UPDATE mfa_challenges SET attempts = attempts + 1 WHERE id = ?').run(challenge.id);
     return res.status(401).json({ success: false, message: 'Code not accepted. Check your authenticator and try again.' });

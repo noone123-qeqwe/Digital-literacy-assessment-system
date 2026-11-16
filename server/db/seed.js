@@ -13,9 +13,9 @@ function seed() {
   initializeInstrument(db);
   ensureDigCompSatQuestionBank(db);
 
-  // Check if already seeded
-  const existingAdmin = db.prepare("SELECT id FROM users WHERE email = ?").get('admin@dlas.edu.ph');
-  if (existingAdmin) {
+  // Check if already seeded with sample attempts
+  const alreadySeeded = db.prepare("SELECT 1 FROM assessment_attempts LIMIT 1").get();
+  if (alreadySeeded) {
     console.log('Database already seeded. Skipping.');
     return;
   }
@@ -30,15 +30,27 @@ function seed() {
     VALUES (?, ?, ?, ?, ?, ?)
   `);
 
-  const adminResult = insertUser.run('admin@dlas.edu.ph', hashedPassword, 'System', 'Administrator', 'admin', 'active');
-  const adminId = adminResult.lastInsertRowid;
-  console.log('Local demonstration administrator created.');
+  let adminId;
+  const existingAdmin = db.prepare("SELECT id FROM users WHERE email = ?").get('admin@dlas.edu.ph');
+  if (existingAdmin) {
+    adminId = existingAdmin.id;
+  } else {
+    const adminResult = insertUser.run('admin@dlas.edu.ph', hashedPassword, 'System', 'Administrator', 'admin', 'active');
+    adminId = adminResult.lastInsertRowid;
+  }
+  console.log('Local demonstration administrator ready.');
 
   // Insert teacher / assessor test user
   const teacherPassword = bcrypt.hashSync('Teacher@123', 10);
-  const teacherResult = insertUser.run('teacher@dlas.edu.ph', teacherPassword, 'Faculty', 'Teacher', 'assessor', 'active');
-  const teacherId = teacherResult.lastInsertRowid;
-  console.log('Local demonstration teacher created.');
+  let teacherId;
+  const existingTeacher = db.prepare("SELECT id FROM users WHERE email = ?").get('teacher@dlas.edu.ph');
+  if (existingTeacher) {
+    teacherId = existingTeacher.id;
+  } else {
+    const teacherResult = insertUser.run('teacher@dlas.edu.ph', teacherPassword, 'Faculty', 'Teacher', 'assessor', 'active');
+    teacherId = teacherResult.lastInsertRowid;
+  }
+  console.log('Local demonstration teacher ready.');
 
   const areaIds = Object.fromEntries(db.prepare('SELECT id, code FROM competence_areas').all().map((row) => [row.code, row.id]));
   console.log('The five competence areas and 30 questionnaire items are ready.');
@@ -54,14 +66,19 @@ function seed() {
 
   const respondentIds = [];
   for (const r of respondents) {
-    const result = insertUser.run(r.email, respondentPassword, r.first, r.last, 'respondent', 'active');
-    respondentIds.push(result.lastInsertRowid);
+    const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(r.email);
+    if (existing) {
+      respondentIds.push(existing.id);
+    } else {
+      const result = insertUser.run(r.email, respondentPassword, r.first, r.last, 'respondent', 'active');
+      respondentIds.push(result.lastInsertRowid);
+    }
   }
   console.log('3 sample respondent users created.');
 
   // Create respondent profiles
   const insertProfile = db.prepare(`
-    INSERT INTO respondent_profiles (user_id, age, sex, municipality, barangay, junior_high_school, junior_high_school_type, senior_high_school, senior_high_school_type, shs_strand, monthly_family_income, monthly_family_income_amount, has_computer_at_home, internet_access_type)
+    INSERT OR REPLACE INTO respondent_profiles (user_id, age, sex, municipality, barangay, junior_high_school, junior_high_school_type, senior_high_school, senior_high_school_type, shs_strand, monthly_family_income, monthly_family_income_amount, has_computer_at_home, internet_access_type)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
 

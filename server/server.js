@@ -170,6 +170,7 @@ function startServer(port = PORT) {
     console.log('  API Health: /api/health');
     console.log('=======================================================');
     if (process.env.NODE_ENV !== 'test') {
+      require('./db/ensureStaffAccounts').ensureStaffAccounts(db);
       websitePing = startWebsitePing();
       app.locals.websitePing = websitePing;
     }
