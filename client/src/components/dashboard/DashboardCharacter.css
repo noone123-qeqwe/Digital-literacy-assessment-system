@@ -41,6 +41,8 @@
   inset: 10% -30% -65% 4%;
   border-radius: 48% 50% 0 0;
   transform: rotate(-12deg);
+  background-image: radial-gradient(ellipse at 25% 20%, #ffffff70, transparent 65%);
+  border: 1px solid #ffffff45;
 }
 
 .character-position {
@@ -67,7 +69,7 @@
   animation: character-breathe 4s ease-in-out infinite;
 }
 
-.character-art .character-head { transform-origin: 202px 171px; }
+.character-art .character-head { transform-origin: 202px 177px; }
 .character-art .character-eyes { transform-origin: 204px 115px; }
 .character-art .character-hand-left { transform-origin: 141px 238px; }
 .character-art .character-hand-right { transform-origin: 266px 241px; }
