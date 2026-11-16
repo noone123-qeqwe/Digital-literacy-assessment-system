@@ -120,7 +120,7 @@ export default function DashboardCharacter() {
     <label className="character-field" key={key}>
       <span>{label}</span>
       <select value={draft[key]} onChange={(event) => update(key, event.target.value)}>
-        {choices[key].map((option) => <option key={option} value={option}>{option === 'tshirt' ? 'T-shirt' : option.charAt(0).toUpperCase() + option.slice(1)}</option>)}
+        {choices[key].map((option) => <option key={option} value={option}>{key === 'animation' && option === 'float' ? 'Animated' : option === 'tshirt' ? 'T-shirt' : option.charAt(0).toUpperCase() + option.slice(1)}</option>)}
       </select>
     </label>
   );

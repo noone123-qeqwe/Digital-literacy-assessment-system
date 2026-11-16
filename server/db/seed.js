@@ -34,6 +34,12 @@ function seed() {
   const adminId = adminResult.lastInsertRowid;
   console.log('Local demonstration administrator created.');
 
+  // Insert teacher / assessor test user
+  const teacherPassword = bcrypt.hashSync('Teacher@123', 10);
+  const teacherResult = insertUser.run('teacher@dlas.edu.ph', teacherPassword, 'Faculty', 'Teacher', 'assessor', 'active');
+  const teacherId = teacherResult.lastInsertRowid;
+  console.log('Local demonstration teacher created.');
+
   const areaIds = Object.fromEntries(db.prepare('SELECT id, code FROM competence_areas').all().map((row) => [row.code, row.id]));
   console.log('The five competence areas and 30 questionnaire items are ready.');
 
@@ -95,10 +101,10 @@ function seed() {
     insertAQ.run(assessmentId, q.id);
   }
 
-  // Assign assessment to all 3 respondents
+  // Assign assessment to all 3 respondents (assigned by teacher so teacher monitors this cohort)
   const insertAssignment = db.prepare('INSERT INTO assessment_assignments (assessment_id, user_id, assigned_by) VALUES (?, ?, ?)');
   for (const rid of respondentIds) {
-    insertAssignment.run(assessmentId, rid, adminId);
+    insertAssignment.run(assessmentId, rid, teacherId);
   }
 
   console.log('Sample assessment created and assigned.');
@@ -177,7 +183,7 @@ function seed() {
   }
   console.log('Sample assessment attempts and results created.');
 
-  db.prepare("UPDATE users SET is_demo = 1 WHERE id = ? OR email LIKE '%@example.com'").run(adminId);
+  db.prepare("UPDATE users SET is_demo = 1 WHERE id IN (?, ?) OR email LIKE '%@example.com'").run(adminId, teacherId);
   db.prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES ('demo_mode', '1') ON CONFLICT(setting_key) DO UPDATE SET setting_value = '1', updated_at = datetime('now')").run();
 
   // Log the seeding activity

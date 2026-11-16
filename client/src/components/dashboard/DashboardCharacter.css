@@ -61,10 +61,6 @@
   transform-origin: 50% 90%;
 }
 
-.character-motion[data-animation="float"] {
-  animation: character-float 6s ease-in-out infinite;
-}
-
 .character-motion[data-animation="breathe"] {
   animation: character-breathe 4s ease-in-out infinite;
 }
@@ -295,11 +291,6 @@
 .character-editor-error { border: 1px solid #f0caca; color: #892d2d; background: #fff5f5; }
 .character-editor-error button { min-height: 40px; font-weight: 650; }
 .character-demo-note { color: #795312; background: #fff8e8; }
-
-@keyframes character-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-5px); }
-}
 
 @keyframes character-breathe {
   0%, 100% { transform: scale(1); }
