@@ -1,6 +1,6 @@
 # Login form update — 16 November 2026
 
-The login heading, school seal and sign-in controls now share one white card with a restrained green accent, consistent spacing, readable fields and a clear primary button. The campus photograph, overlay, introductory animation and school branding retain their existing settings. Registration has its own layout; the new card styles are scoped to the login page.
+The login heading and sign-in controls now share one white card with a restrained green accent, consistent spacing, readable fields and a clear primary button. The repeated seal and department row inside the card is removed. The campus photograph, overlay, introductory animation and main school branding retain their existing settings. Registration has its own layout; the new card styles are scoped to the login page.
 
 Forgot password remains right-aligned directly below Sign in. Create account remains a separate secondary action. The removed “New to DLAS?” prompt stays removed. Registration confirmation, verification messages and sign-in failures are shown within the card. Password visibility, native validation, autocomplete, keyboard controls and the authenticator code workflow remain supported.
 

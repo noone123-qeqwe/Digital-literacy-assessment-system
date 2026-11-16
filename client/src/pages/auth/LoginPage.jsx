@@ -157,7 +157,6 @@ export const LoginPage = () => {
           <div className="login-form-wrap relative z-10 mx-auto w-full">
             <div className="login-card">
               <header className="login-card-heading">
-                <div className="login-card-institution"><img src="/masbate-colleges-logo-login.webp" alt="Masbate Colleges seal" width="40" height="40" /><p>{authStep === 'credentials' ? 'College of Computer Studies' : 'Account security'}</p></div>
                 <h2 ref={headingRef} data-login-heading tabIndex={-1}>{authStep === 'credentials' ? 'Welcome back' : authStep === 'mfa-setup' ? 'Secure your account' : 'Verify it’s you'}</h2>
                 <p>{authStep === 'credentials' ? 'Sign in with the email linked to your account.' : authStep === 'mfa-setup' ? 'Administrators and teachers must set up an authenticator app before using the system.' : 'Enter the current six-digit code from your authenticator app.'}</p>
               </header>
