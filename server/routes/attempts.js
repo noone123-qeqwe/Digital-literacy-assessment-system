@@ -98,12 +98,74 @@ router.get('/my', authenticate, (req, res) => {
   try {
     const attempts = db.prepare(`
       SELECT at.*, asm.title AS assessment_title, asm.description AS assessment_description,
+             asm.scoring_version AS assessment_scoring_version,
              (SELECT COUNT(*) FROM assessment_questions aq WHERE aq.assessment_id = asm.id) AS total_questions,
              (SELECT COUNT(*) FROM responses r WHERE r.attempt_id = at.id) AS answered_questions
       FROM assessment_attempts at
       JOIN assessments asm ON asm.id = at.assessment_id
       WHERE at.user_id = ? ORDER BY at.started_at DESC
     `).all(req.user.id);
+
+    if (req.query.include === 'learning_summary' && attempts.length > 0) {
+      const completedAttempts = attempts
+        .filter((attempt) => attempt.status === 'completed')
+        .sort((first, second) => String(second.completed_at || '').localeCompare(String(first.completed_at || '')))
+        .slice(0, 8);
+
+      if (completedAttempts.length > 0) {
+        const completedIds = completedAttempts.map((attempt) => attempt.id);
+        const placeholders = completedIds.map(() => '?').join(', ');
+
+        const allAreaResults = db.prepare(`
+          SELECT ar.*, ca.name AS area_name, ca.code AS area_code
+          FROM area_results ar
+          JOIN competence_areas ca ON ar.competence_area_id = ca.id
+          WHERE ar.attempt_id IN (${placeholders})
+          ORDER BY ca.sort_order ASC
+        `).all(...completedIds);
+
+        const areasByAttemptId = new Map();
+        for (const row of allAreaResults) {
+          if (!areasByAttemptId.has(row.attempt_id)) {
+            areasByAttemptId.set(row.attempt_id, []);
+          }
+          areasByAttemptId.get(row.attempt_id).push(row);
+        }
+
+        const allResponses = db.prepare(`
+          SELECT attempt_id, question_id, rating
+          FROM responses
+          WHERE attempt_id IN (${placeholders})
+        `).all(...completedIds);
+
+        const responsesByAttemptId = new Map();
+        for (const row of allResponses) {
+          if (!responsesByAttemptId.has(row.attempt_id)) {
+            responsesByAttemptId.set(row.attempt_id, []);
+          }
+          responsesByAttemptId.get(row.attempt_id).push(row);
+        }
+
+        for (const attempt of completedAttempts) {
+          const snapshot = readInstrumentSnapshot(attempt);
+          const itemById = new Map((snapshot?.items || []).map((item) => [item.question_id, item]));
+          const mappedResponses = (responsesByAttemptId.get(attempt.id) || [])
+            .map((response) => ({ ...itemById.get(response.question_id), question_id: response.question_id, rating: response.rating }))
+            .filter((response) => Number.isInteger(response.competence_area_id));
+
+          attempt.learning_summary = {
+            attempt: {
+              id: attempt.id,
+              assessment_title: attempt.assessment_title,
+              scoring_version: attempt.scoring_version || snapshot?.scoringVersion || attempt.assessment_scoring_version || null,
+            },
+            areaResults: areasByAttemptId.get(attempt.id) || [],
+            responses: mappedResponses,
+          };
+        }
+      }
+    }
+
     return res.json({ success: true, data: attempts });
   } catch (err) {
     console.error('Error fetching attempts:', err);

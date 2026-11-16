@@ -42,7 +42,7 @@ api.interceptors.response.use(
       localStorage.removeItem('token');
       localStorage.removeItem('user');
       const publicPaths = ['/login', '/register', ...accountActionPaths, '/guardian-consent', '/'];
-      if (!publicPaths.includes(pathname)) {
+      if (error.config?.suppressSessionRedirect !== true && !publicPaths.includes(pathname)) {
         window.location.href = '/login?reason=expired';
       }
     } else if (error.response?.status === 403) {

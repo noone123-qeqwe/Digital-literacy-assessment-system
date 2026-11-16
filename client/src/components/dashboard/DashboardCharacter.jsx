@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Pause, Pencil, Play, RotateCcw, Shuffle } from 'lucide-react';
+import { Check, Pause, Pencil, Play, RotateCcw, Shuffle, Sparkles } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
 import { useAuth } from '../../contexts/useAuth';
@@ -27,7 +27,26 @@ const optionLabels = {
   blazer: 'Blazer',
   happy: 'Happy',
   focused: 'Focused',
-  float: 'Animated',
+  float: 'Float',
+  breathe: 'Breathe',
+  typing: 'Focused study',
+  bounce: 'Bounce',
+  sway: 'Groove sway',
+  wave: 'Greeting wave',
+  none: 'Still',
+  calm: 'Calm',
+  normal: 'Normal',
+  lively: 'Lively',
+};
+
+const animationMeta = {
+  float: { label: 'Float', description: 'Gentle hovering bob & idle blink' },
+  breathe: { label: 'Breathe', description: 'Calm chest breath & soft nod' },
+  typing: { label: 'Focused study', description: 'Active typing & screen glow' },
+  bounce: { label: 'Bounce', description: 'Upbeat hop & cheerful energy' },
+  sway: { label: 'Groove sway', description: 'Relaxed side-to-side rhythm' },
+  wave: { label: 'Greeting wave', description: 'Friendly welcoming hand wave' },
+  none: { label: 'Still', description: 'No motion or idle animations' },
 };
 
 function formatOptionLabel(option) {
@@ -59,7 +78,11 @@ function CharacterScene({ settings, preview = false, paused = false }) {
     <div ref={sceneRef} className={`character-scene ${preview ? 'character-scene-preview' : ''}`} data-paused={paused || !inView || !pageVisible} role="img" aria-label="Your customized student character">
       {settings.showBackdrop && <span className="character-backdrop" style={{ backgroundColor: settings.backdropColor }} />}
       <div className="character-position" style={transform}>
-        <div className="character-motion" data-animation={settings.animation}>
+        <div
+          className="character-motion"
+          data-animation={settings.animation}
+          data-speed={settings.animationSpeed || 'normal'}
+        >
           <CharacterArt className="character-art" settings={settings} aria-hidden="true" preserveAspectRatio="xMidYMax meet" />
         </div>
       </div>
@@ -134,10 +157,10 @@ export default function DashboardCharacter() {
     setSaveError('');
   };
   const close = () => { if (!saving) setIsOpen(false); };
-  const open = () => {
+  const open = (initialPanel = 'Character') => {
     setDraft({ ...settings });
     setSaveError('');
-    setPanel('Character');
+    setPanel(panels.includes(initialPanel) ? initialPanel : 'Character');
     setIsOpen(true);
   };
   const save = async () => {
@@ -207,7 +230,17 @@ export default function DashboardCharacter() {
       {!loading && <CharacterScene settings={settings} paused={motionPaused || isOpen} />}
     </div>
     <div className="dashboard-character-actions">
-      <button type="button" onClick={open} className="dashboard-character-edit" aria-label="Customize your dashboard character">
+      <button
+        type="button"
+        onClick={() => open('Motion')}
+        className="dashboard-character-edit"
+        aria-label={`Change character animation (current: ${formatOptionLabel(settings.animation)})`}
+        title={`Animation: ${formatOptionLabel(settings.animation)}`}
+      >
+        <Sparkles aria-hidden="true" size={14} />
+        <span>Animation: {formatOptionLabel(settings.animation)}</span>
+      </button>
+      <button type="button" onClick={() => open('Character')} className="dashboard-character-edit" aria-label="Customize your dashboard character">
         <Pencil aria-hidden="true" size={14} />
         <span>Customize character</span>
       </button>
@@ -297,7 +330,53 @@ export default function DashboardCharacter() {
                   </div>
                 </>}
                 {panel === 'Motion' && <>
-                  {selectControl('animation', 'Animation')}
+                  <fieldset className="character-motion-picker">
+                    <legend>Character animation</legend>
+                    <div className="character-motion-options">
+                      {choices.animation.map((option) => {
+                        const details = animationMeta[option] || { label: formatOptionLabel(option), description: '' };
+                        const selected = draft.animation === option;
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            className="character-motion-option"
+                            aria-pressed={selected}
+                            onClick={() => {
+                              update('animation', option);
+                              if (option !== 'none') setMotionPaused(false);
+                            }}
+                          >
+                            <div>
+                              <strong>{details.label}</strong>
+                              {details.description && <small>{details.description}</small>}
+                            </div>
+                            {selected && <Check size={16} aria-hidden="true" className="shrink-0" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+                  {draft.animation !== 'none' && (
+                    <fieldset className="character-speed-picker">
+                      <legend>Animation speed</legend>
+                      <div className="character-speed-options">
+                        {choices.animationSpeed.map((speed) => (
+                          <button
+                            key={speed}
+                            type="button"
+                            aria-pressed={(draft.animationSpeed || 'normal') === speed}
+                            onClick={() => {
+                              update('animationSpeed', speed);
+                              setMotionPaused(false);
+                            }}
+                          >
+                            {formatOptionLabel(speed)}
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
+                  )}
                   {draft.animation !== 'none' && <button type="button" className="character-cancel character-preview-motion-toggle" onClick={() => setMotionPaused((paused) => !paused)}>
                     {motionPaused ? <Play aria-hidden="true" size={15} /> : <Pause aria-hidden="true" size={15} />}
                     {motionPaused ? 'Resume animation' : 'Pause animation'}

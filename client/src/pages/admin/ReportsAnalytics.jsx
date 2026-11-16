@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../../api/axios';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Badge from '../../components/common/Badge';
@@ -7,7 +8,8 @@ import {
   BarChart3,
   FileSpreadsheet,
   BookOpen,
-  Layers
+  Layers,
+  ArrowUpRight
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { downloadProtectedFile } from '../../utils/download';
@@ -172,6 +174,19 @@ export const ReportsAnalytics = () => {
   const scoreScaleMax = Number(dashboardData?.scoreScaleMax) === 3 ? 3 : 4;
   const selectedExportAssessment = assessments.find((assessment) => String(assessment.id) === selectedAssessmentId);
   const selectedExportIsDigCompSat = selectedExportAssessment?.scoring_version === 'digcompsat-self-reflection-0-3.1';
+  const profileGroupRows = [
+    ['Sex', demographics?.bySex],
+    ['Age', demographics?.byAge],
+    ['Municipality', demographics?.byMunicipality],
+    ['Municipality group', demographics?.byMunicipalityGroup],
+    ['Junior high school type', demographics?.byJuniorSchoolType],
+    ['Senior high school type', demographics?.bySeniorSchoolType],
+    ['Home computer', demographics?.byHomeAccess],
+    ['Home computer and internet access', demographics?.byPcInternet],
+    ['Home internet access', demographics?.byInternetAccess],
+    ['Family income', demographics?.byIncome],
+    ['Senior high school strand', demographics?.byStrand],
+  ].flatMap(([label, groups]) => (groups || []).map((group) => ({ label, ...group })));
 
   return (
     <div className="space-y-8">
@@ -180,7 +195,14 @@ export const ReportsAnalytics = () => {
         title="Cohort analytics"
         description="Explore descriptive cohort summaries, demographics, competence profiles, and training priorities."
         action={(
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
+          <Link
+            to={isAdmin ? '/admin/analytics' : '/assessor/analytics'}
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:border-green-200 hover:bg-green-50 hover:text-green-700 sm:w-auto"
+          >
+            <span>Knowledge reports</span>
+            <ArrowUpRight aria-hidden="true" className="h-3.5 w-3.5" />
+          </Link>
           <label className="sr-only" htmlFor="report-assessment">Assessment to export</label>
           <select
             id="report-assessment"
@@ -298,7 +320,74 @@ export const ReportsAnalytics = () => {
               </p>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="space-y-3 sm:hidden">
+              {areaPerformance?.map((area) => (
+                <article key={area.code} className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="text-[11px] font-bold uppercase tracking-wider text-green-600">{area.code}</span>
+                      <h4 className="mt-0.5 text-sm font-bold text-slate-900">{area.name}</h4>
+                    </div>
+                    <Badge
+                      variant={
+                        area.descriptive_level === 'Very High'
+                          ? 'success'
+                          : area.descriptive_level === 'High'
+                          ? 'primary'
+                          : area.descriptive_level === 'Moderate'
+                          ? 'warning'
+                          : area.descriptive_level === 'N/A' ? 'neutral' : 'danger'
+                      }
+                      size="sm"
+                    >
+                      {area.descriptive_level}
+                    </Badge>
+                  </div>
+                  <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-200/70 pt-3 text-xs">
+                    <div>
+                      <dt className="text-[11px] font-medium text-slate-500">{isDigCompSat ? 'Mean / 3' : 'Weighted Mean'}</dt>
+                      <dd className="mt-0.5 font-extrabold text-slate-900">{area.weighted_mean ?? 'N/A'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] font-medium text-slate-500">Std. Dev.</dt>
+                      <dd className="mt-0.5 font-mono text-slate-700">{area.sd ?? 'N/A'}</dd>
+                    </div>
+                  </dl>
+                </article>
+              ))}
+              <article className="rounded-2xl border-2 border-green-200 bg-green-50/70 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-green-800">
+                    {isDigCompSat ? 'Overall Mean Self-Rating' : 'Composite Overall Digital Literacy'}
+                  </h4>
+                  <span className="inline-flex rounded-full bg-green-600 px-3 py-1 text-xs font-extrabold text-white shadow-xs">
+                    {isDigCompSat
+                      ? (summary?.scoredAttempts ? 'Self-reflection' : 'N/A')
+                      : !summary?.scoredAttempts
+                      ? 'N/A'
+                      : summary.averageScore >= 3.26
+                      ? 'Very High'
+                      : summary?.averageScore >= 2.51
+                      ? 'High'
+                      : summary?.averageScore >= 1.76
+                      ? 'Moderate'
+                      : 'Low'}
+                  </span>
+                </div>
+                <dl className="mt-3 grid grid-cols-2 gap-3 border-t border-green-200/80 pt-3 text-xs">
+                  <div>
+                    <dt className="text-[11px] font-medium text-green-800/80">{isDigCompSat ? 'Overall Mean / 3' : 'Overall Weighted Mean'}</dt>
+                    <dd className="mt-0.5 text-sm font-extrabold text-green-900">{summary?.scoredAttempts ? summary.averageScore : 'N/A'}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] font-medium text-green-800/80">Std. Dev.</dt>
+                    <dd className="mt-0.5 font-mono font-semibold text-slate-700">{summary?.scoredAttempts ? summary.standardDeviation : 'N/A'}</dd>
+                  </div>
+                </dl>
+              </article>
+            </div>
+
+            <div className="hidden overflow-x-auto sm:block">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-bold">
@@ -407,7 +496,27 @@ export const ReportsAnalytics = () => {
               </p>
             </div>
 
-            <div className="overflow-x-auto">
+            <div className="space-y-2.5 sm:hidden">
+              {profileGroupRows.map((group) => (
+                <article key={`${group.label}-${group.category}`} className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-3.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">{group.label}</p>
+                      <h4 className="mt-0.5 text-sm font-semibold text-slate-900">{group.category}</h4>
+                    </div>
+                    <span className="shrink-0 rounded-full border border-slate-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold text-slate-700">
+                      n={group.respondent_count}
+                    </span>
+                  </div>
+                  <div className="mt-2.5 flex items-center justify-between border-t border-slate-200/70 pt-2 text-xs">
+                    <span className="text-slate-500">Mean score / {scoreScaleMax}</span>
+                    <span className="font-mono font-bold text-slate-900">{group.mean_score ?? 'N/A'}</span>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto sm:block">
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-bold">
@@ -418,26 +527,14 @@ export const ReportsAnalytics = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {[
-                    ['Sex', demographics?.bySex],
-                    ['Age', demographics?.byAge],
-                    ['Municipality', demographics?.byMunicipality],
-                    ['Municipality group', demographics?.byMunicipalityGroup],
-                    ['Junior high school type', demographics?.byJuniorSchoolType],
-                    ['Senior high school type', demographics?.bySeniorSchoolType],
-                    ['Home computer', demographics?.byHomeAccess],
-                    ['Home computer and internet access', demographics?.byPcInternet],
-                    ['Home internet access', demographics?.byInternetAccess],
-                    ['Family income', demographics?.byIncome],
-                    ['Senior high school strand', demographics?.byStrand],
-                  ].flatMap(([label, groups]) => (groups || []).map((group) => (
-                    <tr key={`${label}-${group.category}`} className="hover:bg-slate-50/60">
-                      <td className="py-3 px-4 font-semibold text-slate-900">{label}</td>
+                  {profileGroupRows.map((group) => (
+                    <tr key={`${group.label}-${group.category}`} className="hover:bg-slate-50/60">
+                      <td className="py-3 px-4 font-semibold text-slate-900">{group.label}</td>
                       <td className="py-3 px-4 text-slate-600">{group.category}</td>
                       <td className="py-3 px-4 text-center">{group.respondent_count}</td>
                       <td className="py-3 px-4 text-center font-mono">{group.mean_score ?? 'N/A'}</td>
                     </tr>
-                  ))) }
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -451,7 +548,65 @@ export const ReportsAnalytics = () => {
                 {isDigCompSat ? 'These exploratory tests use this instrument’s 0–3 self-reflection scores only; they are not combined with the thesis questionnaire and should not be treated as locally validated findings. Normality and equal-variance checks, effect sizes, confidence intervals, and multiple-comparison adjustments are shown where available. Groups with fewer than five respondents are suppressed.' : 'Normality is checked with Jarque–Bera and equal variance with median-centered Levene. Tests report effect sizes, 95% confidence intervals where appropriate, and Benjamini–Hochberg adjusted q-values across profile comparisons. Groups with fewer than five respondents are excluded and suppressed.'}
               </p>
             </div>
-            <div className="overflow-x-auto">
+            <div className="space-y-3 sm:hidden">
+              {(inferentialData?.comparisons || []).map((comparison) => (
+                <article key={comparison.variable} className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 text-xs">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <h4 className="text-sm font-bold text-slate-900">{comparison.label}</h4>
+                      <p className="mt-0.5 text-[11px] text-slate-600">{comparison.method}</p>
+                    </div>
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                        comparison.decisionAdjusted?.startsWith('Reject')
+                          ? 'bg-rose-100 text-rose-700'
+                          : 'bg-slate-200/80 text-slate-700'
+                      }`}
+                    >
+                      {comparison.decisionAdjusted || comparison.decision}
+                    </span>
+                  </div>
+                  <dl className="mt-3 grid grid-cols-3 gap-2 border-y border-slate-200/70 py-2.5 text-[11px]">
+                    <div>
+                      <dt className="text-slate-500">Statistic</dt>
+                      <dd className="mt-0.5 font-mono font-bold text-slate-900">{comparison.statistic ?? '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">df</dt>
+                      <dd className="mt-0.5 font-mono font-semibold text-slate-800">{comparison.degreesFreedom ?? '—'}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-slate-500">p / q-value</dt>
+                      <dd className="mt-0.5 font-mono font-semibold text-slate-800">{comparison.pValue ?? '—'} / {comparison.pValueAdjusted ?? '—'}</dd>
+                    </div>
+                  </dl>
+                  <div className="mt-2.5 space-y-1.5 text-[11px] leading-5 text-slate-600">
+                    <p>{comparison.groups.map((group) => `${group.label}: n=${group.sampleSize}, mean=${group.mean ?? '—'}${group.confidenceInterval95 ? `, 95% CI ${group.confidenceInterval95.lower}–${group.confidenceInterval95.upper}` : ''}`).join(' · ')}</p>
+                    {comparison.effectSize && (
+                      <p className="font-semibold text-slate-700">
+                        Effect size: {comparison.effectSize.name} {comparison.effectSize.value}
+                        {comparison.effectSizeConfidenceInterval95 ? `; 95% bootstrap CI ${comparison.effectSizeConfidenceInterval95.lower}–${comparison.effectSizeConfidenceInterval95.upper}` : ''}
+                        {comparison.confidenceInterval95 ? `; mean difference 95% CI ${comparison.confidenceInterval95.lower}–${comparison.confidenceInterval95.upper}` : ''}.
+                      </p>
+                    )}
+                    {comparison.postHoc?.length > 0 && (
+                      <details className="pt-1">
+                        <summary className="cursor-pointer font-semibold text-green-800">Tukey HSD pairwise comparisons</summary>
+                        <div className="mt-1.5 grid gap-1">
+                          {comparison.postHoc.map((pair) => (
+                            <span key={`${pair.groupA}-${pair.groupB}`} className={pair.significant ? 'font-semibold text-rose-700' : ''}>
+                              {pair.groupA} vs {pair.groupB}: Δ={pair.meanDifference}, p={pair.pValue}{pair.significant ? ' · significant' : ''}
+                            </span>
+                          ))}
+                        </div>
+                      </details>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto sm:block">
               <table className="w-full min-w-[760px] text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-600">
@@ -681,7 +836,42 @@ export const ReportsAnalytics = () => {
             </p>
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="space-y-3 sm:hidden">
+            {competenceMatrix.map((item) => (
+              <article key={item.id} className="rounded-2xl border border-slate-200/80 bg-slate-50/50 p-4 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="rounded-lg bg-slate-900 px-2 py-0.5 font-bold text-white">#{item.question_number}</span>
+                    {isDigCompSat && item.framework_competence_id && (
+                      <span className="rounded-lg border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px] text-slate-600">
+                        {item.framework_competence_id}
+                      </span>
+                    )}
+                    <span className="font-bold text-green-600">{item.area_code}</span>
+                    {isDigCompSat && item.response_type && (
+                      <span className="text-[11px] text-slate-500">· {item.response_type}</span>
+                    )}
+                  </div>
+                  <span className="font-extrabold text-slate-900">
+                    Mean: {item.suppressed ? 'Suppressed' : item.mean_rating ?? 'N/A'}
+                  </span>
+                </div>
+                <p className="mt-2 font-medium leading-relaxed text-slate-800">{item.question_text}</p>
+                <dl className="mt-3 grid grid-cols-4 gap-2 border-t border-slate-200/70 pt-2.5 text-center text-[11px]">
+                  {(isDigCompSat ? [3, 2, 1, 0] : [4, 3, 2, 1]).map((rating) => (
+                    <div key={rating} className="rounded-lg border border-slate-200/70 bg-white px-2 py-1.5">
+                      <dt className="text-[10px] font-semibold uppercase text-slate-500">R{rating}</dt>
+                      <dd className="mt-0.5 font-mono font-bold text-slate-800">
+                        {item.suppressed ? '—' : item[`count_${rating}`] ?? 0}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto sm:block">
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase font-bold">

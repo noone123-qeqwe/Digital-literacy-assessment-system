@@ -29,7 +29,9 @@ import {
   loadAttemptCheckpoint,
   markAttemptDraftSynced,
   markCheckpointResponseSynced,
+  markCheckpointResponsesSynced,
   removeQueuedResponse,
+  removeQueuedResponses,
   requestPersistentLocalStorage,
   saveAttemptCheckpoint,
   saveAttemptDraftField,
@@ -129,6 +131,14 @@ export const TakeAssessment = () => {
     setQuestionPage(Math.floor(targetIndex / QUESTIONS_PER_PAGE));
     setIsSubmitModalOpen(false);
     setFocusRequest({ targetId: `assessment-question-${firstUnanswered.id}` });
+  };
+
+  const goToPartThree = () => {
+    const allPageCount = Math.max(1, Math.ceil(questions.length / QUESTIONS_PER_PAGE));
+    setActiveDomain('ALL');
+    setQuestionPage(allPageCount - 1);
+    setIsSubmitModalOpen(false);
+    setFocusRequest({ targetId: 'desired-skills' });
   };
 
   const saveDesiredSkills = useCallback((value) => {
@@ -371,20 +381,59 @@ export const TakeAssessment = () => {
           }
           setOfflineQueueIds(new Set(queued.map((item) => item.questionId)));
           if (!queued.length) break;
+
+          // Deduplicate by questionId (keeping latest revision) and sync in batches of up to 100.
+          const latestByQuestion = new Map();
           for (const item of queued) {
+            const qId = Number(item.questionId);
+            const existing = latestByQuestion.get(qId);
+            if (!existing || item.revision > existing.revision) {
+              latestByQuestion.set(qId, item);
+            }
+          }
+          const uniqueQueued = [...latestByQuestion.values()];
+          const BATCH_SIZE = 100;
+          for (let offset = 0; offset < uniqueQueued.length; offset += BATCH_SIZE) {
             if (cancelled || !navigator.onLine) return;
+            const chunk = uniqueQueued.slice(offset, offset + BATCH_SIZE);
             try {
-              await api.put(`/attempts/${attempt.id}/respond`, { question_id: item.questionId, rating: item.rating });
-              const checkpointSynced = await markCheckpointResponseSynced({ userId: currentUserId, assessmentId: id, questionId: item.questionId, rating: item.rating });
-              if (!checkpointSynced) throw new Error('Local recovery copy could not be updated yet.');
+              await api.put(`/attempts/${attempt.id}/respond`, {
+                responses: chunk.map((item) => ({ question_id: item.questionId, rating: item.rating })),
+              });
+              const syncedIds = await markCheckpointResponsesSynced({
+                userId: currentUserId,
+                assessmentId: id,
+                items: chunk,
+              });
               setSyncBlockedReason('');
-              const removed = await removeQueuedResponse(item);
-              const currentVersion = responseVersionsRef.current.get(item.questionId);
-              if (removed && queueRevisionRef.current.get(item.questionId) === item.revision && responsesRef.current[item.questionId] === item.rating) {
-                queueRevisionRef.current.delete(item.questionId);
-                savedVersionsRef.current.set(item.questionId, currentVersion);
-                setSavedIds((previous) => new Set(previous).add(item.questionId));
-                setOfflineQueueIds((previous) => { const next = new Set(previous); next.delete(item.questionId); return next; });
+              const readyToRemove = chunk.filter((item) => syncedIds.has(Number(item.questionId)));
+              const removedIds = await removeQueuedResponses(readyToRemove);
+              const newlySaved = [];
+              const newlyCleared = [];
+              for (const item of readyToRemove) {
+                const qId = Number(item.questionId);
+                if (!removedIds.has(qId)) continue;
+                const currentVersion = responseVersionsRef.current.get(item.questionId);
+                if (queueRevisionRef.current.get(item.questionId) === item.revision && responsesRef.current[item.questionId] === item.rating) {
+                  queueRevisionRef.current.delete(item.questionId);
+                  savedVersionsRef.current.set(item.questionId, currentVersion);
+                  newlySaved.push(item.questionId);
+                  newlyCleared.push(item.questionId);
+                }
+              }
+              if (newlySaved.length) {
+                setSavedIds((previous) => {
+                  const next = new Set(previous);
+                  for (const qId of newlySaved) next.add(qId);
+                  return next;
+                });
+              }
+              if (newlyCleared.length) {
+                setOfflineQueueIds((previous) => {
+                  const next = new Set(previous);
+                  for (const qId of newlyCleared) next.delete(qId);
+                  return next;
+                });
               }
             } catch (error) {
               setSyncConnectionError(true);
@@ -616,8 +665,8 @@ export const TakeAssessment = () => {
       toast.error('Could not confirm that your answers are synced. Keep this page open and try again.');
       return;
     }
-    const answeredCount = Object.keys(responses).length;
-    if (answeredCount !== questions.length) {
+    const currentAnsweredCount = questions.filter((question) => questionAnswered(responses, question.id)).length;
+    if (currentAnsweredCount !== questions.length) {
       toast.error(`Answer all ${questions.length} questions before submitting.`);
       goToUnanswered();
       return;
@@ -667,15 +716,15 @@ export const TakeAssessment = () => {
   if (consentInfo) {
     return (
       <div className="mx-auto w-full max-w-3xl space-y-6 pb-12">
-        <div className="rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-950 to-green-900 p-6 text-white shadow-lg sm:p-8">
+        <div className="rounded-3xl border border-green-200 bg-gradient-to-br from-green-950 to-green-800 p-6 text-white shadow-lg sm:p-8">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10"><ConsentShield aria-hidden="true" className="h-6 w-6" /></div>
             <div>
-              <p className="max-w-2xl break-words text-xs font-bold uppercase tracking-[0.12em] text-emerald-200">Assessment of Digital Literacy Levels Among Computer Science Freshmen at Masbate Colleges</p>
+              <p className="max-w-2xl break-words text-xs font-bold uppercase tracking-[0.12em] text-green-200">Assessment of Digital Literacy Levels Among Computer Science Freshmen at Masbate Colleges</p>
               <h1 className="mt-1 text-2xl font-extrabold sm:text-3xl">Before you begin</h1>
             </div>
           </div>
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-emerald-50">
+          <p className="mt-4 max-w-2xl text-sm leading-6 text-green-50">
             This study assesses your profile and self-assessed digital literacy skills in information and data literacy, communication and collaboration, digital content creation, safety, and problem solving. The questionnaire takes approximately 20 minutes and includes an open-ended question about the digital skills you most want to develop in college.
           </p>
         </div>
@@ -780,7 +829,7 @@ export const TakeAssessment = () => {
     );
   }
 
-  const answeredCount = Object.keys(responses).length;
+  const answeredCount = questions.filter((question) => questionAnswered(responses, question.id)).length;
   const totalCount = questions.length;
   const progressPercent = totalCount > 0 ? (answeredCount / totalCount) * 100 : 0;
 
@@ -823,7 +872,7 @@ export const TakeAssessment = () => {
         <p className="mt-2 text-sm leading-5 text-green-100">Choose the response that best describes your own experience.</p>
       </header>
 
-      <section aria-label="Assessment progress" className="student-assessment-progress sticky top-[5.5rem] z-20 space-y-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:px-5 2xl:top-[7rem]">
+      <section aria-label="Assessment progress" className="student-assessment-progress sticky top-[4.5rem] z-20 space-y-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:top-[5.25rem] sm:px-5 2xl:top-[6.75rem]">
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 sm:gap-x-4">
           <p className="text-sm font-bold tabular-nums text-slate-900"><span className="sr-only">Answered </span>{answeredCount} of {totalCount}<span aria-hidden="true" className="hidden sm:inline"> answered</span></p>
           {remainingSeconds !== null && (
@@ -1024,7 +1073,7 @@ export const TakeAssessment = () => {
               }}
               disabled={remainingSeconds === 0}
               placeholder="For example, evaluating online sources, creating presentations, or troubleshooting common computer problems…"
-              className="mt-5 min-h-28 w-full resize-y rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-900 placeholder:text-slate-400 focus:border-green-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-600/20 disabled:opacity-60"
+              className="mt-5 min-h-28 w-full scroll-mt-52 resize-y rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-900 placeholder:text-slate-400 focus:border-green-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-600/20 disabled:opacity-60 sm:scroll-mt-44 2xl:scroll-mt-52"
             />
             <p className="mt-2 flex flex-col justify-between gap-1 text-xs text-slate-500 sm:flex-row"><span>Please do not include names or other details that could identify you or another person.</span><span className="text-right">{desiredSkills.length}/1,200 characters</span></p>
           </section>
@@ -1071,6 +1120,26 @@ export const TakeAssessment = () => {
             <p className="text-base font-bold text-slate-900">{answeredCount} of {totalCount} questions answered</p>
             <p className="mt-1 text-sm text-slate-700">{submissionMessage}</p>
           </div>
+
+          {!isDigCompSat && (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-sky-200 bg-sky-50/70 px-4 py-3 text-xs">
+              <div className="min-w-0">
+                <p className="font-bold text-slate-900">Part III · Open-ended question (optional)</p>
+                <p className="mt-0.5 text-slate-600">
+                  {desiredSkills.trim()
+                    ? 'Your written response is ready to submit.'
+                    : 'Not filled in yet — share digital skills you want to develop.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={goToPartThree}
+                className="min-h-9 shrink-0 rounded-lg border border-sky-200 bg-white px-3 font-semibold text-sky-800 hover:bg-sky-50"
+              >
+                {desiredSkills.trim() ? 'Edit response' : 'Answer Part III'}
+              </button>
+            </div>
+          )}
 
           {!firstUnanswered && <label htmlFor="assessment-integrity-confirmation" className="flex cursor-pointer items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-sm leading-6 text-slate-700">
             <input

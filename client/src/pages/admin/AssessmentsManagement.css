@@ -1,5 +1,6 @@
-.research-assessment-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 24px; }
-.research-assessment-grid > div { min-width: 0; }
+.research-assessment-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 20px; }
+.research-assessment-grid > div { min-width: 0; transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease; }
+.research-assessment-grid > div:hover { border-color: #cbd5e1; box-shadow: 0 10px 24px -10px rgb(15 23 42 / 10%); }
 .research-assessment-actions { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
 .research-assessment-actions > button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 8px; }
 .research-assessment-actions > button span { display: none; }

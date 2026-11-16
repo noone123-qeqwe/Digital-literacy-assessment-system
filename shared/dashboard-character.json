@@ -19,6 +19,7 @@
     "showPlant": true,
     "showMug": true,
     "animation": "float",
+    "animationSpeed": "normal",
     "size": 100,
     "horizontalPosition": 0,
     "verticalPosition": 0,
@@ -31,7 +32,8 @@
     "expression": ["smile", "happy", "focused", "wink", "neutral"],
     "glasses": ["none", "round", "square", "browline"],
     "facialHair": ["none", "stubble", "beard"],
-    "animation": ["float", "breathe", "none"]
+    "animation": ["float", "breathe", "typing", "bounce", "sway", "wave", "none"],
+    "animationSpeed": ["calm", "normal", "lively"]
   },
   "presets": {
     "male": { "hairStyle": "swept" },

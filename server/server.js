@@ -46,7 +46,10 @@ try {
   throw err;
 }
 
+const { compressResponses } = require('./middleware/compress');
+
 // Middleware
+app.use(compressResponses());
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {

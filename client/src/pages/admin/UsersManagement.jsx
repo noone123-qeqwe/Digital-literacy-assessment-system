@@ -14,8 +14,19 @@ import {
   Upload,
   FileSpreadsheet,
   ChevronDown,
+  ArrowUpDown,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const getRoleLabel = (role) => (
+  role === 'assessor' ? 'Teacher / Assessor' : role === 'respondent' ? 'Student' : 'Administrator'
+);
+
+const getRoleBadgeClass = (role) => {
+  if (role === 'admin') return 'bg-purple-100 text-purple-800 border border-purple-200/70';
+  if (role === 'assessor') return 'bg-green-100 text-green-800 border border-green-200/70';
+  return 'bg-emerald-100 text-emerald-800 border border-emerald-200/70';
+};
 
 function parseRosterCsv(text) {
   const rows = [];
@@ -58,6 +69,7 @@ export const UsersManagement = () => {
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [sortBy, setSortBy] = useState('newest');
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, page: 1, totalPages: 1 });
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -94,7 +106,7 @@ export const UsersManagement = () => {
     setLoading(true);
     setError('');
     try {
-      let url = `/users?page=${requestedPage}&limit=20`;
+      let url = `/users?page=${requestedPage}&limit=20&sort=${encodeURIComponent(sortBy)}`;
       if (roleFilter) url += `&role=${roleFilter}`;
       if (statusFilter) url += `&status=${statusFilter}`;
       if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
@@ -111,7 +123,7 @@ export const UsersManagement = () => {
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
-  }, [page, roleFilter, debouncedSearch, statusFilter]);
+  }, [page, roleFilter, debouncedSearch, statusFilter, sortBy]);
 
   useEffect(() => {
     let active = true;
@@ -309,8 +321,8 @@ export const UsersManagement = () => {
           />
         </form>
 
-        <div className="flex items-center space-x-2 w-full sm:w-auto">
-          <Filter aria-hidden="true" className="w-4 h-4 text-slate-400" />
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <Filter aria-hidden="true" className="w-4 h-4 text-slate-400 shrink-0" />
           <select
             aria-label="Filter users by role"
             value={roleFilter}
@@ -334,19 +346,33 @@ export const UsersManagement = () => {
             <option value="inactive">Inactive</option>
             <option value="suspended">Suspended</option>
           </select>
+          <div className="flex items-center gap-1.5">
+            <ArrowUpDown aria-hidden="true" className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <label className="sr-only" htmlFor="user-sort-by">Sort accounts</label>
+            <select
+              id="user-sort-by"
+              value={sortBy}
+              onChange={(e) => { setLoading(true); setPage(1); setSortBy(e.target.value); }}
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              <option value="newest">Sort: Default</option>
+              <option value="name">Sort: Name (A–Z)</option>
+              <option value="submissions">Sort: Most Submissions</option>
+            </select>
+          </div>
         </div>
       </div>
 
       {/* Users Table */}
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-        <header className="admin-directory-heading"><div><h2>User directory</h2><p>{loading ? 'Loading accounts…' : `${pagination.total} matching account${pagination.total === 1 ? '' : 's'}`}</p></div>{(search || roleFilter || statusFilter) && <button type="button" className="admin-text-link" onClick={() => { setSearch(''); setRoleFilter(''); setStatusFilter(''); setPage(1); }}>Clear filters</button>}</header>
+        <header className="admin-directory-heading"><div><h2>User directory</h2><p>{loading ? 'Loading accounts…' : `${pagination.total} matching account${pagination.total === 1 ? '' : 's'}`}</p></div>{(search || roleFilter || statusFilter || sortBy !== 'newest') && <button type="button" className="admin-text-link" onClick={() => { setSearch(''); setRoleFilter(''); setStatusFilter(''); setSortBy('newest'); setPage(1); }}>Clear filters</button>}</header>
         {error ? <div className="admin-directory-error"><AdminNotice tone="error" action={<button className="admin-button admin-button-secondary" onClick={() => fetchUsers()}>Try again</button>}>{error}</AdminNotice></div> : loading ? (
           <LoadingSpinner text="Retrieving user directory..." />
         ) : (
           <>
           <div className="admin-user-mobile-list">
             {!users.length && <p className="p-6 text-sm text-slate-500">No accounts match these filters. Try a different name, role, or status.</p>}
-            {users.map((u) => <article key={u.id}><header><div><h3>{u.first_name} {u.last_name}</h3><p>{u.email}</p></div><span className={`admin-tag ${u.status === 'active' ? 'admin-tag-ready' : 'admin-tag-pending'}`}>{u.status}</span></header><dl><div><dt>Role</dt><dd>{u.role === 'respondent' ? 'Student' : u.role === 'assessor' ? 'Teacher / Assessor' : 'Administrator'}</dd></div><div><dt>Research submissions</dt><dd>{u.completed_assessments || 0}</dd></div><div><dt>Research profile</dt><dd>{u.role === 'respondent' ? u.municipality || 'Profile pending' : 'Not applicable'}</dd></div>{u.role === 'respondent' && u.municipality && <div><dt>Demographics</dt><dd>{u.sex || 'Unspecified'}{u.age ? ` · ${u.age} y/o` : ''}{u.shs_strand ? ` · ${u.shs_strand}` : ''}</dd></div>}</dl><footer><button type="button" className="admin-button admin-button-secondary" onClick={() => openEditUser(u)} aria-label={`Edit ${u.first_name} ${u.last_name}`}><Edit2 size={16} aria-hidden="true" />Edit account</button>{u.status === 'active' && <button type="button" className="admin-button admin-button-secondary admin-deactivate" disabled={u.id === currentUser?.id} onClick={() => setDeactivateTarget(u)} aria-label={`Deactivate ${u.first_name} ${u.last_name}`}><Trash2 size={16} aria-hidden="true" />Deactivate</button>}</footer></article>)}
+            {users.map((u) => <article key={u.id}><header><div><h3>{u.first_name} {u.last_name}</h3><p>{u.email}</p></div><span className={`admin-tag ${u.status === 'active' ? 'admin-tag-ready' : 'admin-tag-pending'}`}>{u.status}</span></header><dl><div><dt>Role</dt><dd><span className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${getRoleBadgeClass(u.role)}`}>{getRoleLabel(u.role)}</span></dd></div><div><dt>Research submissions</dt><dd>{u.completed_assessments || 0}</dd></div><div><dt>Research profile</dt><dd>{u.role === 'respondent' ? u.municipality || 'Profile pending' : 'Not applicable'}</dd></div>{u.role === 'respondent' && u.municipality && <div><dt>Demographics</dt><dd>{u.sex || 'Unspecified'}{u.age ? ` · ${u.age} y/o` : ''}{u.shs_strand ? ` · ${u.shs_strand}` : ''}</dd></div>}</dl><footer><button type="button" className="admin-button admin-button-secondary" onClick={() => openEditUser(u)} aria-label={`Edit ${u.first_name} ${u.last_name}`}><Edit2 size={16} aria-hidden="true" />Edit account</button>{u.status === 'active' && <button type="button" className="admin-button admin-button-secondary admin-deactivate" disabled={u.id === currentUser?.id} onClick={() => setDeactivateTarget(u)} aria-label={`Deactivate ${u.first_name} ${u.last_name}`}><Trash2 size={16} aria-hidden="true" />Deactivate</button>}</footer></article>)}
           </div>
           <div className="admin-user-table overflow-x-auto" tabIndex={0} role="region" aria-label="User directory table; scroll horizontally to see all columns">
             <table className="w-full text-left text-xs">
@@ -381,15 +407,9 @@ export const UsersManagement = () => {
 
                     <td className="py-3.5 px-4">
                       <span
-                        className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
-                          u.role === 'admin'
-                            ? 'bg-purple-100 text-purple-800'
-                            : u.role === 'assessor'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-green-100 text-green-800'
-                        }`}
+                        className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${getRoleBadgeClass(u.role)}`}
                       >
-                        {u.role === 'assessor' ? 'Teacher / Assessor' : u.role === 'respondent' ? 'Student' : 'Administrator'}
+                        {getRoleLabel(u.role)}
                       </span>
                     </td>
 

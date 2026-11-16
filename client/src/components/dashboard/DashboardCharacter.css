@@ -31,6 +31,62 @@
   color: #1d4ed8;
 }
 
+.character-motion-picker { min-width: 0; }
+.character-motion-picker legend { margin-bottom: 8px; color: #1e293b; font-size: 12px; font-weight: 650; }
+.character-motion-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.character-motion-option {
+  display: flex;
+  min-width: 0;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 1px solid #d5e0ee;
+  border-radius: 10px;
+  background: #fff;
+  color: #1e293b;
+  text-align: left;
+  transition: border-color .15s ease, background-color .15s ease;
+}
+.character-motion-option > div { min-width: 0; display: grid; gap: 2px; }
+.character-motion-option strong { font-size: 12.5px; font-weight: 650; line-height: 1.25; }
+.character-motion-option small { font-size: 11px; color: #64748b; line-height: 1.25; }
+.character-motion-option:hover { border-color: #60a5fa; }
+.character-motion-option[aria-pressed="true"] {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: inset 0 0 0 1px #2563eb;
+  color: #1d4ed8;
+}
+.character-motion-option[aria-pressed="true"] small { color: #1e40af; }
+.character-motion-option:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+
+.character-speed-picker { min-width: 0; }
+.character-speed-picker legend { margin-bottom: 8px; color: #334155; font-size: 12px; font-weight: 650; }
+.character-speed-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: #f1f5f9;
+}
+.character-speed-options button {
+  min-height: 36px;
+  padding: 6px 8px;
+  border-radius: 7px;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 650;
+}
+.character-speed-options button[aria-pressed="true"] {
+  background: #fff;
+  color: #1d4ed8;
+  box-shadow: 0 1px 3px #1e3a8a1a;
+}
+.character-speed-options button:disabled { opacity: .45; cursor: not-allowed; }
+
 .character-scene {
   position: relative;
   width: 100%;
@@ -61,15 +117,36 @@
 }
 
 .character-motion {
+  --motion-scale: 1;
   transform-origin: 50% 90%;
 }
 
+.character-motion[data-speed="calm"] { --motion-scale: 1.45; }
+.character-motion[data-speed="normal"] { --motion-scale: 1; }
+.character-motion[data-speed="lively"] { --motion-scale: 0.72; }
+
 .character-motion[data-animation="float"] {
-  animation: character-float 5.2s ease-in-out infinite;
+  animation: character-float calc(5.2s * var(--motion-scale)) ease-in-out infinite;
 }
 
 .character-motion[data-animation="breathe"] {
-  animation: character-breathe 4s ease-in-out infinite;
+  animation: character-breathe calc(4.2s * var(--motion-scale)) ease-in-out infinite;
+}
+
+.character-motion[data-animation="typing"] {
+  animation: character-typing-posture calc(3.6s * var(--motion-scale)) ease-in-out infinite;
+}
+
+.character-motion[data-animation="bounce"] {
+  animation: character-bounce calc(2.6s * var(--motion-scale)) cubic-bezier(0.35, 0.05, 0.45, 0.95) infinite;
+}
+
+.character-motion[data-animation="sway"] {
+  animation: character-sway calc(3.4s * var(--motion-scale)) ease-in-out infinite;
+}
+
+.character-motion[data-animation="wave"] {
+  animation: character-wave-body calc(3.8s * var(--motion-scale)) ease-in-out infinite;
 }
 
 .character-art .character-head { transform-origin: 202px 177px; }
@@ -77,13 +154,36 @@
 .character-art .character-hand-left { transform-origin: 141px 238px; }
 .character-art .character-hand-right { transform-origin: 266px 241px; }
 .character-art .character-leaves { transform-origin: 73px 246px; }
+.character-art .character-steam { transform-origin: 423px 214px; }
 
-.character-motion:not([data-animation="none"]) .character-head { animation: character-nod 7s ease-in-out infinite; }
-.character-motion:not([data-animation="none"]) .character-eyes { animation: character-blink 6.4s linear infinite; }
-.character-motion:not([data-animation="none"]) .character-hand-left { animation: character-type-left 4.2s ease-in-out infinite; }
-.character-motion:not([data-animation="none"]) .character-hand-right { animation: character-type-right 4.2s .18s ease-in-out infinite; }
-.character-motion:not([data-animation="none"]) .character-leaves { animation: character-leaf-sway 5.5s ease-in-out infinite; }
-.character-motion:not([data-animation="none"]) .character-laptop-light { animation: character-screen-light 4s ease-in-out infinite; }
+.character-motion:not([data-animation="none"]) .character-eyes { animation: character-blink calc(6.4s * var(--motion-scale)) linear infinite; }
+.character-motion:not([data-animation="none"]) .character-leaves { animation: character-leaf-sway calc(5.5s * var(--motion-scale)) ease-in-out infinite; }
+.character-motion:not([data-animation="none"]) .character-laptop-light { animation: character-screen-light calc(4s * var(--motion-scale)) ease-in-out infinite; }
+.character-motion:not([data-animation="none"]) .character-steam { animation: character-steam calc(3.2s * var(--motion-scale)) ease-in-out infinite; }
+
+.character-motion[data-animation="float"] .character-head,
+.character-motion[data-animation="breathe"] .character-head { animation: character-nod calc(7s * var(--motion-scale)) ease-in-out infinite; }
+.character-motion[data-animation="float"] .character-hand-left,
+.character-motion[data-animation="breathe"] .character-hand-left { animation: character-type-left calc(4.2s * var(--motion-scale)) ease-in-out infinite; }
+.character-motion[data-animation="float"] .character-hand-right,
+.character-motion[data-animation="breathe"] .character-hand-right { animation: character-type-right calc(4.2s * var(--motion-scale)) calc(.18s * var(--motion-scale)) ease-in-out infinite; }
+
+.character-motion[data-animation="typing"] .character-head { animation: character-nod-focus calc(4.2s * var(--motion-scale)) ease-in-out infinite; }
+.character-motion[data-animation="typing"] .character-hand-left { animation: character-type-fast-left calc(1.3s * var(--motion-scale)) ease-in-out infinite; }
+.character-motion[data-animation="typing"] .character-hand-right { animation: character-type-fast-right calc(1.3s * var(--motion-scale)) calc(.22s * var(--motion-scale)) ease-in-out infinite; }
+.character-motion[data-animation="typing"] .character-laptop-light { animation: character-screen-pulse calc(1.8s * var(--motion-scale)) ease-in-out infinite; }
+
+.character-motion[data-animation="bounce"] .character-head { animation: character-nod-bounce calc(2.6s * var(--motion-scale)) ease-in-out infinite; }
+.character-motion[data-animation="bounce"] .character-hand-left { animation: character-type-fast-left calc(2.6s * var(--motion-scale)) ease-in-out infinite; }
+.character-motion[data-animation="bounce"] .character-hand-right { animation: character-type-fast-right calc(2.6s * var(--motion-scale)) calc(.16s * var(--motion-scale)) ease-in-out infinite; }
+
+.character-motion[data-animation="sway"] .character-head { animation: character-nod-groove calc(1.7s * var(--motion-scale)) ease-in-out infinite; }
+.character-motion[data-animation="sway"] .character-hand-left { animation: character-type-left calc(3.4s * var(--motion-scale)) ease-in-out infinite; }
+.character-motion[data-animation="sway"] .character-hand-right { animation: character-type-right calc(3.4s * var(--motion-scale)) calc(.2s * var(--motion-scale)) ease-in-out infinite; }
+
+.character-motion[data-animation="wave"] .character-head { animation: character-nod-warm calc(3.8s * var(--motion-scale)) ease-in-out infinite; }
+.character-motion[data-animation="wave"] .character-hand-left { animation: character-type-left calc(3.8s * var(--motion-scale)) ease-in-out infinite; }
+.character-motion[data-animation="wave"] .character-hand-right { animation: character-hand-wave calc(3.8s * var(--motion-scale)) ease-in-out infinite; }
 
 .character-scene[data-paused="true"] .character-motion,
 .character-scene[data-paused="true"] .character-art * { animation-play-state: paused; }
@@ -358,6 +458,76 @@
   50% { opacity: 1; }
 }
 
+@keyframes character-screen-pulse {
+  0%, 100% { opacity: .5; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.25); }
+}
+
+@keyframes character-typing-posture {
+  0%, 100% { transform: translateY(0) rotate(0); }
+  50% { transform: translateY(1px) rotate(.6deg); }
+}
+
+@keyframes character-bounce {
+  0%, 100% { transform: translateY(0) scaleY(1); }
+  25% { transform: translateY(-6px) scaleY(1.015); }
+  55% { transform: translateY(1px) scaleX(1.018) scaleY(.985); }
+  75% { transform: translateY(-3px) scaleY(1.008); }
+}
+
+@keyframes character-sway {
+  0%, 100% { transform: translateX(-2px) rotate(-1.6deg); }
+  50% { transform: translateX(2px) rotate(1.6deg); }
+}
+
+@keyframes character-wave-body {
+  0%, 100% { transform: translateY(0); }
+  35%, 55% { transform: translateY(-3px); }
+}
+
+@keyframes character-nod-focus {
+  0%, 100% { transform: rotate(0); }
+  30%, 70% { transform: rotate(2deg); }
+}
+
+@keyframes character-nod-bounce {
+  0%, 100% { transform: rotate(-1deg); }
+  45% { transform: rotate(2.2deg); }
+}
+
+@keyframes character-nod-groove {
+  0%, 100% { transform: rotate(-2.4deg) translateY(0); }
+  50% { transform: rotate(2.4deg) translateY(-1px); }
+}
+
+@keyframes character-nod-warm {
+  0%, 100% { transform: rotate(0); }
+  25%, 60% { transform: rotate(-2.5deg); }
+}
+
+@keyframes character-type-fast-left {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-2.8deg); }
+  65% { transform: rotate(.8deg); }
+}
+
+@keyframes character-type-fast-right {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(3deg); }
+  65% { transform: rotate(-.8deg); }
+}
+
+@keyframes character-hand-wave {
+  0%, 14%, 82%, 100% { transform: rotate(0); }
+  28%, 50%, 70% { transform: rotate(-11deg); }
+  39%, 60% { transform: rotate(-5deg); }
+}
+
+@keyframes character-steam {
+  0%, 100% { opacity: .45; transform: translateY(0) scaleY(1); }
+  50% { opacity: .85; transform: translateY(-3px) scaleY(1.08); }
+}
+
 @media (max-width: 799px) {
   .character-editor-layout { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .character-preview-frame { height: 175px; }
@@ -403,6 +573,10 @@
 @media (max-width: 639px) and (max-height: 650px) {
   .character-preview-frame { height: 104px; }
   .character-reset { min-height: 32px; }
+}
+
+@media (max-width: 399px) {
+  .character-motion-options { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {

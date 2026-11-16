@@ -6,6 +6,7 @@ import { DemoModeProvider } from './contexts/DemoModeContext';
 import { useAuth } from './contexts/useAuth';
 import Layout from './components/layout/Layout';
 import LoadingSpinner from './components/common/LoadingSpinner';
+import RouteErrorBoundary from './components/common/RouteErrorBoundary';
 // Recovery must not depend on fetching a page chunk after navigation.
 import AccountActionPage from './pages/auth/AccountActionPage';
 
@@ -81,9 +82,25 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <DemoModeProvider>
-          <Toaster position="top-right" toastOptions={{ duration: 3500 }} />
-          <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50"><LoadingSpinner text="Loading page..." /></div>}>
-          <Routes>
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              duration: 3500,
+              style: {
+                borderRadius: '14px',
+                border: '1px solid #e2e8f0',
+                background: '#ffffff',
+                color: '#17243a',
+                fontSize: '13px',
+                fontWeight: '600',
+                padding: '12px 14px',
+                boxShadow: '0 12px 30px -10px rgba(15, 23, 42, 0.16)',
+              },
+            }}
+          />
+          <RouteErrorBoundary>
+            <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50"><LoadingSpinner text="Loading page..." /></div>}>
+            <Routes>
           {/* Public Auth Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
@@ -229,8 +246,9 @@ function App() {
 
           {/* Catch-all fallback */}
           <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-          </Suspense>
+            </Routes>
+            </Suspense>
+          </RouteErrorBoundary>
         </DemoModeProvider>
       </BrowserRouter>
     </AuthProvider>

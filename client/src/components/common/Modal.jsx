@@ -47,7 +47,7 @@ export const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = 'ma
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+        className="fixed inset-0 bg-slate-950/55 backdrop-blur-xs transition-opacity"
         aria-hidden="true"
         onClick={onClose}
       />
@@ -60,7 +60,7 @@ export const Modal = ({ isOpen, onClose, title, children, footer, maxWidth = 'ma
           aria-modal="true"
           aria-labelledby="dialog-title"
           tabIndex={-1}
-          className={`relative w-full ${maxWidth} transform rounded-2xl bg-white p-6 text-left shadow-2xl transition-all border border-slate-100`}
+          className={`dlas-modal-panel relative w-full ${maxWidth} transform rounded-2xl border border-slate-200/80 bg-white p-6 text-left shadow-2xl transition-all`}
         >
           {/* Header */}
           <div className="modal-header flex shrink-0 items-center justify-between gap-3 pb-4 border-b border-slate-100">

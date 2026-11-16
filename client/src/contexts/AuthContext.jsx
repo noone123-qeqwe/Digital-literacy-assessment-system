@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    api.get('/auth/me')
+    api.get('/auth/me', { suppressSessionRedirect: true, suppressErrorToast: true })
       .then(async (res) => {
         if (res.data.success) {
           setUser(res.data.data);
@@ -47,7 +47,12 @@ export const AuthProvider = ({ children }) => {
       .finally(() => setLoading(false));
   }, [refreshProfilePicture]);
 
-  const login = async (email, password) => {
+  const authErrorMessage = (err, fallback) => {
+    if (!err?.response) return 'We could not connect. Check your internet connection and try again.';
+    return err.response?.data?.message || fallback;
+  };
+
+  const login = async (email, password, options = {}) => {
     try {
       const res = await api.post('/auth/login', { email, password });
       if (res.data.success) {
@@ -61,8 +66,10 @@ export const AuthProvider = ({ children }) => {
         return { success: true, user: currentUser };
       }
     } catch (err) {
-      const msg = err.response?.data?.message || 'Login failed. Please check your credentials.';
-      if (!err.response?.data?.mfaRequired && !err.response?.data?.mfaSetupRequired) toast.error(msg);
+      const msg = authErrorMessage(err, 'Login failed. Please check your credentials.');
+      if (!options.silentErrorToast && !err.response?.data?.mfaRequired && !err.response?.data?.mfaSetupRequired) {
+        toast.error(msg);
+      }
       return { success: false, message: msg, verificationRequired: Boolean(err.response?.data?.verificationRequired) };
     }
   };
@@ -144,45 +151,54 @@ export const AuthProvider = ({ children }) => {
     return null;
   }, []);
 
-  const completeMfaLogin = async (challenge_id, code) => {
+  const completeMfaLogin = async (challenge_id, code, options = {}) => {
     try {
       const res = await api.post('/auth/mfa/verify', { challenge_id, code });
       const currentUser = (await refreshUser()) || res.data.data.user;
       setUser(currentUser);
       await refreshProfilePicture();
       toast.success(`Welcome back, ${currentUser.first_name}!`);
-      return { success: true, user: currentUser, verifiedMethod: res.data.data.verifiedMethod };
+      const { verifiedMethod, remainingBackupCodes } = res.data.data || {};
+      if (verifiedMethod === 'backup_code' && Number.isInteger(remainingBackupCodes) && remainingBackupCodes <= 2) {
+        toast(
+          remainingBackupCodes === 0
+            ? 'You used your last backup scratch code. Generate new codes in Security settings.'
+            : `Only ${remainingBackupCodes} backup scratch code${remainingBackupCodes === 1 ? '' : 's'} left. Regenerate codes in Security settings.`,
+          { duration: 6000 }
+        );
+      }
+      return { success: true, user: currentUser, verifiedMethod };
     } catch (err) {
-      const msg = err.response?.data?.message || 'Unable to verify the code.';
-      toast.error(msg);
+      const msg = authErrorMessage(err, 'Unable to verify the code.');
+      if (!options.silentErrorToast) toast.error(msg);
       return { success: false, message: msg };
     }
   };
 
-  const resendMfaOtp = async (challenge_id) => {
+  const resendMfaOtp = async (challenge_id, options = {}) => {
     try {
       const res = await api.post('/auth/mfa/resend-otp', { challenge_id });
       toast.success(res.data.message || 'Verification code resent.');
       return { success: true, message: res.data.message };
     } catch (err) {
-      const msg = err.response?.data?.message || 'Unable to resend verification code.';
-      toast.error(msg);
+      const msg = authErrorMessage(err, 'Unable to resend verification code.');
+      if (!options.silentErrorToast) toast.error(msg);
       return { success: false, message: msg };
     }
   };
 
-  const beginMfaSetup = async (setup_token) => {
+  const beginMfaSetup = async (setup_token, options = {}) => {
     try {
       const res = await api.post('/auth/mfa/setup', { setup_token });
       return { success: true, ...res.data.data };
     } catch (err) {
-      const msg = err.response?.data?.message || 'Unable to start multi-factor setup.';
-      toast.error(msg);
+      const msg = authErrorMessage(err, 'Unable to start multi-factor setup.');
+      if (!options.silentErrorToast) toast.error(msg);
       return { success: false, message: msg };
     }
   };
 
-  const completeMfaSetup = async (setup_token, code) => {
+  const completeMfaSetup = async (setup_token, code, options = {}) => {
     try {
       const res = await api.post('/auth/mfa/setup/confirm', { setup_token, code });
       const currentUser = res.data.data.user;
@@ -191,8 +207,8 @@ export const AuthProvider = ({ children }) => {
       toast.success('Multi-factor authentication is enabled.');
       return { success: true, user: currentUser };
     } catch (err) {
-      const msg = err.response?.data?.message || 'Unable to confirm the authenticator code.';
-      toast.error(msg);
+      const msg = authErrorMessage(err, 'Unable to confirm the authenticator code.');
+      if (!options.silentErrorToast) toast.error(msg);
       return { success: false, message: msg };
     }
   };

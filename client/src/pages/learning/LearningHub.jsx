@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../../api/axios';
 import { useAuth } from '../../contexts/useAuth';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import Modal from '../../components/common/Modal';
 import PageHeader from '../../components/common/PageHeader';
 
 const emptyForm = { competence_area_id: '', title: '', description: '', resource_url: '', estimated_minutes: 15, is_published: false };
@@ -23,29 +24,35 @@ export default function LearningHub() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState(null);
+  const [selectedArea, setSelectedArea] = useState('AUTO');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const applyHubResponses = useCallback((moduleResponse, areaResponse, attemptResponse) => {
+    setModules(moduleResponse.data?.data || []);
+    setAreas(areaResponse.data?.data || []);
+    const completed = (attemptResponse.data?.data || []).filter((attempt) => attempt.status === 'completed')
+      .sort((first, second) => String(second.completed_at || '').localeCompare(String(first.completed_at || '')));
+    setAttempts(completed);
+    if (!isAdmin) {
+      setHistoryResults(completed.slice(0, 8).map((attempt) => attempt.learning_summary).filter(Boolean));
+    }
+  }, [isAdmin]);
 
   const loadData = useCallback(async () => {
     try {
       const [moduleResponse, areaResponse, attemptResponse] = await Promise.all([
         api.get('/learning/modules'),
         isAdmin ? api.get('/learning/areas') : Promise.resolve({ data: { data: [] } }),
-        isAdmin ? Promise.resolve({ data: { data: [] } }) : api.get('/attempts/my'),
+        isAdmin ? Promise.resolve({ data: { data: [] } }) : api.get('/attempts/my?include=learning_summary'),
       ]);
-      setModules(moduleResponse.data?.data || []);
-      setAreas(areaResponse.data?.data || []);
-      const completed = (attemptResponse.data?.data || []).filter((attempt) => attempt.status === 'completed')
-        .sort((first, second) => String(second.completed_at || '').localeCompare(String(first.completed_at || '')));
-      setAttempts(completed);
-      if (!isAdmin) {
-        const results = await Promise.allSettled(completed.slice(0, 8).map((attempt) => api.get(`/attempts/${attempt.id}/results`)));
-        setHistoryResults(results.flatMap((result) => result.status === 'fulfilled' ? [result.value.data.data] : []));
-      }
+      applyHubResponses(moduleResponse, areaResponse, attemptResponse);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Could not load your learning resources.');
     } finally {
       setLoading(false);
     }
-  }, [isAdmin]);
+  }, [applyHubResponses, isAdmin]);
 
   useEffect(() => {
     let active = true;
@@ -54,19 +61,10 @@ export default function LearningHub() {
         const [moduleResponse, areaResponse, attemptResponse] = await Promise.all([
           api.get('/learning/modules'),
           isAdmin ? api.get('/learning/areas') : Promise.resolve({ data: { data: [] } }),
-          isAdmin ? Promise.resolve({ data: { data: [] } }) : api.get('/attempts/my'),
+          isAdmin ? Promise.resolve({ data: { data: [] } }) : api.get('/attempts/my?include=learning_summary'),
         ]);
         if (!active) return;
-        setModules(moduleResponse.data?.data || []);
-        setAreas(areaResponse.data?.data || []);
-        const completed = (attemptResponse.data?.data || []).filter((attempt) => attempt.status === 'completed')
-          .sort((first, second) => String(second.completed_at || '').localeCompare(String(first.completed_at || '')));
-        setAttempts(completed);
-        if (!isAdmin) {
-          const results = await Promise.allSettled(completed.slice(0, 8).map((attempt) => api.get(`/attempts/${attempt.id}/results`)));
-          if (!active) return;
-          setHistoryResults(results.flatMap((result) => result.status === 'fulfilled' ? [result.value.data.data] : []));
-        }
+        applyHubResponses(moduleResponse, areaResponse, attemptResponse);
       } catch (error) {
         if (active) toast.error(error.response?.data?.message || 'Could not load your learning resources.');
       } finally {
@@ -75,11 +73,29 @@ export default function LearningHub() {
     };
     void loadInitialData();
     return () => { active = false; };
-  }, [isAdmin]);
+  }, [applyHubResponses, isAdmin]);
 
   const latestResult = historyResults[0];
+  const scoreScaleMax = latestResult?.attempt?.scoring_version === 'digcompsat-self-reflection-0-3.1' ? 3 : 4;
   const weakestArea = useMemo(() => [...(latestResult?.areaResults || [])].sort((first, second) => Number(first.weighted_mean) - Number(second.weighted_mean))[0], [latestResult]);
-  const recommendedModules = modules.filter((module) => !weakestArea || module.area_code === weakestArea.area_code);
+  const availableAreas = useMemo(() => {
+    const byCode = new Map();
+    for (const module of modules) {
+      if (!byCode.has(module.area_code)) {
+        byCode.set(module.area_code, { code: module.area_code, name: module.area_name, count: 0 });
+      }
+      byCode.get(module.area_code).count += 1;
+    }
+    return [...byCode.values()];
+  }, [modules]);
+  const weakestHasModules = Boolean(weakestArea && modules.some((module) => module.area_code === weakestArea.area_code));
+  const activeArea = selectedArea === 'AUTO'
+    ? (weakestHasModules ? weakestArea.area_code : 'ALL')
+    : (selectedArea === 'ALL' || availableAreas.some((area) => area.code === selectedArea) ? selectedArea : 'ALL');
+  const recommendedModules = activeArea === 'ALL'
+    ? modules
+    : modules.filter((module) => module.area_code === activeArea);
+  const activeAreaName = availableAreas.find((area) => area.code === activeArea)?.name;
   const previousComparable = latestResult && historyResults.slice(1).find((result) => (
     result.attempt?.scoring_version === latestResult.attempt?.scoring_version
     && instrumentFingerprint(result) === instrumentFingerprint(latestResult)
@@ -120,10 +136,19 @@ export default function LearningHub() {
     } catch (error) { toast.error(error.response?.data?.message || 'Could not update the resource.'); }
   };
 
-  const deleteModule = async (module) => {
-    if (!window.confirm(`Delete “${module.title}”? Student completion records for this resource will also be removed.`)) return;
-    try { await api.delete(`/learning/modules/${module.id}`); await loadData(); toast.success('Resource deleted.'); }
-    catch (error) { toast.error(error.response?.data?.message || 'Could not delete the resource.'); }
+  const confirmDeleteModule = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/learning/modules/${deleteTarget.id}`);
+      await loadData();
+      toast.success('Resource deleted.');
+      setDeleteTarget(null);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Could not delete the resource.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const toggleCompleted = async (module) => {
@@ -151,18 +176,59 @@ export default function LearningHub() {
       </form>
       <div className="space-y-3">
         {modules.length ? modules.map((module) => <article key={module.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-bold text-green-800">{module.area_name}</span><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${module.is_published ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{module.is_published ? 'Published' : 'Draft'}</span></div><h3 className="mt-2 font-bold text-slate-900">{module.title}</h3><p className="mt-1 text-sm leading-5 text-slate-600">{module.description}</p><a href={module.resource_url} target="_blank" rel="noreferrer" className="mt-2 inline-block break-all text-xs font-semibold text-green-800 underline">{module.resource_url}</a></div><div className="flex shrink-0 gap-2"><button type="button" onClick={() => editModule(module)} className="min-h-10 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Edit</button><button type="button" onClick={() => togglePublished(module)} className="min-h-10 rounded-lg border border-green-200 px-3 text-xs font-semibold text-green-800 hover:bg-green-50">{module.is_published ? 'Unpublish' : 'Publish'}</button><button type="button" onClick={() => deleteModule(module)} aria-label={`Delete ${module.title}`} className="flex min-h-10 w-10 items-center justify-center rounded-lg border border-rose-100 text-rose-700 hover:bg-rose-50"><Trash2 aria-hidden="true" className="h-4 w-4" /></button></div></div>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-green-50 px-2.5 py-1 text-[10px] font-bold text-green-800">{module.area_name}</span><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${module.is_published ? 'bg-emerald-50 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}>{module.is_published ? 'Published' : 'Draft'}</span></div><h3 className="mt-2 font-bold text-slate-900">{module.title}</h3><p className="mt-1 text-sm leading-5 text-slate-600">{module.description}</p><a href={module.resource_url} target="_blank" rel="noreferrer" className="mt-2 inline-block break-all text-xs font-semibold text-green-800 underline">{module.resource_url}</a></div><div className="flex shrink-0 gap-2"><button type="button" onClick={() => editModule(module)} className="min-h-10 rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50">Edit</button><button type="button" onClick={() => togglePublished(module)} className="min-h-10 rounded-lg border border-green-200 px-3 text-xs font-semibold text-green-800 hover:bg-green-50">{module.is_published ? 'Unpublish' : 'Publish'}</button><button type="button" onClick={() => setDeleteTarget(module)} aria-label={`Delete ${module.title}`} className="flex min-h-10 w-10 items-center justify-center rounded-lg border border-rose-100 text-rose-700 hover:bg-rose-50"><Trash2 aria-hidden="true" className="h-4 w-4" /></button></div></div>
         </article>) : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">No learning resources yet. Add approved links for the five DigComp areas.</div>}
       </div>
     </section> : <>
       {latestResult && <section className="rounded-2xl border border-green-100 bg-gradient-to-br from-green-50/70 to-white p-5 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-wide text-green-800">Recommended focus</p><h2 className="mt-1 text-xl font-bold text-slate-900">{weakestArea?.area_name || 'Keep building your digital skills'}</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">{weakestArea ? `Your latest score in this area is ${Number(weakestArea.weighted_mean).toFixed(2)} / 4. Explore an approved resource below and track it when complete.` : 'Complete another assessment to receive a focus recommendation.'}</p></div><span className="rounded-xl border border-green-100 bg-white px-3 py-2 text-xs font-semibold text-green-800">Latest result · {latestResult.attempt?.assessment_title}</span></div>
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-wide text-green-800">Recommended focus</p><h2 className="mt-1 text-xl font-bold text-slate-900">{weakestArea?.area_name || 'Keep building your digital skills'}</h2><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">{weakestArea ? `Your latest score in this area is ${Number(weakestArea.weighted_mean).toFixed(2)} / ${scoreScaleMax}. ${weakestHasModules ? 'Explore an approved resource below and track it when complete.' : modules.length > 0 ? 'No resources are published for this area yet — browse resources from other areas below.' : 'Check back when approved resources are published.'}` : 'Complete another assessment to receive a focus recommendation.'}</p></div><span className="rounded-xl border border-green-100 bg-white px-3 py-2 text-xs font-semibold text-green-800">Latest result · {latestResult.attempt?.assessment_title}</span></div>
         {changes.length > 0 && <div className="mt-5 border-t border-green-100 pt-4"><p className="mb-3 text-xs font-bold text-slate-700">Progress since your previous matching assessment</p><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-5">{changes.map((area) => { const improving = area.change > 0.005; const falling = area.change < -0.005; const Icon = improving ? ArrowUpRight : falling ? ArrowDownRight : Circle; return <div key={area.area_code} className="rounded-xl border border-white bg-white/90 p-3"><p className="text-[11px] font-semibold text-slate-500">{area.area_name}</p><div className="mt-1 flex items-center gap-1.5"><Icon aria-hidden="true" className={`h-4 w-4 ${improving ? 'text-emerald-700' : falling ? 'text-amber-700' : 'text-slate-400'}`} /><span className="text-sm font-bold text-slate-900">{Number(area.weighted_mean).toFixed(2)}</span><span className="text-xs text-slate-500">{area.change > 0 ? '+' : ''}{area.change.toFixed(2)}</span></div></div>; })}</div></div>}
         {!previousComparable && attempts.length > 1 && <p className="mt-4 border-t border-green-100 pt-3 text-xs leading-5 text-slate-500">A score comparison appears when two completed assessments use the same question wording and scoring version.</p>}
       </section>}
 
       <section className="space-y-3">
-        <div className="flex items-end justify-between gap-3"><div><p className="text-[11px] font-bold uppercase tracking-wide text-green-800">Approved resources</p><h2 className="text-lg font-bold text-slate-900">{weakestArea ? `Start with ${weakestArea.area_name}` : 'Build your digital skills'}</h2></div><span className="text-xs text-slate-500">{modules.filter((module) => module.completed).length} of {modules.length} completed</span></div>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wide text-green-800">Approved resources</p>
+            <h2 className="text-lg font-bold text-slate-900">{activeArea !== 'ALL' && activeAreaName ? activeAreaName : 'All competence areas'}</h2>
+          </div>
+          <span className="text-xs text-slate-500">
+            {recommendedModules.filter((module) => module.completed).length} of {recommendedModules.length} completed
+            {activeArea !== 'ALL' && modules.length !== recommendedModules.length ? ` (${modules.filter((module) => module.completed).length}/${modules.length} total)` : ''}
+          </span>
+        </div>
+        {availableAreas.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter learning resources by competence area">
+            <button
+              type="button"
+              onClick={() => setSelectedArea('ALL')}
+              aria-pressed={activeArea === 'ALL'}
+              className={`min-h-9 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${activeArea === 'ALL' ? 'border-green-700 bg-green-700 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+            >
+              All areas ({modules.length})
+            </button>
+            {availableAreas.map((area) => {
+              const isSelected = activeArea === area.code;
+              const isFocus = weakestArea?.area_code === area.code;
+              return (
+                <button
+                  key={area.code}
+                  type="button"
+                  onClick={() => setSelectedArea(area.code)}
+                  aria-pressed={isSelected}
+                  className={`inline-flex min-h-9 items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition ${isSelected ? 'border-green-700 bg-green-700 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                >
+                  <span>{area.name} ({area.count})</span>
+                  {isFocus && (
+                    <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${isSelected ? 'bg-white/20 text-white' : 'bg-green-50 text-green-800'}`}>
+                      Focus
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {recommendedModules.length ? recommendedModules.map((module) => <article key={module.id} className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:p-5">
           <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${module.completed ? 'bg-emerald-50 text-emerald-700' : 'bg-green-50 text-green-800'}`}>{module.completed ? <CheckCircle2 aria-hidden="true" className="h-5 w-5" /> : <BookOpen aria-hidden="true" className="h-5 w-5" />}</span>
           <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">{module.area_name}</span><span className="inline-flex items-center gap-1 text-[11px] text-slate-500"><Clock3 aria-hidden="true" className="h-3 w-3" />{module.estimated_minutes} min</span></div><h3 className="mt-1.5 font-bold text-slate-900">{module.title}</h3><p className="mt-1 text-sm leading-5 text-slate-600">{module.description}</p><p className="mt-1 text-[11px] text-slate-500">{module.completed ? `Completed ${new Date(module.completed_at).toLocaleDateString()}` : 'Open the resource, then mark it complete when you finish.'}</p></div>
@@ -170,5 +236,35 @@ export default function LearningHub() {
         </article>) : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center"><BookOpen aria-hidden="true" className="mx-auto h-7 w-7 text-slate-300" /><p className="mt-2 text-sm font-semibold text-slate-700">No published resources yet</p><p className="mt-1 text-xs text-slate-500">Your College will add approved learning materials here.</p></div>}
       </section>
     </>}
+    <Modal
+      isOpen={Boolean(deleteTarget)}
+      onClose={() => !deleting && setDeleteTarget(null)}
+      title="Delete learning resource"
+      maxWidth="max-w-md"
+    >
+      <div className="space-y-4">
+        <p className="text-sm leading-6 text-slate-600">
+          Delete <strong className="text-slate-900">“{deleteTarget?.title}”</strong>? Student completion records for this resource will also be removed.
+        </p>
+        <div className="flex justify-end gap-3 pt-2">
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={() => setDeleteTarget(null)}
+            className="min-h-10 rounded-xl border border-slate-200 px-4 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={confirmDeleteModule}
+            className="min-h-10 rounded-xl bg-rose-700 px-4 text-xs font-bold text-white hover:bg-rose-800 disabled:opacity-50"
+          >
+            {deleting ? 'Deleting…' : 'Delete resource'}
+          </button>
+        </div>
+      </div>
+    </Modal>
   </div>;
 }

@@ -59,9 +59,9 @@
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 4px;
     padding: 7px max(8px, env(safe-area-inset-right)) calc(7px + env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
-    border-top: 1px solid #dfe7e1;
+    border-top: 1px solid #dbe4f0;
     background: #fffffffa;
-    box-shadow: 0 -4px 20px #20372b0a;
+    box-shadow: 0 -4px 20px #14315c0d;
     backdrop-filter: blur(12px);
   }
 
@@ -74,14 +74,14 @@
     justify-content: center;
     gap: 4px;
     border-radius: 12px;
-    color: #647268;
+    color: #64748b;
     font-size: 11px;
     font-weight: 600;
   }
 
   .student-mobile-link.is-active {
-    color: #005a32;
-    background: #eaf5ee;
+    color: #1d4ed8;
+    background: #eff6ff;
   }
 
   .dlas-student-workspace .student-assessment-progress {

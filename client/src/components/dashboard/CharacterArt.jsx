@@ -359,7 +359,7 @@ export default function CharacterArt({ settings, ...props }) {
         {/* Desk Mug */}
         {showMug && <g className="character-mug">
           <ellipse cx="426" cy="249" rx="14" ry="2.6" fill={outline} fillOpacity=".1" stroke="none" />
-          <path d="M419 216Q422 210 419 205M427 215Q430 209 427 203" stroke="#ffffff" strokeOpacity=".6" strokeWidth="1.5" />
+          <path className="character-steam" d="M419 216Q422 210 419 205M427 215Q430 209 427 203" stroke="#ffffff" strokeOpacity=".6" strokeWidth="1.5" />
           <path d="M437 226H442C445 226 446 229 446 232C446 236 444 239 441 239H436" fill="none" strokeWidth="2.2" />
           <path d="M414 221H438L436 246Q426 249 416 246Z" fill={paint('paper')} />
           <ellipse cx="426" cy="221" rx="12" ry="3.2" fill={tint(accentColor, '#ffffff', .7)} />

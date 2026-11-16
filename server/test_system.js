@@ -3,8 +3,10 @@
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
+const http = require('node:http');
 const os = require('node:os');
 const path = require('node:path');
+const zlib = require('node:zlib');
 
 const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'dlas-integration-'));
 process.env.NODE_ENV = 'test';
@@ -211,6 +213,98 @@ async function run() {
     check(demographics.status === 200 && demographics.data.minimumReportGroupSize === 5 && demographics.data.data.bySex.length === 0, 'small demo cohort demographics are suppressed below the privacy threshold');
     check(matrix.status === 200 && matrix.data.data.length === 30, 'item matrix is populated from completed responses');
 
+    const gzipPayload = await new Promise((resolve, reject) => {
+      const targetUrl = new URL(`${baseUrl}/analytics/competence-matrix`);
+      const req = http.get({
+        hostname: targetUrl.hostname,
+        port: targetUrl.port,
+        path: `${targetUrl.pathname}${targetUrl.search}`,
+        headers: {
+          'Accept-Encoding': 'gzip',
+          Cookie: Object.entries(adminToken).map(([name, value]) => `${name}=${value}`).join('; '),
+        },
+      }, (response) => {
+        const chunks = [];
+        response.on('data', (chunk) => chunks.push(chunk));
+        response.on('end', () => resolve({
+          status: response.statusCode,
+          encoding: response.headers['content-encoding'],
+          body: Buffer.concat(chunks),
+        }));
+      });
+      req.on('error', reject);
+    });
+    const unzippedMatrix = gzipPayload.encoding === 'gzip'
+      ? JSON.parse(zlib.gunzipSync(gzipPayload.body).toString('utf8'))
+      : null;
+    check(
+      gzipPayload.status === 200 && gzipPayload.encoding === 'gzip' && unzippedMatrix?.data?.length === 30,
+      'large JSON responses use gzip compression when accepted'
+    );
+
+    const smallHealthRes = await request(baseUrl, '/health', { headers: { 'Accept-Encoding': 'gzip' } });
+    const headMatrixRes = await new Promise((resolve, reject) => {
+      const targetUrl = new URL(`${baseUrl}/analytics/competence-matrix`);
+      const req = http.request({
+        method: 'HEAD',
+        hostname: targetUrl.hostname,
+        port: targetUrl.port,
+        path: `${targetUrl.pathname}${targetUrl.search}`,
+        headers: {
+          'Accept-Encoding': 'gzip',
+          Cookie: Object.entries(adminToken).map(([name, value]) => `${name}=${value}`).join('; '),
+        },
+      }, (response) => {
+        response.resume();
+        response.on('end', () => resolve({ status: response.statusCode, encoding: response.headers['content-encoding'] }));
+      });
+      req.on('error', reject);
+      req.end();
+    });
+    check(
+      smallHealthRes.status === 200 && !smallHealthRes.headers.get('content-encoding')
+      && headMatrixRes.status === 200 && !headMatrixRes.encoding,
+      'compression middleware skips small responses and HEAD requests'
+    );
+
+    const { compressResponses } = require('./middleware/compress');
+    const streamMiddleware = compressResponses({ threshold: 32 });
+    const streamServer = http.createServer((req, res) => {
+      streamMiddleware(req, res, () => {
+        res.setHeader('Content-Type', 'application/json');
+        res.write('{"chunk1":"aaaaaaaaaaaaaaaaaaaa",');
+        res.write('"chunk2":"bbbbbbbbbbbbbbbbbbbb"}');
+        res.end();
+      });
+    });
+    await new Promise((resolve) => streamServer.listen(0, '127.0.0.1', resolve));
+    const streamPort = streamServer.address().port;
+    const streamed = await new Promise((resolve, reject) => {
+      const req = http.get({
+        hostname: '127.0.0.1',
+        port: streamPort,
+        path: '/',
+        headers: { 'Accept-Encoding': 'gzip' },
+      }, (response) => {
+        const chunks = [];
+        response.on('data', (chunk) => chunks.push(chunk));
+        response.on('end', () => resolve({
+          status: response.statusCode,
+          encoding: response.headers['content-encoding'],
+          body: Buffer.concat(chunks),
+        }));
+      });
+      req.on('error', reject);
+    });
+    await new Promise((resolve) => streamServer.close(resolve));
+    const parsedStreamed = streamed.encoding === 'gzip'
+      ? JSON.parse(zlib.gunzipSync(streamed.body).toString('utf8'))
+      : null;
+    check(
+      streamed.status === 200 && streamed.encoding === 'gzip' && parsedStreamed?.chunk2 === 'bbbbbbbbbbbbbbbbbbbb',
+      'streaming responses above threshold compress cleanly via gzip stream'
+    );
+
     const mariaLogin = await request(baseUrl, '/auth/login', {
       method: 'POST', body: { email: 'maria.santos@example.com', password: 'User@123' },
     });
@@ -221,6 +315,24 @@ async function run() {
     const sampleAttemptId = mariaAttempts.data?.data?.find((attempt) => attempt.status === 'completed')?.id;
     const sampleResults = await request(baseUrl, `/attempts/${sampleAttemptId}/results`, { token: mariaToken });
     check(Boolean(sampleAttemptId) && sampleResults.status === 200 && sampleResults.data.data.areaResults.length === 5, 'respondent can view own completed results');
+
+    const mariaSummaryAttempts = await request(baseUrl, '/attempts/my?include=learning_summary', { token: mariaToken });
+    const summaryEntry = mariaSummaryAttempts.data?.data?.find((attempt) => attempt.id === sampleAttemptId)?.learning_summary;
+    check(
+      mariaSummaryAttempts.status === 200
+      && summaryEntry?.areaResults?.length === 5
+      && Array.isArray(summaryEntry?.responses)
+      && summaryEntry.responses.length === 30,
+      'attempts summary endpoint bundles area results and item metadata without waterfall queries'
+    );
+
+    const adminUserResults = await request(baseUrl, `/users/${mariaLogin.data.data.user.id}/results`, { token: adminToken });
+    check(
+      adminUserResults.status === 200
+      && Array.isArray(adminUserResults.data?.data)
+      && adminUserResults.data.data[0]?.areaResults?.length === 5,
+      'batched user results endpoint returns completed attempts with all five domain scores'
+    );
 
     const missingAuthResults = await request(baseUrl, '/users/2/results');
     check(missingAuthResults.status === 401, 'user result endpoint rejects unauthenticated requests');
@@ -299,6 +411,23 @@ async function run() {
       && savedEnhanced.data.data.settings.showHeadphones === true
       && savedEnhanced.data.data.settings.showMug === false,
       'enhanced character hairstyles, outfits, expressions, glasses, and accessories persist'
+    );
+
+    const animatedCharacter = await request(baseUrl, '/auth/me/dashboard-character', {
+      method: 'PUT', token: studentToken,
+      body: { settings: { ...savedEnhanced.data.data.settings, animation: 'wave', animationSpeed: 'lively' } },
+    });
+    const savedAnimation = await request(baseUrl, '/auth/me/dashboard-character', { token: studentToken });
+    const invalidAnimation = await request(baseUrl, '/auth/me/dashboard-character', {
+      method: 'PUT', token: studentToken,
+      body: { settings: { ...savedEnhanced.data.data.settings, animation: 'spin' } },
+    });
+    check(
+      animatedCharacter.status === 200
+      && savedAnimation.data.data.settings.animation === 'wave'
+      && savedAnimation.data.data.settings.animationSpeed === 'lively'
+      && invalidAnimation.status === 400,
+      'character animation modes and speeds validate and persist cleanly'
     );
 
     const unassigned = await request(baseUrl, '/attempts', { method: 'POST', token: studentToken, body: { assessment_id: 1 } });
@@ -519,6 +648,49 @@ async function run() {
 
     const cohortExport = await request(baseUrl, `/export/assessment/${assessmentId}/excel`, { token: adminToken });
     check(cohortExport.status === 409 && cohortExport.data.message.includes('at least five completed participants'), 'research cohort export is withheld below the five-participant threshold');
+
+    const sortedByName = await request(baseUrl, '/users?limit=50&sort=name', { token: adminToken });
+    const sortedNameKeys = (sortedByName.data?.data?.users || []).map((u) => `${String(u.last_name || '').toLowerCase()}|${String(u.first_name || '').toLowerCase()}|${String(u.id).padStart(6, '0')}`);
+    const expectedNameKeys = [...sortedNameKeys].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+    const sortedBySubmissions = await request(baseUrl, '/users?limit=50&sort=submissions', { token: adminToken });
+    const submissionCounts = (sortedBySubmissions.data?.data?.users || []).map((u) => Number(u.completed_assessments || 0));
+    const submissionsDescending = submissionCounts.every((count, index) => index === 0 || submissionCounts[index - 1] >= count);
+    const invalidSortRes = await request(baseUrl, '/users?sort=bogus', { token: adminToken });
+    check(
+      sortedByName.status === 200 && JSON.stringify(sortedNameKeys) === JSON.stringify(expectedNameKeys)
+      && sortedBySubmissions.status === 200 && submissionsDescending
+      && invalidSortRes.status === 400,
+      'user directory supports server-side sorting across pages and rejects invalid sort options'
+    );
+
+    const deactivateCandidate = await request(baseUrl, '/users', {
+      method: 'POST',
+      token: adminToken,
+      body: {
+        first_name: 'Deactivate',
+        last_name: 'Candidate',
+        email: 'deactivate.candidate@example.test',
+        password: 'DeactivatePass123!',
+        role: 'respondent',
+      },
+    });
+    const candidateId = deactivateCandidate.data?.data?.id;
+    db.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').run(candidateId);
+    const candidateLogin = await request(baseUrl, '/auth/login', {
+      method: 'POST',
+      body: { email: 'deactivate.candidate@example.test', password: 'DeactivatePass123!' },
+    });
+    const candidateToken = candidateLogin.session;
+    const activeSessionCountBefore = db.prepare('SELECT COUNT(*) AS count FROM auth_sessions WHERE user_id = ? AND revoked_at IS NULL').get(candidateId).count;
+    const deactivateRes = await request(baseUrl, `/users/${candidateId}`, { method: 'DELETE', token: adminToken });
+    const activeSessionCountAfter = db.prepare('SELECT COUNT(*) AS count FROM auth_sessions WHERE user_id = ? AND revoked_at IS NULL').get(candidateId).count;
+    const candidatePostDeactivate = await request(baseUrl, '/auth/me', { token: candidateToken });
+    check(
+      deactivateCandidate.status === 201 && activeSessionCountBefore === 1
+      && deactivateRes.status === 200 && activeSessionCountAfter === 0
+      && candidatePostDeactivate.status === 401,
+      'deactivating a user revokes active sessions and blocks further access'
+    );
 
     check(getProficiencyLevel(1.75) === 'Low' && getProficiencyLevel(1.76) === 'Moderate' && getProficiencyLevel(3.26) === 'Very High', 'proficiency cutoffs match the approved scale');
     const partialScore = calculateAssessmentResults(

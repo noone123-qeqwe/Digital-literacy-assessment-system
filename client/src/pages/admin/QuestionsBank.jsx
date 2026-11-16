@@ -11,7 +11,9 @@ import {
   MessageSquare,
   FileCode,
   ShieldCheck,
-  Wrench
+  Wrench,
+  Search,
+  X
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -19,6 +21,7 @@ export const QuestionsBank = () => {
   const [questions, setQuestions] = useState([]);
   const [areas, setAreas] = useState([]);
   const [activeArea, setActiveArea] = useState('ALL');
+  const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [revision, setRevision] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -56,10 +59,18 @@ export const QuestionsBank = () => {
     return () => { active = false; };
   }, [revision]);
 
-  const filteredQuestions =
-    activeArea === 'ALL'
-      ? questions
-      : questions.filter((q) => q.area_code === activeArea);
+  const normalizedSearch = search.trim().toLowerCase();
+  const filteredQuestions = questions.filter((q) => {
+    if (activeArea !== 'ALL' && q.area_code !== activeArea) return false;
+    if (!normalizedSearch) return true;
+    return (
+      String(q.question_text || '').toLowerCase().includes(normalizedSearch) ||
+      String(q.area_name || '').toLowerCase().includes(normalizedSearch) ||
+      String(q.area_code || '').toLowerCase().includes(normalizedSearch) ||
+      `#${q.question_number}`.includes(normalizedSearch) ||
+      String(q.question_number || '').includes(normalizedSearch)
+    );
+  });
 
   const openEditModal = (q) => {
     setEditingQuestion({ ...q });
@@ -137,40 +148,65 @@ export const QuestionsBank = () => {
         )}
       />
 
-      {/* Domain Navigation Tabs */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200/80 pb-3">
-        <button
-          onClick={() => setActiveArea('ALL')}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-            activeArea === 'ALL'
-              ? 'bg-slate-900 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-          }`}
-        >
-          All Domains ({questions.length})
-        </button>
-
-        {areas.map((a) => {
-          const Icon = areaIcons[a.code] || HelpCircle;
-          const isActive = activeArea === a.code;
-          return (
+      {/* Search & Domain Filter */}
+      <div className="space-y-3 border-b border-slate-200/80 pb-3">
+        <div className="relative max-w-md">
+          <Search aria-hidden="true" className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search items by keyword, domain, or #number..."
+            aria-label="Search questions"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-9 text-xs text-slate-800 placeholder-slate-400 shadow-2xs focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500/20"
+          />
+          {search && (
             <button
-              key={a.id}
-              onClick={() => setActiveArea(a.code)}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                isActive
-                  ? 'bg-green-600 text-white shadow-sm shadow-green-500/20'
-                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
-              }`}
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label="Clear question search"
+              className="absolute right-2.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
             >
-              <Icon className="w-3.5 h-3.5" />
-              <span>{a.name}</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${isActive ? 'bg-green-700 text-white' : 'bg-slate-100 text-slate-500'}`}>
-                {a.question_count}
-              </span>
+              <X aria-hidden="true" className="h-3.5 w-3.5" />
             </button>
-          );
-        })}
+          )}
+        </div>
+
+        {/* Domain Navigation Tabs */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setActiveArea('ALL')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeArea === 'ALL'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+            }`}
+          >
+            All Domains ({questions.length})
+          </button>
+
+          {areas.map((a) => {
+            const Icon = areaIcons[a.code] || HelpCircle;
+            const isActive = activeArea === a.code;
+            return (
+              <button
+                key={a.id}
+                onClick={() => setActiveArea(a.code)}
+                className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-green-600 text-white shadow-sm shadow-green-500/20'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{a.name}</span>
+                <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${isActive ? 'bg-green-700 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                  {a.question_count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Questions List */}
@@ -180,38 +216,38 @@ export const QuestionsBank = () => {
           return (
             <div
               key={q.id}
-              className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs hover:border-green-200 transition-all flex items-start justify-between gap-4"
+              className="group flex items-start justify-between gap-4 rounded-2xl border border-slate-200/85 bg-white p-5 shadow-xs transition-all hover:border-green-200 hover:shadow-sm"
             >
-              <div className="flex items-start space-x-4 min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-green-50 border border-green-100 text-green-700 font-extrabold flex items-center justify-center text-sm shrink-0 mt-0.5">
+              <div className="flex min-w-0 items-start space-x-4">
+                <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-green-100 bg-green-50 text-sm font-extrabold text-green-700 tabular-nums">
                   #{q.question_number}
                 </div>
-                <div>
-                  <div className="flex items-center space-x-2 mb-1">
-                    <span className="text-[11px] font-bold text-green-600 uppercase tracking-wider flex items-center">
-                      <Icon className="w-3 h-3 mr-1" />
+                <div className="min-w-0">
+                  <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                    <span className="flex items-center text-[11px] font-bold uppercase tracking-wider text-green-700">
+                      <Icon className="mr-1 h-3.5 w-3.5" />
                       {q.area_name} ({q.area_code})
                     </span>
-                    <span className={`text-[10px] px-2 py-0.2 rounded-full font-semibold ${q.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                    <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${q.is_active ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/70' : 'bg-slate-100 text-slate-500'}`}>
                       {q.is_active ? 'Active' : 'Inactive'}
                     </span>
                   </div>
-                  <p className="text-sm font-semibold text-slate-900 leading-relaxed">
+                  <p className="text-sm font-semibold leading-relaxed text-slate-900">
                     {q.question_text}
                   </p>
-                  <p className="text-[11px] text-slate-400 mt-2">
-                    Evaluation Scale: 4 = Confidently & independently, 3 = Occasional difficulty, 2 = Much difficulty, 1 = Cannot do this
+                  <p className="mt-2 text-[11px] text-slate-500">
+                    Evaluation Scale: 4 = Confidently &amp; independently · 3 = Occasional difficulty · 2 = Much difficulty · 1 = Cannot do this
                   </p>
                 </div>
               </div>
 
               <button
                 onClick={() => openEditModal(q)}
-                className="p-2 rounded-xl text-slate-400 hover:text-green-600 hover:bg-green-50 transition-colors shrink-0 cursor-pointer"
+                className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-green-50 hover:text-green-700"
                 title="Edit Item"
                 aria-label={`Edit research question ${q.question_number}`}
               >
-                <Edit className="w-4 h-4" />
+                <Edit className="h-4 w-4" />
               </button>
             </div>
           );
@@ -220,7 +256,20 @@ export const QuestionsBank = () => {
 
       {filteredQuestions.length === 0 && (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">
-          No questions are currently in this domain.
+          <p>
+            {search.trim()
+              ? `No questions matched "${search.trim()}"${activeArea !== 'ALL' ? ` in ${activeArea}` : ''}.`
+              : 'No questions are currently in this domain.'}
+          </p>
+          {(search.trim() || activeArea !== 'ALL') && (
+            <button
+              type="button"
+              onClick={() => { setSearch(''); setActiveArea('ALL'); }}
+              className="mt-3 inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              Clear search and domain filter
+            </button>
+          )}
         </div>
       )}
 

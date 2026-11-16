@@ -12,16 +12,16 @@ export const StatCard = ({ title, value, subtitle, icon: Icon, color = 'brand', 
   const scheme = colorMap[color] || colorMap.brand;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-md">
+    <div className="group rounded-2xl border border-slate-200/85 bg-white p-5 shadow-xs transition-all hover:-translate-y-0.5 hover:border-slate-300/90 hover:shadow-md sm:p-6">
       <div className="flex min-w-0 items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-500">{title}</p>
-          <h3 className="mt-2 text-3xl font-bold tracking-tight text-slate-900 tabular-nums">{value}</h3>
-          {subtitle && <p className="mt-1 text-xs leading-5 text-slate-500">{subtitle}</p>}
+          <p className="text-[11px] font-bold uppercase tracking-[0.09em] text-slate-500">{title}</p>
+          <h3 className="mt-2.5 text-3xl font-bold tracking-tight text-slate-900 tabular-nums">{value}</h3>
+          {subtitle && <p className="mt-1.5 text-xs leading-5 text-slate-500">{subtitle}</p>}
         </div>
         {Icon && (
-          <div aria-hidden="true" className={`w-11 h-11 shrink-0 rounded-xl flex items-center justify-center ${scheme.bg} ring-4 ${scheme.ring}`}>
-            <Icon className="w-5 h-5" />
+          <div aria-hidden="true" className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-105 ${scheme.bg} ring-4 ${scheme.ring}`}>
+            <Icon className="h-5 w-5" />
           </div>
         )}
       </div>

@@ -18,6 +18,11 @@ router.get('/', authenticate, authorize('admin', 'assessor'), (req, res) => {
     const search = req.query.search ? `%${req.query.search}%` : null;
     const role = req.query.role || null;
     const status = req.query.status || null;
+    const sort = req.query.sort || 'newest';
+
+    if (!['newest', 'name', 'submissions'].includes(sort)) {
+      return res.status(400).json({ success: false, message: 'Invalid sort option' });
+    }
 
     let whereClauses = [];
     let params = [];
@@ -54,12 +59,19 @@ router.get('/', authenticate, authorize('admin', 'assessor'), (req, res) => {
          p.age, p.sex, p.municipality, p.senior_high_school, p.shs_strand,
          (SELECT COUNT(*) FROM assessment_attempts a WHERE a.user_id = u.id AND a.status = 'completed') as completed_assessments`;
     const profileJoin = req.user.role === 'assessor' ? '' : 'LEFT JOIN respondent_profiles p ON u.id = p.user_id';
+    const orderByMap = {
+      newest: 'u.created_at DESC, u.id DESC',
+      name: 'LOWER(u.last_name) ASC, LOWER(u.first_name) ASC, u.id ASC',
+      submissions: req.user.role === 'assessor'
+        ? 'u.created_at DESC, u.id DESC'
+        : 'completed_assessments DESC, u.created_at DESC, u.id DESC',
+    };
     const listStmt = db.prepare(`
       SELECT ${userColumns}
       FROM users u
       ${profileJoin}
       ${whereStr}
-      ORDER BY u.created_at DESC
+      ORDER BY ${orderByMap[sort]}
       LIMIT ? OFFSET ?
     `);
 
@@ -336,9 +348,12 @@ router.delete('/:id', authenticate, authorize('admin'), (req, res) => {
     return res.status(404).json({ success: false, message: 'User not found' });
   }
 
-  // Soft delete / deactivate
-  db.prepare("UPDATE users SET status = 'inactive', updated_at = datetime('now') WHERE id = ?").run(userId);
-  logActivity(req.user.id, 'USER_DEACTIVATE', `Deactivated user: ${user.email} (ID: ${userId})`);
+  // Soft delete / deactivate and revoke active device sessions atomically.
+  db.transaction(() => {
+    db.prepare("UPDATE users SET status = 'inactive', updated_at = datetime('now') WHERE id = ?").run(userId);
+    db.prepare("UPDATE auth_sessions SET revoked_at = datetime('now') WHERE user_id = ? AND revoked_at IS NULL").run(userId);
+    logActivity(req.user.id, 'USER_DEACTIVATE', `Deactivated user: ${user.email} (ID: ${userId})`);
+  })();
 
   res.json({ success: true, message: 'User deactivated successfully' });
 });
@@ -377,15 +392,31 @@ router.get('/:id/results', authenticate, (req, res) => {
     ORDER BY a.completed_at DESC
   `).all(...params);
 
-  for (const attempt of attempts) {
-    const areaResults = db.prepare(`
-      SELECT ar.*, ca.name as area_name, ca.code as area_code
-      FROM area_results ar
-      JOIN competence_areas ca ON ar.competence_area_id = ca.id
-      WHERE ar.attempt_id = ?
-      ORDER BY ca.sort_order ASC
-    `).all(attempt.id);
-    attempt.areaResults = areaResults;
+  if (attempts.length > 0) {
+    const areasByAttemptId = new Map();
+    const chunkSize = 400;
+    for (let index = 0; index < attempts.length; index += chunkSize) {
+      const ids = attempts.slice(index, index + chunkSize).map((attempt) => attempt.id);
+      const placeholders = ids.map(() => '?').join(', ');
+      const rows = db.prepare(`
+        SELECT ar.*, ca.name as area_name, ca.code as area_code
+        FROM area_results ar
+        JOIN competence_areas ca ON ar.competence_area_id = ca.id
+        WHERE ar.attempt_id IN (${placeholders})
+        ORDER BY ca.sort_order ASC
+      `).all(...ids);
+
+      for (const row of rows) {
+        if (!areasByAttemptId.has(row.attempt_id)) {
+          areasByAttemptId.set(row.attempt_id, []);
+        }
+        areasByAttemptId.get(row.attempt_id).push(row);
+      }
+    }
+
+    for (const attempt of attempts) {
+      attempt.areaResults = areasByAttemptId.get(attempt.id) || [];
+    }
   }
 
   res.json({ success: true, data: attempts });

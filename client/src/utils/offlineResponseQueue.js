@@ -208,8 +208,44 @@ export async function clearAttemptCheckpoint(userId, assessmentId) {
   });
 }
 
+export async function markCheckpointResponsesSynced({ userId, assessmentId, items }) {
+  const database = await openQueue();
+  return new Promise((resolve, reject) => {
+    const transaction = createTransaction(database, CHECKPOINT_STORE, 'readwrite');
+    const store = transaction.objectStore(CHECKPOINT_STORE);
+    const request = store.get(checkpointKey(Number(userId), Number(assessmentId)));
+    const syncedIds = new Set();
+    request.onsuccess = () => {
+      if (!request.result) {
+        for (const item of items) syncedIds.add(Number(item.questionId));
+        return;
+      }
+      const checkpoint = request.result;
+      const pendingQuestionIds = new Set((checkpoint.pendingQuestionIds || []).map(Number));
+      let modified = false;
+      for (const item of items) {
+        const questionId = Number(item.questionId);
+        const question = checkpoint.questions.find((q) => q.id === questionId);
+        if (!question || question.saved_rating === Number(item.rating)) {
+          if (pendingQuestionIds.delete(questionId)) modified = true;
+          syncedIds.add(questionId);
+        }
+      }
+      if (modified) {
+        checkpoint.pendingQuestionIds = [...pendingQuestionIds];
+        checkpoint.savedAt = new Date().toISOString();
+        store.put(checkpoint);
+      }
+    };
+    transaction.oncomplete = () => { database.close(); resolve(syncedIds); };
+    transaction.onerror = () => { database.close(); reject(transaction.error || new Error('Could not update the local assessment backup.')); };
+    transaction.onabort = () => { database.close(); reject(transaction.error || new Error('Could not update the local assessment backup.')); };
+  });
+}
+
 export async function markCheckpointResponseSynced({ userId, assessmentId, questionId, rating }) {
-  return updateAttemptCheckpointResponse({ userId, assessmentId, questionId, rating, pending: false });
+  const synced = await markCheckpointResponsesSynced({ userId, assessmentId, items: [{ questionId, rating }] });
+  return synced.has(Number(questionId));
 }
 
 export async function saveQueuedResponse({ userId, assessmentId, attemptId, questionId, rating }) {
@@ -241,23 +277,32 @@ export async function listQueuedResponses(userId, attemptId) {
   });
 }
 
-export async function removeQueuedResponse(record) {
+export async function removeQueuedResponses(records) {
+  if (!records?.length) return new Set();
   const database = await openQueue();
   return new Promise((resolve, reject) => {
     const transaction = createTransaction(database, RESPONSE_STORE, 'readwrite');
     const store = transaction.objectStore(RESPONSE_STORE);
-    const request = store.get(record.key || recordKey(record.userId, record.attemptId, record.questionId));
-    let removed = false;
-    request.onsuccess = () => {
-      if (request.result?.revision === record.revision) {
-        store.delete(request.result.key);
-        removed = true;
-      }
-    };
-    transaction.oncomplete = () => { database.close(); resolve(removed); };
+    const removedIds = new Set();
+    for (const record of records) {
+      const key = record.key || recordKey(record.userId, record.attemptId, record.questionId);
+      const request = store.get(key);
+      request.onsuccess = () => {
+        if (request.result?.revision === record.revision) {
+          store.delete(request.result.key);
+          removedIds.add(Number(record.questionId));
+        }
+      };
+    }
+    transaction.oncomplete = () => { database.close(); resolve(removedIds); };
     transaction.onerror = () => { database.close(); reject(transaction.error || new Error('Could not update local response storage.')); };
     transaction.onabort = () => { database.close(); reject(transaction.error || new Error('Could not update local response storage.')); };
   });
+}
+
+export async function removeQueuedResponse(record) {
+  const removed = await removeQueuedResponses([record]);
+  return removed.has(Number(record.questionId));
 }
 
 export async function clearQueuedResponses(userId, assessmentId) {

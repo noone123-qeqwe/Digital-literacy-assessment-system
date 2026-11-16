@@ -1,5 +1,5 @@
 .dlas-dashboard-shell {
-  background: #efeded;
+  background: #f4f7fc;
 }
 
 .dlas-dashboard-shell .dashboard-sidebar {
@@ -7,9 +7,9 @@
   bottom: 0;
   left: 0;
   width: min(280px, calc(100vw - 32px));
-  border: 1px solid #e9e8e7;
+  border: 1px solid #e0e8f3;
   border-radius: 0 18px 18px 0;
-  box-shadow: 0 4px 24px #333c3610;
+  box-shadow: 0 4px 24px #14315c12;
 }
 
 .dashboard-sidebar .sidebar-brand {
@@ -44,8 +44,8 @@
 .dashboard-navbar {
   min-height: 88px;
   padding: 16px;
-  border: 0;
-  background: #efededf5;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f5f8fdee;
 }
 
 .dashboard-navbar > div {
@@ -74,7 +74,7 @@
 .dlas-student-dashboard {
   display: grid;
   gap: 16px;
-  color: #202b26;
+  color: #17243a;
 }
 
 .dashboard-overview,
@@ -88,9 +88,10 @@
 .dashboard-card {
   min-width: 0;
   padding: 20px;
-  border: 1px solid #e9e8e7;
-  border-radius: 13px;
+  border: 1px solid #e0e8f3;
+  border-radius: 16px;
   background: white;
+  box-shadow: 0 2px 10px -4px rgb(15 23 42 / 5%);
 }
 
 .dashboard-panel-heading {

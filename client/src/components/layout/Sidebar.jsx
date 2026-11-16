@@ -176,15 +176,15 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
                 key={item.path}
                 to={item.path}
                 onClick={() => setIsOpen(false)}
-                className={`flex items-center space-x-3 rounded-xl px-4 py-3.5 text-sm font-semibold transition-all 2xl:py-4 2xl:text-base ${
+                className={`group flex items-center space-x-3 rounded-xl px-4 py-3 text-sm font-semibold transition-all 2xl:py-3.5 2xl:text-base ${
                   light
-                    ? isActive ? 'bg-green-50 text-green-800' : 'text-slate-600 hover:bg-slate-50 hover:text-green-800'
+                    ? isActive ? 'bg-green-50 text-green-800 shadow-2xs' : 'text-slate-600 hover:bg-slate-50 hover:text-green-800'
                     : isActive
-                    ? 'bg-green-600 text-white shadow-sm shadow-green-500/25'
-                    : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'
+                    ? 'bg-green-600 text-white shadow-md shadow-black/15 ring-1 ring-white/15'
+                    : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'
                 }`}
               >
-                <Icon aria-hidden="true" className={`h-4 w-4 shrink-0 ${light ? isActive ? 'text-green-700' : 'text-slate-500' : isActive ? 'text-white' : 'text-slate-400'}`} />
+                <Icon aria-hidden="true" className={`h-4 w-4 shrink-0 transition-transform group-hover:scale-105 ${light ? isActive ? 'text-green-700' : 'text-slate-500' : isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`} />
                 <span>{item.name}</span>
               </NavLink>
             );
