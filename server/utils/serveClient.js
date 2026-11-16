@@ -9,6 +9,8 @@ function mountClient(app, clientBuildPath) {
   };
 
   app.get('/index.html', sendIndex);
+  // Hashed Vite assets under /assets/ are safe to cache immutably across visits.
+  app.use('/assets', express.static(path.join(clientBuildPath, 'assets'), { index: false, maxAge: '1y', immutable: true }));
   app.use(express.static(clientBuildPath, { index: false, maxAge: '1h' }));
   // Retired build files must be real 404s, not the SPA HTML document.
   app.use('/assets', (req, res) => {

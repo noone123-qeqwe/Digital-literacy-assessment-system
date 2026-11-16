@@ -1,5 +1,5 @@
-import React, { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { Suspense } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext.jsx';
 import { DemoModeProvider } from './contexts/DemoModeContext';
@@ -7,31 +7,37 @@ import { useAuth } from './contexts/useAuth';
 import Layout from './components/layout/Layout';
 import LoadingSpinner from './components/common/LoadingSpinner';
 import RouteErrorBoundary from './components/common/RouteErrorBoundary';
+import { lazyWithRetry } from './utils/lazyWithRetry';
 // Recovery must not depend on fetching a page chunk after navigation.
 import AccountActionPage from './pages/auth/AccountActionPage';
 
-const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
-const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
-const GuardianConsentPage = lazy(() => import('./pages/auth/GuardianConsentPage'));
-const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
-const AssessmentsManagement = lazy(() => import('./pages/admin/AssessmentsManagement'));
-const UsersManagement = lazy(() => import('./pages/admin/UsersManagement'));
-const QuestionsBank = lazy(() => import('./pages/admin/QuestionsBank'));
-const ReportsAnalytics = lazy(() => import('./pages/admin/ReportsAnalytics'));
-const AssessorDashboard = lazy(() => import('./pages/assessor/AssessorDashboard'));
-const RespondentDashboard = lazy(() => import('./pages/respondent/RespondentDashboard'));
-const RespondentAssessments = lazy(() => import('./pages/respondent/RespondentAssessments'));
-const TakeAssessment = lazy(() => import('./pages/respondent/TakeAssessment'));
-const AssessmentResults = lazy(() => import('./pages/respondent/AssessmentResults'));
-const RespondentProfile = lazy(() => import('./pages/respondent/RespondentProfile'));
-const SecuritySettings = lazy(() => import('./pages/respondent/SecuritySettings'));
-const StudentHelp = lazy(() => import('./pages/respondent/StudentHelp'));
-const LearningHub = lazy(() => import('./pages/learning/LearningHub'));
-const KnowledgeBank = lazy(() => import('./pages/knowledge/KnowledgeBank'));
-const KnowledgeAssessments = lazy(() => import('./pages/knowledge/KnowledgeAssessments'));
-const KnowledgeAttempt = lazy(() => import('./pages/knowledge/KnowledgeAttempt'));
-const KnowledgeRecords = lazy(() => import('./pages/knowledge/KnowledgeRecords'));
-const KnowledgeMaterials = lazy(() => import('./pages/knowledge/KnowledgeMaterials'));
+const LoginPage = lazyWithRetry(() => import('./pages/auth/LoginPage'));
+const RegisterPage = lazyWithRetry(() => import('./pages/auth/RegisterPage'));
+const GuardianConsentPage = lazyWithRetry(() => import('./pages/auth/GuardianConsentPage'));
+const AdminDashboard = lazyWithRetry(() => import('./pages/admin/AdminDashboard'));
+const AssessmentsManagement = lazyWithRetry(() => import('./pages/admin/AssessmentsManagement'));
+const UsersManagement = lazyWithRetry(() => import('./pages/admin/UsersManagement'));
+const QuestionsBank = lazyWithRetry(() => import('./pages/admin/QuestionsBank'));
+const ReportsAnalytics = lazyWithRetry(() => import('./pages/admin/ReportsAnalytics'));
+const AssessorDashboard = lazyWithRetry(() => import('./pages/assessor/AssessorDashboard'));
+const RespondentDashboard = lazyWithRetry(() => import('./pages/respondent/RespondentDashboard'));
+const RespondentAssessments = lazyWithRetry(() => import('./pages/respondent/RespondentAssessments'));
+const TakeAssessment = lazyWithRetry(() => import('./pages/respondent/TakeAssessment'));
+const AssessmentResults = lazyWithRetry(() => import('./pages/respondent/AssessmentResults'));
+const RespondentProfile = lazyWithRetry(() => import('./pages/respondent/RespondentProfile'));
+const SecuritySettings = lazyWithRetry(() => import('./pages/respondent/SecuritySettings'));
+const StudentHelp = lazyWithRetry(() => import('./pages/respondent/StudentHelp'));
+const LearningHub = lazyWithRetry(() => import('./pages/learning/LearningHub'));
+const KnowledgeBank = lazyWithRetry(() => import('./pages/knowledge/KnowledgeBank'));
+const KnowledgeAssessments = lazyWithRetry(() => import('./pages/knowledge/KnowledgeAssessments'));
+const KnowledgeAttempt = lazyWithRetry(() => import('./pages/knowledge/KnowledgeAttempt'));
+const KnowledgeRecords = lazyWithRetry(() => import('./pages/knowledge/KnowledgeRecords'));
+const KnowledgeMaterials = lazyWithRetry(() => import('./pages/knowledge/KnowledgeMaterials'));
+
+const RoutedErrorBoundary = ({ children }) => {
+  const location = useLocation();
+  return <RouteErrorBoundary resetKey={location.pathname}>{children}</RouteErrorBoundary>;
+};
 
 // Route Guard Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -98,7 +104,7 @@ function App() {
               },
             }}
           />
-          <RouteErrorBoundary>
+          <RoutedErrorBoundary>
             <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50"><LoadingSpinner text="Loading page..." /></div>}>
             <Routes>
           {/* Public Auth Routes */}
@@ -248,7 +254,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
             </Suspense>
-          </RouteErrorBoundary>
+          </RoutedErrorBoundary>
         </DemoModeProvider>
       </BrowserRouter>
     </AuthProvider>

@@ -4,7 +4,16 @@ import { AlertTriangle, RotateCw, Home } from 'lucide-react';
 export class RouteErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, errorMessage: '' };
+    this.state = { hasError: false, errorMessage: '', errorResetKey: props.resetKey };
+  }
+
+  static getDerivedStateFromProps(props, state) {
+    if (props.resetKey !== state.errorResetKey) {
+      return state.hasError
+        ? { hasError: false, errorMessage: '', errorResetKey: props.resetKey }
+        : { errorResetKey: props.resetKey };
+    }
+    return null;
   }
 
   static getDerivedStateFromError(error) {

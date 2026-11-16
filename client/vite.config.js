@@ -10,6 +10,12 @@ export default defineConfig({
     tailwindcss(),
     react()
   ],
+  test: {
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.js',
+    css: false,
+    testTimeout: 15000
+  },
   server: {
     port: 5173,
     proxy: {

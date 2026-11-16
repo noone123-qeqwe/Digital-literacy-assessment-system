@@ -100,6 +100,12 @@ export const TakeAssessment = () => {
   const syncingQueueRef = useRef(false);
   const desiredSkillsSaveRef = useRef(Promise.resolve());
   const desiredSkillsSavedValueRef = useRef('');
+  const desiredSkillsDraftTimerRef = useRef(null);
+  const pendingUnloadStateRef = useRef(false);
+
+  useEffect(() => {
+    pendingUnloadStateRef.current = savingIds.size > 0 || offlineQueueIds.size > 0 || desiredSkillsDirty || desiredSkillsSaving;
+  }, [savingIds.size, offlineQueueIds.size, desiredSkillsDirty, desiredSkillsSaving]);
   const consentIsMinor = Boolean(consentInfo?.isMinor || (Number(consentForm.participantAge) > 0 && Number(consentForm.participantAge) < 18));
   const filteredQuestions = activeDomain === 'ALL' ? questions : questions.filter((question) => question.area_code === activeDomain);
   const pageCount = Math.max(1, Math.ceil(filteredQuestions.length / QUESTIONS_PER_PAGE));
@@ -147,6 +153,25 @@ export const TakeAssessment = () => {
     desiredSkillsSaveRef.current = request;
     return request;
   }, [attempt]);
+
+  const flushDesiredSkillsDraft = useCallback(() => {
+    if (desiredSkillsDraftTimerRef.current) {
+      window.clearTimeout(desiredSkillsDraftTimerRef.current);
+      desiredSkillsDraftTimerRef.current = null;
+    }
+    if (!currentUserId || !attempt?.id) return Promise.resolve(false);
+    const value = desiredSkillsRef.current;
+    return saveAttemptDraftField({ userId: currentUserId, assessmentId: id, field: 'desiredSkills', value })
+      .then((saved) => {
+        if (saved && desiredSkillsRef.current === value) setDesiredSkillsLocalSaved(true);
+        else if (!saved) setLocalBackupStatus('unavailable');
+        return saved;
+      })
+      .catch(() => {
+        setLocalBackupStatus('unavailable');
+        return false;
+      });
+  }, [attempt?.id, currentUserId, id]);
 
   useEffect(() => {
     if (!attempt?.started_at || !assessment?.time_limit_minutes) {
@@ -357,6 +382,39 @@ export const TakeAssessment = () => {
     const retryTimer = window.setInterval(() => setSyncRequest((current) => current + 1), 15000);
     return () => window.clearInterval(retryTimer);
   }, [attempt?.id, isOnline, offlineQueueIds.size, syncBlockedReason]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (event) => {
+      if (desiredSkillsDraftTimerRef.current) void flushDesiredSkillsDraft();
+      if (pendingUnloadStateRef.current) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    const handlePageHide = () => {
+      if (desiredSkillsDraftTimerRef.current) void flushDesiredSkillsDraft();
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && navigator.onLine && attempt?.id && offlineQueueIds.size > 0 && !syncBlockedReason) {
+        setSyncRequest((current) => current + 1);
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    window.addEventListener('pagehide', handlePageHide);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      window.removeEventListener('pagehide', handlePageHide);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [attempt?.id, flushDesiredSkillsDraft, offlineQueueIds.size, syncBlockedReason]);
+
+  useEffect(() => () => {
+    if (desiredSkillsDraftTimerRef.current) {
+      window.clearTimeout(desiredSkillsDraftTimerRef.current);
+      desiredSkillsDraftTimerRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     if (!attempt?.id || !currentUserId || !isOnline || syncingQueueRef.current) return undefined;
@@ -673,6 +731,10 @@ export const TakeAssessment = () => {
     }
     try {
       setSubmitting(true);
+      if (desiredSkillsDraftTimerRef.current) {
+        window.clearTimeout(desiredSkillsDraftTimerRef.current);
+        desiredSkillsDraftTimerRef.current = null;
+      }
       await desiredSkillsSaveRef.current.catch(() => undefined);
       if (desiredSkillsSavedValueRef.current !== desiredSkillsRef.current) {
         await saveDesiredSkills(desiredSkillsRef.current);
@@ -1064,12 +1126,13 @@ export const TakeAssessment = () => {
                 setDesiredSkillsDirty(true);
                 setDesiredSkillsSaved(false);
                 setDesiredSkillsLocalSaved(false);
-                saveAttemptDraftField({ userId: currentUserId, assessmentId: id, field: 'desiredSkills', value })
-                  .then((saved) => {
-                    if (saved && desiredSkillsRef.current === value) setDesiredSkillsLocalSaved(true);
-                    else if (!saved) setLocalBackupStatus('unavailable');
-                  })
-                  .catch(() => setLocalBackupStatus('unavailable'));
+                if (desiredSkillsDraftTimerRef.current) window.clearTimeout(desiredSkillsDraftTimerRef.current);
+                desiredSkillsDraftTimerRef.current = window.setTimeout(() => {
+                  void flushDesiredSkillsDraft();
+                }, 250);
+              }}
+              onBlur={() => {
+                if (desiredSkillsDraftTimerRef.current) void flushDesiredSkillsDraft();
               }}
               disabled={remainingSeconds === 0}
               placeholder="For example, evaluating online sources, creating presentations, or troubleshooting common computer problems…"

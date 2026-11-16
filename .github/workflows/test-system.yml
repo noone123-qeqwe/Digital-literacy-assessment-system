@@ -29,4 +29,5 @@ jobs:
       - run: npm --prefix server test
       - run: npm --prefix server run test:libsql
       - run: npm --prefix client run lint
+      - run: npm --prefix client test
       - run: npm --prefix client run build
