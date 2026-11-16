@@ -114,6 +114,10 @@ async function run() {
 
     const health = await request(baseUrl, '/health');
     check(health.status === 200 && health.data.status === 'healthy', 'health endpoint responds');
+    const contentSecurityPolicy = health.headers.get('content-security-policy') || '';
+    const imageSources = contentSecurityPolicy.split(';').find((directive) => directive.trim().startsWith('img-src '))?.trim().split(/\s+/).slice(1) || [];
+    check(imageSources.includes("'self'") && imageSources.includes('blob:') && !imageSources.includes('*'), 'image policy permits local photo processing and avatar previews without allowing arbitrary image hosts');
+    check(contentSecurityPolicy.split(';').some((directive) => directive.trim() === "script-src 'self'") && contentSecurityPolicy.split(';').some((directive) => directive.trim() === "object-src 'none'"), 'photo image allowance preserves script and object restrictions');
     const originalPrepare = db.prepare;
     try {
       db.prepare = () => { throw new Error('Private database connection details'); };

@@ -1,0 +1,11 @@
+# Mobile profile picture fix — 16 November 2026
+
+The live application used an image security policy of `img-src 'self' data:`. Profile photo preparation and authenticated avatar previews both create local `blob:` URLs, which that policy blocked. This reproduced the failure in a real Express-served browser session, even for an otherwise valid JPEG. The image policy now also allows `blob:`; Helmet's other default protections, including script and object restrictions, remain enabled. See the [Helmet policy configuration reference](https://helmetjs.github.io/).
+
+The profile page now uses a native file input covering the full touch target instead of opening a visually hidden input through a separate button. It remains keyboard focusable and labeled, with visible focus, busy, success and error feedback. The phone layout places the avatar above the explanation and upload action.
+
+Camera originals up to 20 MB are processed locally, replacing the previous 5 MB rejection before optimization. Browser-decodable photos with missing or generic MIME metadata are accepted. Photos are resized to at most 768 pixels along the longer edge and encoded as JPEG with a white background for transparency. The existing 40-million-pixel processing bound, 700 KB optimized upload limit, authenticated image access, CSRF protection and server-side signature checks remain in place. Unsupported HEIC decoding produces guidance to export a JPG; this does not add a bundled HEIC decoder.
+
+Sixteen isolated browser checks passed against the real application server and a temporary SQLite database: four viewport layouts, native picker opening and cancellation, a camera image over 5 MB, persistence and reselection, missing MIME metadata, transparent PNG, WebP, camera EXIF rotation, invalid and oversized originals, duplicate prevention, failed-save recovery, unauthenticated access rejection, and browser exceptions. The fixture image was verified in both the profile and navigation avatar. Frontend lint/build and the backend suite passed; two regression checks cover the required image policy and preserved script/object protections.
+
+Browser checks use Chrome mobile emulation, not a physical Android or iPhone. No production account photo was changed during testing.

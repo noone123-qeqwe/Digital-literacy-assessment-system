@@ -22,7 +22,8 @@ import toast from 'react-hot-toast';
 const profileLabelClass = 'block text-sm font-semibold text-slate-700';
 const profileInputClass = 'mt-2 min-h-12 w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-base text-slate-900 transition placeholder:text-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-600';
 const profileSectionHeadingClass = 'mb-5 flex items-center border-b border-slate-100 pb-3 text-base font-bold tracking-tight text-slate-900 sm:text-lg';
-const MAX_PROFILE_PICTURE_FILE_SIZE = 5 * 1024 * 1024;
+// Camera originals stay on the device; only the optimized image is uploaded.
+const MAX_PROFILE_PICTURE_FILE_SIZE = 20 * 1024 * 1024;
 
 const prepareProfilePicture = (file) => new Promise((resolve, reject) => {
   const imageUrl = URL.createObjectURL(file);
@@ -41,10 +42,13 @@ const prepareProfilePicture = (file) => new Promise((resolve, reject) => {
       canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
       const context = canvas.getContext('2d');
       if (!context) throw new Error('This image could not be optimized in your browser.');
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
       context.drawImage(image, 0, 0, canvas.width, canvas.height);
 
       const toBlob = (quality) => new Promise((blobResolve) => {
-        canvas.toBlob(blobResolve, 'image/webp', quality);
+        // JPEG encoding also works in mobile browsers without a WebP encoder.
+        canvas.toBlob(blobResolve, 'image/jpeg', quality);
       });
       let blob;
       for (const quality of [0.86, 0.72, 0.58]) {
@@ -66,7 +70,7 @@ const prepareProfilePicture = (file) => new Promise((resolve, reject) => {
 
   image.onerror = () => {
     URL.revokeObjectURL(imageUrl);
-    reject(new Error('This image could not be opened. Choose a JPG, PNG, or WebP file.'));
+    reject(new Error('This photo could not be opened. Choose a JPG, PNG, or WebP photo. For an HEIC photo, export it as JPG if your browser cannot open it.'));
   };
   image.src = imageUrl;
 });
@@ -80,9 +84,10 @@ export const RespondentProfile = () => {
   const isRespondent = user?.role === 'respondent';
   const [loading, setLoading] = useState(false);
   const [pictureUploading, setPictureUploading] = useState(false);
+  const [pictureFeedback, setPictureFeedback] = useState(null);
   const [scrollProgress, setScrollProgress] = useState(0);
   const [hasScrollableContent, setHasScrollableContent] = useState(false);
-  const pictureInputRef = useRef(null);
+  const pictureUploadingRef = useRef(false);
   const [profileData, setProfileData] = useState(() => ({
     first_name: user?.first_name || '',
     last_name: user?.last_name || '',
@@ -159,24 +164,34 @@ export const RespondentProfile = () => {
   const handleProfilePictureSelect = async (event) => {
     const file = event.target.files?.[0];
     event.target.value = '';
-    if (!file) return;
+    if (!file || pictureUploadingRef.current) return;
 
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-      toast.error('Choose a JPG, PNG, or WebP image.');
+    // Some mobile galleries omit MIME metadata. Decode the photo rather than
+    // rejecting it solely for a missing or generic type; never upload originals.
+    if (file.type === 'image/svg+xml' || /\.svgz?$/i.test(file.name)
+      || (file.type && !file.type.startsWith('image/') && !/\.(jpe?g|png|webp|heic|heif|avif|gif|bmp)$/i.test(file.name))) {
+      setPictureFeedback({ error: true, message: 'Choose a photo from your camera or photo library.' });
       return;
     }
     if (file.size > MAX_PROFILE_PICTURE_FILE_SIZE) {
-      toast.error('Choose an image smaller than 5 MB.');
+      setPictureFeedback({ error: true, message: 'Choose a photo up to 20 MB. Larger photos can be resized in your photo app first.' });
       return;
     }
 
+    pictureUploadingRef.current = true;
     setPictureUploading(true);
+    setPictureFeedback({ message: 'Preparing your photo…' });
     try {
       const image = await prepareProfilePicture(file);
-      await uploadProfilePicture(image);
+      setPictureFeedback({ message: 'Saving your profile picture…' });
+      const result = await uploadProfilePicture(image);
+      setPictureFeedback(result?.success
+        ? { message: 'Profile picture saved.' }
+        : { error: true, message: result?.message || 'Your photo could not be saved. Check your connection and choose it again.' });
     } catch (error) {
-      toast.error(error.message || 'This image could not be processed.');
+      setPictureFeedback({ error: true, message: error.message || 'This photo could not be processed. Choose another photo.' });
     } finally {
+      pictureUploadingRef.current = false;
       setPictureUploading(false);
     }
   };
@@ -214,7 +229,7 @@ export const RespondentProfile = () => {
       {/* Main Profile Form */}
       <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs sm:p-8 2xl:p-10">
         <div className="mb-8 flex flex-col gap-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
-          <div className="flex min-w-0 items-center gap-5">
+          <div className="flex min-w-0 flex-col items-center gap-4 text-center sm:flex-row sm:gap-5 sm:text-left">
             <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-green-100 text-xl font-bold text-green-800 shadow-sm sm:h-24 sm:w-24">
               {profilePictureUrl ? (
                 <img src={profilePictureUrl} alt={`${user?.first_name || 'Student'} profile`} className="h-full w-full object-cover" />
@@ -225,30 +240,33 @@ export const RespondentProfile = () => {
             <div className="min-w-0">
               <h3 className="text-lg font-bold tracking-tight text-slate-900 sm:text-xl">Profile picture</h3>
               <p className="mt-1 text-sm leading-relaxed text-slate-600">Add a photo so your account is easy to recognize.</p>
-              <p className="mt-1 text-xs text-slate-500">JPG, PNG, or WebP · up to 5 MB · optimized before saving</p>
+              <p id="profile-picture-help" className="mt-1 text-xs leading-5 text-slate-500">Choose a photo up to 20 MB. It is resized on your device before saving.</p>
             </div>
           </div>
-          <div className="sm:shrink-0">
-            <input
-              ref={pictureInputRef}
-              id="profile-picture-upload"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handleProfilePictureSelect}
-              className="sr-only"
-              tabIndex={-1}
-            />
-            <button
-              type="button"
-              onClick={() => pictureInputRef.current?.click()}
-              disabled={pictureUploading}
-              aria-describedby="profile-picture-help"
-              className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-green-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-green-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
+          <div className="sm:w-48 sm:shrink-0">
+            <label
+              htmlFor="profile-picture-upload"
+              aria-busy={pictureUploading}
+              className={`relative inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-green-700 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-green-800 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-green-700 ${pictureUploading ? 'opacity-60' : ''}`}
             >
-              <Camera aria-hidden="true" className="mr-2 h-5 w-5" />
-              {pictureUploading ? 'Optimizing and saving…' : profilePictureUrl ? 'Change picture' : 'Add picture'}
-            </button>
-            <span id="profile-picture-help" className="sr-only">Select a JPG, PNG, or WebP image smaller than 5 megabytes.</span>
+              <input
+                id="profile-picture-upload"
+                type="file"
+                accept="image/*"
+                onChange={handleProfilePictureSelect}
+                disabled={pictureUploading}
+                aria-label={profilePictureUrl ? 'Change picture' : 'Add picture'}
+                aria-describedby="profile-picture-help profile-picture-feedback"
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-wait"
+              />
+              <Camera aria-hidden="true" className="pointer-events-none mr-2 h-5 w-5 shrink-0" />
+              <span aria-hidden="true" className="pointer-events-none">{pictureUploading ? 'Saving photo…' : profilePictureUrl ? 'Change picture' : 'Add picture'}</span>
+            </label>
+            <p
+              id="profile-picture-feedback"
+              role={pictureFeedback?.error ? 'alert' : 'status'}
+              className={`${pictureFeedback ? 'mt-3' : ''} break-words text-sm leading-5 ${pictureFeedback?.error ? 'text-red-700' : 'text-slate-600'}`}
+            >{pictureFeedback?.message || ''}</p>
           </div>
         </div>
 

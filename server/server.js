@@ -46,7 +46,15 @@ try {
 }
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      // Local photo optimization and authenticated avatar previews use blob URLs.
+      // Keep Helmet's other defaults, including the existing script restrictions.
+      imgSrc: ["'self'", 'data:', 'blob:'],
+    },
+  },
+}));
 const configuredOrigins = (process.env.CORS_ORIGINS || '')
   .split(',')
   .map((origin) => origin.trim())
