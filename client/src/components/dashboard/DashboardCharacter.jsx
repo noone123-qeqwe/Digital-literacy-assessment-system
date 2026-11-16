@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, Pencil, RotateCcw } from 'lucide-react';
+import { Check, Pause, Pencil, Play, RotateCcw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
 import { useAuth } from '../../contexts/useAuth';
@@ -14,16 +14,33 @@ const { defaults, choices, ranges } = characterSchema;
 const panels = ['Character', 'Clothing', 'Scene', 'Motion'];
 const skinTones = ['#f6d8bb', '#e8ba91', '#d99e6c', '#bd8154', '#925f41', '#613d30'];
 
-function CharacterScene({ settings, preview = false }) {
+function CharacterScene({ settings, preview = false, paused = false }) {
+  const sceneRef = useRef(null);
+  const [inView, setInView] = useState(true);
+  const [pageVisible, setPageVisible] = useState(() => !document.hidden);
+
+  useEffect(() => {
+    const updateVisibility = () => setPageVisible(!document.hidden);
+    const observer = typeof IntersectionObserver === 'function'
+      ? new IntersectionObserver(([entry]) => setInView(entry.isIntersecting))
+      : null;
+    if (sceneRef.current) observer?.observe(sceneRef.current);
+    document.addEventListener('visibilitychange', updateVisibility);
+    return () => {
+      observer?.disconnect();
+      document.removeEventListener('visibilitychange', updateVisibility);
+    };
+  }, []);
+
   const transform = {
     transform: `translate(${settings.horizontalPosition}%, ${settings.verticalPosition}%) scale(${settings.size / 100}) scaleX(${settings.flip ? -1 : 1})`,
   };
   return (
-    <div className={`character-scene ${preview ? 'character-scene-preview' : ''}`} role="img" aria-label="Your customized student character">
+    <div ref={sceneRef} className={`character-scene ${preview ? 'character-scene-preview' : ''}`} data-paused={paused || !inView || !pageVisible} role="img" aria-label="Your customized student character">
       {settings.showBackdrop && <span className="character-backdrop" style={{ backgroundColor: settings.backdropColor }} />}
       <div className="character-position" style={transform}>
         <div className="character-motion" data-animation={settings.animation}>
-          <CharacterArt settings={settings} aria-hidden="true" preserveAspectRatio="xMidYMax meet" />
+          <CharacterArt className="character-art" settings={settings} aria-hidden="true" preserveAspectRatio="xMidYMax meet" />
         </div>
       </div>
     </div>
@@ -43,6 +60,7 @@ export default function DashboardCharacter() {
   const [loadError, setLoadError] = useState('');
   const [saveError, setSaveError] = useState('');
   const [reload, setReload] = useState(0);
+  const [motionPaused, setMotionPaused] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -121,12 +139,21 @@ export default function DashboardCharacter() {
 
   return <>
     <div className="dashboard-welcome-art" aria-hidden="true">
-      {!loading && <CharacterScene settings={settings} />}
+      {!loading && <CharacterScene settings={settings} paused={motionPaused || isOpen} />}
     </div>
-    <button type="button" onClick={open} className="dashboard-character-edit" aria-label="Customize your dashboard character">
-      <Pencil aria-hidden="true" size={14} />
-      <span>Customize character</span>
-    </button>
+    <div className="dashboard-character-actions">
+      {!loading && settings.animation !== 'none' && <button
+        type="button"
+        onClick={() => setMotionPaused((paused) => !paused)}
+        className="dashboard-character-motion-toggle"
+        aria-label={motionPaused ? 'Resume character animation' : 'Pause character animation'}
+        title={motionPaused ? 'Resume character animation' : 'Pause character animation'}
+      >{motionPaused ? <Play aria-hidden="true" size={16} /> : <Pause aria-hidden="true" size={16} />}</button>}
+      <button type="button" onClick={open} className="dashboard-character-edit" aria-label="Customize your dashboard character">
+        <Pencil aria-hidden="true" size={14} />
+        <span>Customize character</span>
+      </button>
+    </div>
     {createPortal(
       <div className="character-dialog">
         <Modal isOpen={isOpen} onClose={close} title="Customize your character" maxWidth="max-w-4xl" footer={(
@@ -144,7 +171,7 @@ export default function DashboardCharacter() {
           {freeDemoReadOnly && <p className="character-demo-note">You can preview your character here. Saving is available in the full system.</p>}
           <div className="character-editor-layout" aria-busy={loading}>
             <div className="character-preview">
-              <div className="character-preview-frame"><CharacterScene settings={draft} preview /></div>
+              <div className="character-preview-frame"><CharacterScene settings={draft} paused={motionPaused} preview /></div>
               <p>Live preview</p>
               <button type="button" disabled={loading || saving} className="character-reset" onClick={() => setDraft({ ...defaults })}><RotateCcw aria-hidden="true" size={15} />Reset to default</button>
             </div>
@@ -193,6 +220,10 @@ export default function DashboardCharacter() {
                 </>}
                 {panel === 'Motion' && <>
                   {selectControl('animation', 'Animation')}
+                  {draft.animation !== 'none' && <button type="button" className="character-cancel character-preview-motion-toggle" onClick={() => setMotionPaused((paused) => !paused)}>
+                    {motionPaused ? <Play aria-hidden="true" size={15} /> : <Pause aria-hidden="true" size={15} />}
+                    {motionPaused ? 'Resume animation' : 'Pause animation'}
+                  </button>}
                   {rangeControl('size', 'Character size')}
                   {rangeControl('horizontalPosition', 'Horizontal position')}
                   {rangeControl('verticalPosition', 'Vertical position')}

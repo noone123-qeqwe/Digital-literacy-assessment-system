@@ -11,8 +11,10 @@ export default function CharacterArt({ settings, ...props }) {
     <svg viewBox="0 0 480 330" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
       <g stroke={outline} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
         <path d="M85 293H440" strokeOpacity=".15" strokeWidth="10" />
-        {hairStyle === 'long' && <path d="M159 75C130 118 128 170 141 214C170 229 226 228 257 207C267 169 257 112 240 75Z" fill={hairColor} />}
-        {hairStyle === 'bun' && <circle cx="223" cy="43" r="29" fill={hairColor} />}
+        <g className="character-head">
+          {hairStyle === 'long' && <path d="M159 75C130 118 128 170 141 214C170 229 226 228 257 207C267 169 257 112 240 75Z" fill={hairColor} />}
+          {hairStyle === 'bun' && <circle cx="223" cy="43" r="29" fill={hairColor} />}
+        </g>
 
         <path d="M140 265C137 220 149 190 176 179L196 172H222L242 179C272 188 287 220 290 265Z" fill={shirtColor} />
         <path d="M150 213L168 220L163 267H137C135 245 140 224 150 213Z" fill={accentColor} stroke="none" opacity=".5" />
@@ -33,11 +35,16 @@ export default function CharacterArt({ settings, ...props }) {
           <path d="M185 253Q204 242 229 253" stroke={accentColor} />
         </>}
         <path d="M146 206L133 229L164 244L177 216Z" fill={shirtColor} />
-        <path d="M135 226L160 236L159 254L217 254C228 250 236 247 243 252L257 263L249 273L147 274C131 272 126 256 135 226Z" fill={skinColor} />
-        <path d="M143 266L206 267M223 255L233 265M232 252L242 262" strokeOpacity=".35" />
+        <g className="character-hand character-hand-left">
+          <path d="M135 226L160 236L159 254L217 254C228 250 236 247 243 252L257 263L249 273L147 274C131 272 126 256 135 226Z" fill={skinColor} />
+          <path d="M143 266L206 267M223 255L233 265M232 252L242 262" strokeOpacity=".35" />
+        </g>
         <path d="M257 211L277 236L255 250L239 222Z" fill={shirtColor} />
-        <path d="M274 234L255 246L279 264L316 264L322 253L287 250Z" fill={skinColor} />
+        <g className="character-hand character-hand-right">
+          <path d="M274 234L255 246L279 264L316 264L322 253L287 250Z" fill={skinColor} />
+        </g>
 
+        <g className="character-head">
         <ellipse cx="161" cy="117" rx="9" ry="15" fill={skinColor} />
         <ellipse cx="242" cy="117" rx="9" ry="15" fill={skinColor} />
         <path d="M163 113C159 94 161 63 181 54C199 45 227 50 239 71L240 122C236 150 221 169 202 171C180 168 166 145 163 113Z" fill={skinColor} />
@@ -53,6 +60,7 @@ export default function CharacterArt({ settings, ...props }) {
         {hairStyle !== 'none' && hairStyle !== 'buzz' && <path d="M173 63C188 48 213 47 229 59" stroke="white" strokeOpacity=".12" strokeWidth="5" />}
 
         <path d="M178 102Q185 97 193 102M213 102Q221 97 229 103" stroke={hairColor} strokeWidth="3.5" />
+        <g className="character-eyes">
         <path d="M177 115Q186 108 195 115Q185 121 177 115Z" fill="white" strokeWidth="1.5" />
         <ellipse cx="187" cy="114" rx="3.5" ry="4.5" fill={eyeColor} stroke="none" />
         <circle cx="188" cy="112.5" r="1.2" fill="white" stroke="none" />
@@ -63,6 +71,7 @@ export default function CharacterArt({ settings, ...props }) {
             <ellipse cx="221" cy="114" rx="3.5" ry="4.5" fill={eyeColor} stroke="none" />
             <circle cx="222" cy="112.5" r="1.2" fill="white" stroke="none" />
           </>}
+        </g>
         <path d="M204 117L201 129L207 131" strokeOpacity=".45" strokeWidth="1.7" />
         {facialHair !== 'none' && <path d="M173 134Q181 146 192 143L202 138L214 143Q227 145 236 134C232 157 218 170 202 171C186 168 176 155 173 134Z" fill={hairColor} opacity={facialHair === 'stubble' ? '.3' : '1'} stroke="none" />}
         {expression === 'neutral'
@@ -81,16 +90,19 @@ export default function CharacterArt({ settings, ...props }) {
           </>}
           <path d="M200 113Q204 109 207 113M169 110L160 107M238 110L244 108" />
         </g>}
+        </g>
 
         <path d="M264 213H400Q407 213 405 221L390 270H249Z" fill={laptopColor} />
         <path d="M265 214L252 267" stroke="white" strokeOpacity=".25" />
         <path d="M246 270H394L405 278H236Z" fill={laptopColor} />
-        <circle cx="331" cy="242" r="7" fill="white" fillOpacity=".4" stroke="none" />
+        <circle className="character-laptop-light" cx="331" cy="242" r="7" fill="white" fillOpacity=".4" stroke="none" />
 
         {showPlant && <g>
+          <g className="character-leaves">
           <path d="M70 246C57 225 58 205 66 190C83 202 88 221 79 241" fill="#4b8b5b" />
           <path d="M75 241C84 214 99 211 111 218C107 237 95 246 77 247" fill="#77ab70" />
           <path d="M71 237C53 214 37 217 32 229C43 243 56 248 74 246" fill="#578f58" />
+          </g>
           <path d="M54 246H94L89 282H60Z" fill={accentColor} />
           <path d="M57 258H91" stroke="#bd9c5c" strokeWidth="7" />
         </g>}
