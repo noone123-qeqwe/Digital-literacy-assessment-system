@@ -25,3 +25,11 @@ Eight additional isolated browser checks passed for valid independent gradient r
 The laptop now has a taller rear-facing lid without an interior-screen bezel, a connected hinge and a keyboard deck projecting toward the student behind the lid. Hands rest over that deck; the case has a thin side edge, vents and a small status light. The open book and book stack were repositioned to keep the laptop's base clear. Lid and deck shading continue to use the chosen laptop color.
 
 Nine illustration checks and four viewport checks passed, including dark/light laptop color changes, rendering with books hidden, valid SVG paths, animation and editor controls. The laptop was visually inspected both with and without the desk props. Lint and production build passed; no production character settings were changed during checks.
+
+## Male and female character choices
+
+Character settings now start with illustrated Male and Female choices. They select a base face and starting hairstyle, while skin, hair, clothing, expression, glasses, facial hair, scene and motion remain independently editable. Re-selecting the current style preserves a customized hairstyle. Preview and Cancel leave the saved banner unchanged; Save persists the chosen style with the account's other character settings. The style is an illustration preference, separate from research demographic data.
+
+The shared settings schema validates both styles through the existing account-owned API and JSON storage. Old saved settings default to the existing male illustration while retaining their customized features. No database migration or new assets are needed, and the removed floating movement remains absent.
+
+Twelve isolated browser check groups passed, including persistence, legacy preferences, keyboard selection, reset/cancel, recoverable save failure, all hairstyles and clothing, independent valid SVG gradients, reduced motion and responsive controls at 320×568, 390×844, 844×390 and 1365×900. Desktop and mobile previews were visually reviewed. The real API integration suite passed 84 checks against its temporary database, including five new checks for style persistence, legacy compatibility, invalid input and account isolation. Lint and production build passed. Browser saves used fixture responses; no production character settings were changed. Physical phones were not tested.

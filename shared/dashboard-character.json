@@ -1,5 +1,6 @@
 {
   "defaults": {
+    "characterStyle": "male",
     "hairStyle": "swept",
     "hairColor": "#302d29",
     "skinColor": "#d99e6c",
@@ -22,12 +23,17 @@
     "flip": false
   },
   "choices": {
+    "characterStyle": ["male", "female"],
     "hairStyle": ["swept", "short", "curly", "long", "bun", "buzz", "none"],
     "outfit": ["polo", "tshirt", "hoodie"],
     "expression": ["smile", "neutral", "wink"],
     "glasses": ["none", "round", "square"],
     "facialHair": ["none", "stubble", "beard"],
     "animation": ["float", "breathe", "none"]
+  },
+  "presets": {
+    "male": { "hairStyle": "swept" },
+    "female": { "hairStyle": "long" }
   },
   "ranges": {
     "size": { "min": 75, "max": 130 },

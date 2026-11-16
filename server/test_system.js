@@ -223,6 +223,30 @@ async function run() {
     const secondStudentToken = secondStudentLogin.session;
     check(studentLogin.status === 200 && studentToken.dlas_session && secondStudentLogin.status === 200 && secondStudentToken.dlas_session, 'verified respondents can sign in using secure cookie sessions');
 
+    db.prepare('INSERT INTO dashboard_characters (user_id, settings_json) VALUES (?, ?)').run(
+      registration.data.data.user.id, JSON.stringify({ hairStyle: 'curly', skinColor: '#925f41', animation: 'none' })
+    );
+    const legacyCharacter = await request(baseUrl, '/auth/me/dashboard-character', { token: studentToken });
+    check(legacyCharacter.status === 200 && legacyCharacter.data.data.settings.characterStyle === 'male' && legacyCharacter.data.data.settings.hairStyle === 'curly' && legacyCharacter.data.data.settings.animation === 'none', 'existing character preferences gain a style without losing custom appearance or motion');
+    const femaleCharacter = await request(baseUrl, '/auth/me/dashboard-character', {
+      method: 'PUT', token: studentToken,
+      body: { settings: { ...legacyCharacter.data.data.settings, characterStyle: 'female', hairStyle: 'short' } },
+    });
+    const savedFemale = await request(baseUrl, '/auth/me/dashboard-character', { token: studentToken });
+    check(femaleCharacter.status === 200 && savedFemale.data.data.settings.characterStyle === 'female' && savedFemale.data.data.settings.hairStyle === 'short' && JSON.parse(db.prepare('SELECT settings_json FROM dashboard_characters WHERE user_id = ?').get(registration.data.data.user.id).settings_json).characterStyle === 'female', 'female character style and independently chosen hairstyle persist in the database');
+    const invalidCharacter = await request(baseUrl, '/auth/me/dashboard-character', {
+      method: 'PUT', token: studentToken, body: { settings: { characterStyle: 'invalid-style' } },
+    });
+    const afterInvalidCharacter = await request(baseUrl, '/auth/me/dashboard-character', { token: studentToken });
+    check(invalidCharacter.status === 400 && afterInvalidCharacter.data.data.settings.characterStyle === 'female', 'invalid character styles are rejected without replacing the saved character');
+    const otherCharacter = await request(baseUrl, '/auth/me/dashboard-character', { token: secondStudentToken });
+    check(otherCharacter.status === 200 && otherCharacter.data.data.settings.characterStyle === 'male' && otherCharacter.data.data.settings.skinColor !== '#925f41', 'character style and appearance remain private to each student account');
+    const maleCharacter = await request(baseUrl, '/auth/me/dashboard-character', {
+      method: 'PUT', token: studentToken, body: { settings: { ...savedFemale.data.data.settings, characterStyle: 'male' } },
+    });
+    const savedMale = await request(baseUrl, '/auth/me/dashboard-character', { token: studentToken });
+    check(maleCharacter.status === 200 && savedMale.data.data.settings.characterStyle === 'male' && savedMale.data.data.settings.hairStyle === 'short', 'male character style also saves and reloads with customized features');
+
     const unassigned = await request(baseUrl, '/attempts', { method: 'POST', token: studentToken, body: { assessment_id: 1 } });
     check(unassigned.status === 403, 'respondents cannot start unassigned assessments');
 

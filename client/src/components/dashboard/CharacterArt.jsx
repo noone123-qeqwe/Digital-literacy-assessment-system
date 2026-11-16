@@ -37,15 +37,16 @@ function tint(hex, target, amount) {
 export default function CharacterArt({ settings, ...props }) {
   const {
     skinColor, hairColor, eyeColor, shirtColor, accentColor, laptopColor,
-    hairStyle, outfit, glasses, expression, facialHair, showBooks, showPlant, showBackdrop,
+    characterStyle, hairStyle, outfit, glasses, expression, facialHair, showBooks, showPlant, showBackdrop,
   } = settings;
+  const isFemale = characterStyle === 'female';
   const id = useId().replace(/:/g, '');
   const paint = (name) => `url(#${id}-${name})`;
   const outline = '#304641';
   const hair = hairstyles[hairStyle];
 
   return (
-    <svg viewBox="0 0 480 330" fill="none" xmlns="http://www.w3.org/2000/svg" {...props}>
+    <svg viewBox="0 0 480 330" fill="none" xmlns="http://www.w3.org/2000/svg" data-character-style={isFemale ? 'female' : 'male'} {...props}>
       <defs>
         <linearGradient id={`${id}-skin`} x1="160" y1="65" x2="236" y2="178" gradientUnits="userSpaceOnUse">
           <stop stopColor={tint(skinColor, '#ffffff', .16)} /><stop offset=".55" stopColor={skinColor} /><stop offset="1" stopColor={tint(skinColor, '#714e3c', .16)} />
@@ -97,8 +98,8 @@ export default function CharacterArt({ settings, ...props }) {
         <path d="M139 267C137 236 141 207 158 190C169 179 181 176 194 175H220C239 177 258 185 270 203C282 220 286 245 290 267Z" fill={paint('shirt')} />
         <path d="M145 222C143 241 146 254 147 266H170L161 223ZM272 221L286 267H267L260 230Z" fill={outline} fillOpacity=".1" stroke="none" />
         <path d="M164 190C171 185 179 182 187 181" stroke="white" strokeOpacity=".2" strokeWidth="3" />
-        <path d="M178 146L179 177C183 194 219 199 228 179L226 146Z" fill={paint('skin')} />
-        <path d="M179 151C188 170 215 176 226 155L226 166C216 181 191 179 179 166Z" fill={outline} fillOpacity=".13" stroke="none" />
+        <path d={isFemale ? 'M184 146L184 177C188 193 216 196 223 178L222 146Z' : 'M178 146L179 177C183 194 219 199 228 179L226 146Z'} fill={paint('skin')} />
+        <path d={isFemale ? 'M184 151C192 169 213 173 222 155L222 165C214 179 193 178 184 165Z' : 'M179 151C188 170 215 176 226 155L226 166C216 181 191 179 179 166Z'} fill={outline} fillOpacity=".13" stroke="none" />
 
         {outfit === 'polo' && <>
           <path d="M176 176L202 193L189 208L163 184Z" fill={paint('paper')} />
@@ -156,10 +157,10 @@ export default function CharacterArt({ settings, ...props }) {
         </g>
 
         <g className="character-head">
-          <ellipse cx="156" cy="116" rx="9" ry="13" fill={paint('skin')} />
-          <ellipse cx="246" cy="116" rx="9" ry="13" fill={paint('skin')} />
+          <ellipse cx="156" cy="116" rx={isFemale ? 8 : 9} ry="13" fill={paint('skin')} />
+          <ellipse cx="246" cy="116" rx={isFemale ? 8 : 9} ry="13" fill={paint('skin')} />
           <path d="M155 111Q149 115 156 121M246 111Q252 115 246 121" strokeOpacity=".3" strokeWidth="1.4" />
-          <path d="M159 94C158 68 174 49 200 49C229 47 247 69 245 96L242 128C239 152 223 173 202 176C180 174 164 154 161 129Z" fill={paint('skin')} />
+          <path className="character-face" d={isFemale ? 'M160 94C158 68 175 49 200 49C228 47 246 69 244 96L241 126C238 147 225 165 202 174C181 169 167 150 163 127Z' : 'M159 94C158 68 174 49 200 49C229 47 247 69 245 96L242 128C239 152 223 173 202 176C180 174 164 154 161 129Z'} fill={paint('skin')} />
           <path d="M165 98C164 78 175 62 187 59" stroke="white" strokeOpacity=".18" strokeWidth="5" />
           <path d="M239 111C239 142 224 164 205 168" stroke={outline} strokeOpacity=".08" strokeWidth="5" />
           <ellipse cx="176" cy="133" rx="9" ry="4" fill="#c96052" fillOpacity=".1" stroke="none" />
@@ -171,19 +172,21 @@ export default function CharacterArt({ settings, ...props }) {
               {hair.strands.map((strand) => <path key={strand} d={strand} />)}
             </g>
           </g>}
-          <path d="M173 102Q182 97 191 102M212 102Q222 97 231 103" stroke={hairColor} strokeWidth="3" />
+          <path d={isFemale ? 'M173 102Q182 95 192 101M212 101Q222 95 232 102' : 'M173 102Q182 97 191 102M212 102Q222 97 231 103'} stroke={hairColor} strokeWidth={isFemale ? 2.1 : 3} />
           <g className="character-eyes">
             <path d="M173 115Q183 107 194 115Q184 123 173 115Z" fill="#fffdf8" strokeWidth="1.2" />
             <ellipse cx="184" cy="115" rx="4.6" ry="5.1" fill={eyeColor} stroke="none" />
             <ellipse cx="184.6" cy="115.5" rx="2.1" ry="3.1" fill={outline} stroke="none" />
             <circle cx="182.7" cy="112.8" r="1.5" fill="white" stroke="none" />
             <circle cx="186.2" cy="117.5" r=".65" fill="white" fillOpacity=".65" stroke="none" />
+            {isFemale && <path d="M173 114L170 111M176 112L174 108" strokeWidth="1.5" />}
             {expression === 'wink' ? <path d="M212 115Q222 108 232 115" strokeWidth="2.5" /> : <>
               <path d="M212 115Q222 107 233 115Q222 123 212 115Z" fill="#fffdf8" strokeWidth="1.2" />
               <ellipse cx="222" cy="115" rx="4.6" ry="5.1" fill={eyeColor} stroke="none" />
               <ellipse cx="222.6" cy="115.5" rx="2.1" ry="3.1" fill={outline} stroke="none" />
               <circle cx="220.7" cy="112.8" r="1.5" fill="white" stroke="none" />
               <circle cx="224.2" cy="117.5" r=".65" fill="white" fillOpacity=".65" stroke="none" />
+              {isFemale && <path d="M232 114L235 111M230 112L232 108" strokeWidth="1.5" />}
             </>}
           </g>
           <path d="M203 118L199 130Q202 134 208 131" strokeOpacity=".35" strokeWidth="1.4" />

@@ -10,7 +10,7 @@ import CharacterArt from './CharacterArt';
 import characterSchema from '../../../../shared/dashboard-character.json';
 import './DashboardCharacter.css';
 
-const { defaults, choices, ranges } = characterSchema;
+const { defaults, choices, presets, ranges } = characterSchema;
 const panels = ['Character', 'Clothing', 'Scene', 'Motion'];
 const skinTones = ['#f6d8bb', '#e8ba91', '#d99e6c', '#bd8154', '#925f41', '#613d30'];
 
@@ -85,6 +85,10 @@ export default function DashboardCharacter() {
 
   const update = (key, value) => {
     setDraft((current) => ({ ...current, [key]: value }));
+    setSaveError('');
+  };
+  const chooseCharacterStyle = (characterStyle) => {
+    setDraft((current) => current.characterStyle === characterStyle ? current : { ...current, ...presets[characterStyle], characterStyle });
     setSaveError('');
   };
   const close = () => { if (!saving) setIsOpen(false); };
@@ -175,6 +179,23 @@ export default function DashboardCharacter() {
               <fieldset disabled={loading || saving} className="character-control-panel">
                 <legend className="sr-only">{panel} settings</legend>
                 {panel === 'Character' && <>
+                  <fieldset className="character-style-picker" aria-describedby="character-style-help">
+                    <legend>Character style</legend>
+                    <div className="character-style-options">
+                      {choices.characterStyle.map((characterStyle) => <button
+                        key={characterStyle}
+                        type="button"
+                        className="character-style-option"
+                        aria-pressed={draft.characterStyle === characterStyle}
+                        onClick={() => chooseCharacterStyle(characterStyle)}
+                      >
+                        <CharacterArt className="character-style-thumbnail" settings={{ ...draft, ...presets[characterStyle], characterStyle, showBooks: false, showPlant: false, showBackdrop: false }} viewBox="138 20 126 162" aria-hidden="true" />
+                        <span>{characterStyle === 'male' ? 'Male' : 'Female'}</span>
+                        {draft.characterStyle === characterStyle && <Check size={16} aria-hidden="true" />}
+                      </button>)}
+                    </div>
+                    <p id="character-style-help">Each style starts with its own hairstyle. You can customize every feature below.</p>
+                  </fieldset>
                   <div className="character-select-grid">
                     {selectControl('hairStyle', 'Hairstyle')}
                     {selectControl('expression', 'Expression')}
