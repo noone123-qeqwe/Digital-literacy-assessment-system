@@ -10,7 +10,7 @@ import DashboardCharacter from '../../components/dashboard/DashboardCharacter';
 import { KnowledgePulse } from '../knowledge/KnowledgeCommon';
 import {
   AlertCircle, ArrowRight, Award, BookOpenCheck, CalendarClock,
-  CheckCircle2, ClipboardList, Clock3, FileCheck2, RefreshCw,
+  CheckCircle2, ClipboardList, Clock3, FileCheck2, RefreshCw, BookOpen, TrendingUp,
 } from 'lucide-react';
 import { getProficiencyLevel, formatDateTime, parseStoredDate } from '../../utils/helpers';
 import './RespondentDashboard.css';
@@ -134,7 +134,8 @@ export const RespondentDashboard = () => {
   const isScheduled = Boolean(nextAssessment && !inProgress && opensAt && currentTime < opensAt);
   const hasRetake = nextAssessment?.attempt_status === 'completed';
   const nextAction = inProgress ? 'Resume assessment' : hasRetake ? `Start attempt ${Number(nextAssessment.attempt_count) + 1}` : 'Start assessment';
-  const nextPath = nextAssessment && !isScheduled ? `/respondent/assessments/${nextAssessment.id}/take` : '/respondent/assessments';
+  const nextPath = nextAssessment ? !isScheduled ? `/respondent/assessments/${nextAssessment.id}/take` : '/respondent/assessments' : '/respondent/knowledge';
+  const hasResearch = assessments.length > 0 || myAttempts.length > 0;
   const profile = user?.profile;
   const profileFields = [
     Boolean(profile?.age), Boolean(profile?.sex), Boolean(profile?.municipality), Boolean(profile?.barangay),
@@ -172,13 +173,12 @@ export const RespondentDashboard = () => {
 
   return (
     <div className="dlas-student-dashboard">
-      <KnowledgePulse student />
       {error && <div className="dashboard-error" role="alert">
         <AlertCircle aria-hidden="true" size={18} /><p>{error}</p>
         <button type="button" onClick={fetchDashboardData} disabled={refreshing}>Try again</button>
       </div>}
 
-      <div className="dashboard-overview">
+      <div className={`dashboard-overview ${!hasResearch ? 'dashboard-overview--welcome-only' : ''}`}>
         <section className="dashboard-welcome dashboard-enter" aria-labelledby="student-welcome">
           <div className="dashboard-welcome-copy">
             <p className="dashboard-eyebrow">Masbate Colleges · CCS</p>
@@ -193,7 +193,7 @@ export const RespondentDashboard = () => {
           <DashboardCharacter />
         </section>
 
-        <section className="dashboard-card dashboard-performance dashboard-enter" aria-labelledby="dashboard-performance">
+        {hasResearch && <section className="dashboard-card dashboard-performance dashboard-enter" aria-labelledby="dashboard-performance">
           <div className="dashboard-panel-heading">
             <h2 id="dashboard-performance">{latestIsDigCompSat ? 'Latest self-rating' : 'Latest performance'}</h2>
             <button type="button" onClick={fetchDashboardData} disabled={refreshing} aria-label="Refresh dashboard" className="dashboard-icon-button">
@@ -208,9 +208,17 @@ export const RespondentDashboard = () => {
           <Link to={latestResult ? `/respondent/assessments/${latestResult.id}/results` : '/respondent/assessments'} className="dashboard-text-link">
             {latestResult ? 'View latest result' : 'Find an assessment'} <ArrowRight aria-hidden="true" size={14} />
           </Link>
-        </section>
+        </section>}
       </div>
 
+      <nav className="dashboard-mobile-shortcuts" aria-label="Learning shortcuts">
+        <Link to="/respondent/materials"><BookOpen aria-hidden="true" size={21} /><span>Learn</span></Link>
+        <Link to="/respondent/progress"><TrendingUp aria-hidden="true" size={21} /><span>Progress</span></Link>
+        <Link to="/respondent/certificates"><Award aria-hidden="true" size={21} /><span>Awards</span></Link>
+      </nav>
+      <KnowledgePulse student />
+
+      {hasResearch && <>
       <section aria-label="Assessment overview" className="dashboard-stats">
         {stats.map(({ label, value, Icon, tone, path }, index) => (
           <Link key={label} to={path}
@@ -312,6 +320,7 @@ export const RespondentDashboard = () => {
           </> : <div className="dashboard-caught-up"><FileCheck2 aria-hidden="true" size={28} /><p>Your submitted assessments and awards will appear here.</p></div>}
         </section>
       </div>
+      </>}
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, CheckCircle2, Download, WifiOff } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, ChevronDown, Download, WifiOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
 import { useAuth } from '../../contexts/useAuth';
@@ -20,6 +20,7 @@ function KnowledgeAttempt({ attemptId }) {
   const [data, setData] = useState(null), [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true), [error, setError] = useState('');
   const [index, setIndex] = useState(0), [review, setReview] = useState(false);
+  const [questionMapOpen, setQuestionMapOpen] = useState(() => window.matchMedia('(min-width: 640px)').matches);
   const [syncStatus, setSyncStatus] = useState('Loading saved answers…');
   const [storageError, setStorageError] = useState('');
   const [pending, setPending] = useState(false), [clockOffset, setClockOffset] = useState(0);
@@ -29,6 +30,12 @@ function KnowledgeAttempt({ attemptId }) {
   const latest = useRef(null), writes = useRef(Promise.resolve()), upload = useRef(null), active = useRef(true);
   const automaticSubmit = useRef(false), questionHeading = useRef(null), moveFocus = useRef(false);
   const canAnswer = user.role === 'respondent';
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 640px)');
+    const update = () => setQuestionMapOpen(media.matches);
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
 
   const persist = useCallback((record) => {
     writes.current = writes.current.catch(() => {}).then(() => writeQuizRecovery(user.id, attemptId, record)).then(() => true).catch((failure) => {
@@ -124,7 +131,11 @@ function KnowledgeAttempt({ attemptId }) {
   }, [attemptId, user.id, canAnswer, persist, sync]);
 
   useEffect(() => {
-    if (moveFocus.current) { questionHeading.current?.focus({ preventScroll: true }); moveFocus.current = false; }
+    if (moveFocus.current) {
+      questionHeading.current?.focus({ preventScroll: true });
+      questionHeading.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
+      moveFocus.current = false;
+    }
   }, [index, review]);
 
   const remaining = data?.attempt.deadline ? Math.max(0, Math.ceil((Date.parse(data.attempt.deadline) - now - clockOffset) / 1000)) : null;
@@ -165,7 +176,7 @@ function KnowledgeAttempt({ attemptId }) {
       void sync();
     });
   };
-  const selectQuestion = (value) => { moveFocus.current = true; setIndex(value); setReview(false); };
+  const selectQuestion = (value) => { moveFocus.current = true; setIndex(value); setReview(false); if (window.matchMedia('(max-width: 639px)').matches) setQuestionMapOpen(false); };
   const resolveConflict = async (keepLocal) => {
     if (!navigator.onLine) return;
     if (!window.confirm(keepLocal ? 'Replace the current server answers with this device’s responses?' : 'Replace this device’s pending answers with the server copy? Download the local copy first if you need to keep it.')) return;
@@ -185,7 +196,7 @@ function KnowledgeAttempt({ attemptId }) {
   const answered = questions.filter((question) => String(answers[question.id] ?? '').trim()).length;
   const question = questions[index];
 
-  return <KnowledgePage title={data.snapshot.title} description={data.attempt.status === 'completed' ? `Completed ${displayDate(data.attempt.completed_at)} · Knowledge assessment` : 'Work independently. Your answer order is saved for this attempt.'} action={<Link className="kq-button kq-button-secondary" to={back}><ArrowLeft size={16} aria-hidden="true" />Back</Link>}>
+  return <KnowledgePage className={canAnswer ? 'student-quiz-page' : ''} title={data.snapshot.title} description={data.attempt.status === 'completed' ? `Completed ${displayDate(data.attempt.completed_at)} · Knowledge assessment` : 'Answer independently. You can review before submitting.'} action={<Link className="kq-button kq-button-secondary" to={back} aria-label={canAnswer ? 'Back to assessments' : 'Back to results'}><ArrowLeft size={16} aria-hidden="true" /><span className="kq-back-label">Back</span></Link>}>
     {data.results ? <>
       <section className="kq-hero"><div><p className="kq-eyebrow">Assessment complete</p><h2>{data.attempt.first_name ? `${data.attempt.first_name} ${data.attempt.last_name}` : `${user.first_name} ${user.last_name}`}</h2><p>{data.results.earned} of {data.results.possible} points · <LevelBadge level={data.results.level} /></p></div><div className="kq-score">{data.results.percentage}%</div></section>
       <div className="kq-actions"><button className="kq-button kq-button-secondary" onClick={() => knowledgeDownload(`/knowledge/attempts/${attemptId}/export/pdf`, `Knowledge_Result_${attemptId}.pdf`)}><Download size={16} aria-hidden="true" />PDF report</button><button className="kq-button kq-button-secondary" onClick={() => knowledgeDownload(`/knowledge/attempts/${attemptId}/export/excel`, `Knowledge_Result_${attemptId}.xlsx`)}>Excel report</button>
@@ -197,10 +208,11 @@ function KnowledgeAttempt({ attemptId }) {
     </> : <div className="kq-page kq-take">
       {conflict && <section className="kq-card" role="alert"><h2>Answers changed in another tab or device</h2><p className="kq-note">Your local recovery copy is preserved. Choose which copy to keep before synchronization can continue.</p><div className="kq-actions"><button className="kq-button kq-button-secondary" onClick={() => downloadQuizRecovery({ ...latest.current, userId: user.id, attemptId })}>Download local copy</button><button className="kq-button" disabled={!online} onClick={() => resolveConflict(true)}>Keep this device’s answers</button><button className="kq-button kq-button-secondary" disabled={!online} onClick={() => resolveConflict(false)}>Use server answers</button></div></section>}
       {!online && <p role="status" className="kq-check"><WifiOff size={18} aria-hidden="true" />You are offline. Keep using this device and browser; reconnect before submission.</p>}
-      <section className="kq-card"><div className="kq-section-title"><div><p className="kq-eyebrow">Assessment progress</p><strong>{answered} of {questions.length} answered</strong></div><span className="kq-timer" aria-label="Time remaining">{remaining === null ? 'Untimed' : `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`}</span></div><div className="kq-progress"><div style={{ width: `${answered / questions.length * 100}%` }} /></div><p className="kq-note" role="status">{syncStatus}</p>{storageError && <p className="kq-note" role="alert">Local recovery is unavailable: {storageError} Keep this tab open and maintain a connection so responses can be saved to the server.</p>}</section>
-      <nav className="kq-question-navigation" aria-label="Assessment questions">{questions.map((item, number) => <button key={item.id} type="button" data-answered={Boolean(String(answers[item.id] ?? '').trim())} aria-current={!review && index === number ? 'step' : undefined} aria-label={`Question ${number + 1}${String(answers[item.id] ?? '').trim() ? ', answered' : ', unanswered'}`} onClick={() => selectQuestion(number)}>{number + 1}</button>)}</nav>
+      <section className="kq-card kq-attempt-status"><div className="kq-section-title"><div><p className="kq-eyebrow">Assessment progress</p><strong>{answered} of {questions.length} answered</strong></div><span className="kq-timer" aria-label="Time remaining">{remaining === null ? 'Untimed' : `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`}</span></div><div className="kq-progress" role="progressbar" aria-label="Assessment progress" aria-valuemin={0} aria-valuemax={questions.length} aria-valuenow={answered}><div style={{ width: `${answered / questions.length * 100}%` }} /></div><p className="kq-note" role="status">{syncStatus}</p>{storageError && <p className="kq-note" role="alert">Local recovery is unavailable: {storageError} Keep this tab open and maintain a connection so responses can be saved to the server.</p>}</section>
+      <div className="kq-question-map"><button type="button" className="kq-question-map-toggle" aria-expanded={questionMapOpen} aria-controls="quiz-question-map" onClick={() => setQuestionMapOpen(value => !value)}><span>{review ? 'Question list' : `Question ${index + 1} of ${questions.length}`}</span><span>{questionMapOpen ? 'Hide list' : 'Show list'}<ChevronDown size={16} aria-hidden="true" /></span></button>
+      <nav id="quiz-question-map" hidden={!questionMapOpen} className="kq-question-navigation" aria-label="Assessment questions">{questions.map((item, number) => <button key={item.id} type="button" data-answered={Boolean(String(answers[item.id] ?? '').trim())} aria-current={!review && index === number ? 'step' : undefined} aria-label={`Question ${number + 1}${String(answers[item.id] ?? '').trim() ? ', answered' : ', unanswered'}`} onClick={() => selectQuestion(number)}>{number + 1}</button>)}</nav></div>
       {review ? <section className="kq-card"><h2 ref={questionHeading} tabIndex={-1}>Review your answers</h2><p className="kq-note">{questions.length - answered} unanswered. You can return to any question before submitting.</p><div className="kq-list" style={{ marginTop: 18 }}>{questions.map((item, number) => <button className="kq-question-row" key={item.id} onClick={() => selectQuestion(number)}><span><strong>{number + 1}. {item.prompt}</strong><p>{item.options.find((option) => option.id === answers[item.id])?.text || answers[item.id] || 'Unanswered'}</p></span><ArrowRight size={17} aria-hidden="true" /></button>)}</div><div className="kq-actions" style={{ marginTop: 20 }}><button className="kq-button" disabled={!online || submitting || (answered !== questions.length && !expired) || freeDemoReadOnly} onClick={() => submit(expired)}>{submitting ? 'Submitting…' : 'Submit assessment'}</button><button className="kq-button kq-button-secondary" onClick={() => selectQuestion(index)}>Continue answering</button></div></section>
-        : <section className="kq-card"><div className="kq-section-title"><span className="kq-badge">{question.category_name}</span><span className="kq-note">{question.points} point{question.points === 1 ? '' : 's'} · {question.type.replaceAll('_', ' ')}</span></div><h2 ref={questionHeading} tabIndex={-1}>{index + 1}. {question.prompt}</h2><fieldset disabled={expired || submitting || !canAnswer || freeDemoReadOnly} className="kq-options"><legend className="sr-only">Your answer to question {index + 1}</legend>{question.type === 'identification' ? <Field label="Your answer"><input type="text" maxLength={500} value={answers[question.id] || ''} onChange={(event) => answer(event.target.value)} autoComplete="off" /></Field> : question.options.map((option) => <label key={option.id}><input type="radio" name={`question-${question.id}`} value={option.id} checked={answers[question.id] === option.id} onChange={() => answer(option.id)} /><span>{option.text}</span></label>)}</fieldset><div className="kq-actions" style={{ justifyContent: 'space-between', marginTop: 26 }}><button className="kq-button kq-button-secondary" disabled={index === 0} onClick={() => selectQuestion(index - 1)}><ArrowLeft size={15} aria-hidden="true" />Previous</button>{index < questions.length - 1 ? <button className="kq-button" onClick={() => selectQuestion(index + 1)}>Next<ArrowRight size={15} aria-hidden="true" /></button> : <button className="kq-button" onClick={() => { moveFocus.current = true; setReview(true); }}><CheckCircle2 size={16} aria-hidden="true" />Review answers</button>}</div></section>}
+        : <section className="kq-card kq-question-card"><div className="kq-section-title"><span className="kq-badge">{question.category_name}</span><span className="kq-note">{question.points} point{question.points === 1 ? '' : 's'} · {question.type.replaceAll('_', ' ')}</span></div><h2 ref={questionHeading} tabIndex={-1}>{index + 1}. {question.prompt}</h2><fieldset disabled={expired || submitting || !canAnswer || freeDemoReadOnly} className="kq-options"><legend className="sr-only">Your answer to question {index + 1}</legend>{question.type === 'identification' ? <Field label="Your answer"><input type="text" maxLength={500} value={answers[question.id] || ''} onChange={(event) => answer(event.target.value)} autoComplete="off" /></Field> : question.options.map((option) => <label key={option.id}><input type="radio" name={`question-${question.id}`} value={option.id} checked={answers[question.id] === option.id} onChange={() => answer(option.id)} /><span>{option.text}</span></label>)}</fieldset><div className="kq-actions kq-question-actions" style={{ justifyContent: 'space-between', marginTop: 26 }}><button className="kq-button kq-button-secondary" disabled={index === 0} onClick={() => selectQuestion(index - 1)}><ArrowLeft size={15} aria-hidden="true" />Previous</button>{index < questions.length - 1 ? <button className="kq-button" onClick={() => selectQuestion(index + 1)}>Next<ArrowRight size={15} aria-hidden="true" /></button> : <button className="kq-button" onClick={() => { moveFocus.current = true; setReview(true); }}><CheckCircle2 size={16} aria-hidden="true" />Review answers</button>}</div></section>}
       {!review && <button className="kq-button kq-button-secondary" onClick={() => { moveFocus.current = true; setReview(true); }}>Review all answers</button>}
       {pending && online && <button className="kq-button kq-button-secondary" onClick={() => void sync()}>Retry synchronization</button>}
       {expired && !online && <Empty>Time has ended. Reconnect to finalize the answers received by the server before the deadline.</Empty>}

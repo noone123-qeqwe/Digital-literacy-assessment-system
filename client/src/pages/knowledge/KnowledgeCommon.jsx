@@ -5,8 +5,8 @@ import { useAuth } from '../../contexts/useAuth';
 import { useKnowledgeData, displayDate } from './knowledgeClient';
 import './Knowledge.css';
 
-export function KnowledgePage({ title, description, children, action, eyebrow = 'Digital literacy', loading, error, reload }) {
-  return <div className="kq-page">
+export function KnowledgePage({ title, description, children, action, eyebrow = 'Digital literacy', loading, error, reload, className = '' }) {
+  return <div className={`kq-page ${className}`}>
     <header className="kq-heading"><div><p className="kq-eyebrow">{eyebrow}</p><h1>{title}</h1><p>{description}</p></div>{action}</header>
     {loading ? <div className="kq-card kq-state" role="status"><RefreshCw aria-hidden="true" size={24} />Loading your information…</div>
       : error ? <div className="kq-card kq-state" role="alert"><p>{error}</p><button className="kq-button" onClick={reload}>Try again</button></div> : children}
@@ -53,10 +53,11 @@ export function KnowledgePulse({ student = false }) {
   const state = useKnowledgeData(['/knowledge/overview']);
   const overview = state.data[0];
   const base = student ? '/respondent' : user.role === 'assessor' ? '/assessor' : '/admin';
-  return <section className="kq-page kq-dashboard-pulse"><div className="kq-hero"><div><p className="kq-eyebrow">Your digital learning hub</p><h2>Welcome to the Digital Literacy Assessment System!</h2><p>Assess your knowledge, discover strengths, and build the skills you need.</p></div><Link className="kq-button" to={`${base}/knowledge`}>{student ? 'Explore assessments' : 'Manage assessments'}<ArrowRight aria-hidden="true" size={17} /></Link></div>
+  return <section className={`kq-page kq-dashboard-pulse ${student ? 'kq-student-pulse' : ''}`}>
+    {student ? <div className="kq-student-summary-heading"><h2>Your assessments</h2><Link to={`${base}/knowledge`}>View all<ArrowRight aria-hidden="true" size={16} /></Link></div> : <div className="kq-hero"><div><p className="kq-eyebrow">Your digital learning hub</p><h2>Welcome to the Digital Literacy Assessment System!</h2><p>Assess your knowledge, discover strengths, and build the skills you need.</p></div><Link className="kq-button" to={`${base}/knowledge`}>Manage assessments<ArrowRight aria-hidden="true" size={17} /></Link></div>}
     {overview && <KnowledgeStats summary={overview.summary} student={student} />}
     {state.error && <p role="status" className="kq-note">Knowledge assessment statistics are unavailable. <button onClick={state.reload}>Retry</button></p>}
     {!student && overview && <><KnowledgeCharts data={overview} /><article className="kq-card"><div className="kq-section-title"><h2>Recent student activities</h2><Link to={`${base}/results`}>View results →</Link></div><div className="kq-activities">{overview.activities.map((activity, index) => <div key={index}><span className="kq-activity-dot" /><div><strong>{activity.first_name ? `${activity.first_name} ${activity.last_name}` : activity.action.replaceAll('_', ' ')}</strong><p>{activity.details || activity.action}</p></div><time>{displayDate(activity.created_at)}</time></div>)}</div></article></>}
-    <p className="kq-note">Knowledge scores use percentages. Research self-reflection scores below retain their original scale and are reported separately.</p>
+    {student ? <details className="kq-score-explainer"><summary>About your scores</summary><p className="kq-note">Quiz scores use percentages. Research self-reflection scores use their own scale and are shown separately.</p></details> : <p className="kq-note">Knowledge scores use percentages. Research self-reflection scores below retain their original scale and are reported separately.</p>}
   </section>;
 }

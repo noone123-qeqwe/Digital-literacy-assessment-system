@@ -60,7 +60,7 @@ export default function KnowledgeAssessments() {
     const response = await run(() => api.post(`/knowledge/quizzes/${preview.id}/start`, { accepted_instructions: accepted }));
     if (response) navigate(`/respondent/knowledge/attempts/${response.data.data.attempt.id}`);
   };
-  return <KnowledgePage {...state} title={student ? 'Take an assessment' : 'Assessment management'} description="Scored knowledge assessments use correct answers, points, and percentage proficiency levels. Research questionnaires have a separate workflow."
+  return <KnowledgePage {...state} className={student ? 'student-assessment-browser' : ''} title={student ? 'Take an assessment' : 'Assessment management'} description={student ? 'Choose an assessment, read the instructions, and continue where you left off.' : 'Scored knowledge assessments use correct answers, points, and percentage proficiency levels. Research questionnaires have a separate workflow.'}
     action={student ? <ResearchLink to="/respondent/assessments" /> : <button className="kq-button" disabled={freeDemoReadOnly || !questions.length} onClick={() => { setForm(blankForm); setFormOpen(true); }}><Plus size={17} aria-hidden="true" />Create assessment</button>}>
     {!student && <div className="kq-actions"><ResearchLink to={user.role === 'admin' ? '/admin/assessments' : '/assessor/assessments'}>Manage research assessments</ResearchLink>{user.role === 'admin' && <Link className="kq-button kq-button-secondary" to="/admin/knowledge/questions">Open scored question bank</Link>}</div>}
     {freeDemoReadOnly && <p className="kq-note">This demonstration is read-only. You can view assessments; starting attempts and editing are disabled.</p>}

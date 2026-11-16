@@ -43,17 +43,22 @@ const routeTitles = [
 export const Navbar = ({ setIsSidebarOpen, isSidebarOpen, dashboardMode = false }) => {
   const { user, profilePictureUrl } = useAuth();
   const location = useLocation();
-  const [dashboardDate, setDashboardDate] = useState(() => new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }));
+  const [dashboardDate, setDashboardDate] = useState(() => new Date());
   useEffect(() => {
     if (!dashboardMode) return undefined;
     const timer = window.setInterval(() => {
-      setDashboardDate(new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }));
+      setDashboardDate(new Date());
     }, 60_000);
     return () => window.clearInterval(timer);
   }, [dashboardMode]);
   const pageTitle = routeTitles.find(([path]) => location.pathname.startsWith(path))?.[1] || 'Assessment';
+  const dashboardLongDate = dashboardDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const dashboardShortDate = dashboardDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
   const roleLabel = user?.role === 'respondent' ? 'Student' : user?.role === 'assessor' ? 'Teacher / Assessor' : 'Administrator';
-  const ProfileWrapper = user?.role === 'admin' ? Link : 'div';
+  const isStudent = user?.role === 'respondent';
+  const takingAssessment = /^\/respondent\/(assessments\/\d+\/take|knowledge\/attempts\/\d+)\/?$/.test(location.pathname);
+  const profileLink = user?.role === 'admin' || (isStudent && !takingAssessment);
+  const ProfileWrapper = profileLink ? Link : 'div';
 
   return (
     <header className={`workspace-navbar sticky top-0 z-30 flex items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 py-5 backdrop-blur-md sm:px-8 2xl:px-12 2xl:py-7 ${dashboardMode ? 'dashboard-navbar' : ''}`}>
@@ -70,7 +75,7 @@ export const Navbar = ({ setIsSidebarOpen, isSidebarOpen, dashboardMode = false 
         </button>
         <div>
           <h2 className="text-base font-bold tracking-tight text-slate-900 sm:text-lg 2xl:text-xl">{dashboardMode ? 'Dashboard' : pageTitle}</h2>
-          <p className={`text-xs text-slate-500 2xl:text-sm ${dashboardMode ? '' : 'hidden sm:block'}`}>{dashboardMode ? dashboardDate : 'Digital Literacy Assessment System · Masbate Colleges'}</p>
+          <p className={`text-xs text-slate-500 2xl:text-sm ${dashboardMode ? '' : 'hidden sm:block'}`}>{dashboardMode ? <><span className="sm:hidden">{dashboardShortDate}</span><span className="hidden sm:inline">{dashboardLongDate}</span></> : 'Digital Literacy Assessment System · Masbate Colleges'}</p>
         </div>
       </div>
 
@@ -82,7 +87,7 @@ export const Navbar = ({ setIsSidebarOpen, isSidebarOpen, dashboardMode = false 
         </div>}
 
         {/* User Mini Profile */}
-        <ProfileWrapper {...(user?.role === 'admin' ? { to: '/security', 'aria-label': 'Open account settings', className: 'admin-account-link' } : { className: 'flex items-center space-x-3 border-l border-slate-200 pl-3 2xl:space-x-4 2xl:pl-4' })}>
+        <ProfileWrapper {...(profileLink ? { to: isStudent ? '/respondent/profile' : '/security', 'aria-label': isStudent ? 'Open your profile' : 'Open account settings' } : {})} className={user?.role === 'admin' ? 'admin-account-link' : 'student-profile-link flex items-center space-x-3 border-l border-slate-200 pl-3 2xl:space-x-4 2xl:pl-4'}>
           <div aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-900 text-sm font-bold text-white shadow-xs ring-2 ring-slate-100 2xl:h-12 2xl:w-12 2xl:text-base">
             {profilePictureUrl ? (
               <img src={profilePictureUrl} alt="" className="h-full w-full object-cover" />

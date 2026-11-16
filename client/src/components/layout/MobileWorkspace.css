@@ -84,14 +84,6 @@
     background: #eaf5ee;
   }
 
-  .dlas-student-workspace:has(:is(
-    textarea, input:not([type]), input[type="text"], input[type="email"],
-    input[type="password"], input[type="search"], input[type="number"],
-    input[type="tel"], input[type="url"]
-  ):focus) .student-mobile-nav {
-    display: none;
-  }
-
   .dlas-student-workspace .student-assessment-progress {
     top: calc(72px + env(safe-area-inset-top));
   }
