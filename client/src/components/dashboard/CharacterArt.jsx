@@ -99,9 +99,10 @@ export default function CharacterArt({ settings, ...props }) {
       <ellipse cx="253" cy="303" rx="202" ry="10" fill="#183b58" fillOpacity=".08" stroke="none" />
       <path d="M43 293H457L449 301H53Z" fill="white" fillOpacity=".3" stroke="none" />
       <path d="M53 301H449" stroke={shirtColor} strokeOpacity=".16" />
-      <path d="M148 276V215C148 201 161 191 176 191H231C247 191 260 203 260 218V278Z" fill={tint(shirtColor, '#17243a', .5)} stroke="none" />
+      <g className="character-person">
+        <path d="M148 276V215C148 201 161 191 176 191H231C247 191 260 203 260 218V278Z" fill={tint(shirtColor, '#17243a', .5)} stroke="none" />
 
-      <g className="character-head">
+        <g className="character-head">
         {hairStyle === 'long' && <>
           <path d="M161 67C140 88 139 118 141 148C142 176 132 201 141 224C175 237 230 234 260 220C250 193 262 174 255 143C256 111 252 80 236 64Z" fill={paint('hair')} />
           <path d="M151 110C144 151 156 185 148 217M245 111C253 151 242 184 251 215" stroke={hairLight} strokeOpacity=".45" />
@@ -162,6 +163,7 @@ export default function CharacterArt({ settings, ...props }) {
       <path d="M134 235L162 246" stroke={accentColor} strokeWidth="3.5" />
       <path d="M254 213L276 236L256 250L238 226Z" fill={paint('shirt')} />
       <path d="M258 246L274 235" stroke={accentColor} strokeWidth="3" />
+      </g>
 
       <g className="character-laptop-base">
         <ellipse cx="314" cy="290" rx="96" ry="5" fill="#152d46" fillOpacity=".13" stroke="none" />
@@ -177,6 +179,7 @@ export default function CharacterArt({ settings, ...props }) {
         <path d="M273 286H403" stroke="white" strokeOpacity=".23" strokeWidth=".8" />
         <circle className="character-laptop-light" cx="259" cy="280" r="1.2" fill="#a5f3e7" stroke="none" />
       </g>
+      <g className="character-person">
       <g className="character-hand character-hand-left">
         <path d="M135 238L160 247L156 260L216 261C222 256 230 256 237 260L251 270Q257 277 249 277L226 270L155 282C138 286 127 273 131 257Z" fill={paint('skin')} />
         <path d="M137 266Q140 277 152 277L208 268" stroke={tint(skinColor, '#fffaf2', .45)} strokeWidth="2.5" />
@@ -201,7 +204,7 @@ export default function CharacterArt({ settings, ...props }) {
           <g stroke={hairLight} strokeOpacity=".45" strokeWidth="1.8">{hair.strands.map(strand => <path key={strand} d={strand} />)}</g>
         </g>}
         <path d={expression === 'focused' ? 'M174 110L193 113M213 113L232 110' : 'M174 108Q183 102 193 108M213 108Q222 102 232 109'} stroke={hairColor} strokeWidth={isFemale ? 2 : 2.6} />
-        <g className="character-eyes">
+        <g className={expression === 'happy' ? 'character-eyes character-eyes--happy' : 'character-eyes'}>
           {expression === 'happy' ? <path d="M174 122Q183 113 194 122M213 122Q223 113 232 122" strokeWidth="2.5" /> : <>
             <path d="M174 121Q183 113 194 121Q184 129 174 121Z" fill="#fffef9" strokeWidth="1.1" />
             <ellipse cx="185" cy="122" rx="4.5" ry="5" fill={eyeColor} stroke="none" />
@@ -243,6 +246,7 @@ export default function CharacterArt({ settings, ...props }) {
           <rect x="246" y="108" width="13" height="29" rx="6.5" fill={laptopColor} />
           <path d="M151 115V130M252 115V130" stroke={accentColor} strokeWidth="3" strokeOpacity=".75" />
         </g>}
+      </g>
       </g>
 
       <g className="character-laptop-lid">

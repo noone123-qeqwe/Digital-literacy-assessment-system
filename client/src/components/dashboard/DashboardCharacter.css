@@ -125,38 +125,46 @@
 .character-motion[data-speed="normal"] { --motion-scale: 1; }
 .character-motion[data-speed="lively"] { --motion-scale: 0.72; }
 
-.character-motion[data-animation="float"] {
-  animation: none;
+.character-motion[data-animation="float"] .character-person {
+  animation: character-float calc(4.8s * var(--motion-scale)) ease-in-out infinite;
 }
 
-.character-motion[data-animation="breathe"] {
+.character-motion[data-animation="breathe"] .character-person {
   animation: character-breathe calc(4.2s * var(--motion-scale)) ease-in-out infinite;
 }
 
-.character-motion[data-animation="typing"] {
+.character-motion[data-animation="typing"] .character-person {
   animation: character-typing-posture calc(3.6s * var(--motion-scale)) ease-in-out infinite;
 }
 
-.character-motion[data-animation="bounce"] {
+.character-motion[data-animation="bounce"] .character-person {
   animation: character-bounce calc(2.6s * var(--motion-scale)) cubic-bezier(0.35, 0.05, 0.45, 0.95) infinite;
 }
 
-.character-motion[data-animation="sway"] {
+.character-motion[data-animation="sway"] .character-person {
   animation: character-sway calc(3.4s * var(--motion-scale)) ease-in-out infinite;
 }
 
-.character-motion[data-animation="wave"] {
+.character-motion[data-animation="wave"] .character-person {
   animation: character-wave-body calc(3.8s * var(--motion-scale)) ease-in-out infinite;
 }
 
+.character-art .character-person { transform-origin: 202px 278px; }
 .character-art .character-head { transform-origin: 202px 177px; }
 .character-art .character-eyes { transform-origin: 204px 122px; }
-.character-art .character-hand-left { transform-origin: 141px 247px; }
-.character-art .character-hand-right { transform-origin: 266px 248px; }
+.character-art .character-hand-left { transform-origin: 148px 242px; }
+.character-art .character-hand-right { transform-origin: 265px 243px; }
 .character-art .character-leaves { transform-origin: 75px 266px; }
-.character-art .character-steam { transform-origin: 434px 230px; }
+.character-art .character-laptop-light {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.character-art .character-steam {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+}
 
-.character-motion:not([data-animation="none"]) .character-eyes { animation: character-blink calc(6.4s * var(--motion-scale)) linear infinite; }
+.character-motion:not([data-animation="none"]) .character-eyes:not(.character-eyes--happy) { animation: character-blink calc(6.4s * var(--motion-scale)) linear infinite; }
 .character-motion:not([data-animation="none"]) .character-leaves { animation: character-leaf-sway calc(5.5s * var(--motion-scale)) ease-in-out infinite; }
 .character-motion:not([data-animation="none"]) .character-laptop-light { animation: character-screen-light calc(4s * var(--motion-scale)) ease-in-out infinite; }
 .character-motion:not([data-animation="none"]) .character-steam { animation: character-steam calc(3.2s * var(--motion-scale)) ease-in-out infinite; }
@@ -186,7 +194,10 @@
 .character-motion[data-animation="wave"] .character-hand-right { animation: character-hand-wave calc(3.8s * var(--motion-scale)) ease-in-out infinite; }
 
 .character-scene[data-paused="true"] .character-motion,
-.character-scene[data-paused="true"] .character-art * { animation-play-state: paused; }
+.character-scene[data-paused="true"] .character-motion *,
+.character-scene[data-paused="true"] .character-motion .character-art * {
+  animation-play-state: paused !important;
+}
 
 .character-dialog [role="dialog"] {
   display: flex;
@@ -418,9 +429,14 @@
 .character-editor-error button { min-height: 40px; font-weight: 650; }
 .character-demo-note { color: #795312; background: #fff8e8; }
 
+@keyframes character-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2.5px); }
+}
+
 @keyframes character-breathe {
   0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.025); }
+  50% { transform: scale(1.022); }
 }
 
 @keyframes character-nod {
@@ -435,12 +451,12 @@
 
 @keyframes character-type-left {
   0%, 12%, 24%, 36%, 48%, 70%, 100% { transform: rotate(0); }
-  6%, 18%, 30%, 42% { transform: rotate(-1.6deg); }
+  6%, 18%, 30%, 42% { transform: rotate(-1.8deg); }
 }
 
 @keyframes character-type-right {
   0%, 12%, 24%, 36%, 48%, 70%, 100% { transform: rotate(0); }
-  6%, 18%, 30%, 42% { transform: rotate(1.8deg); }
+  6%, 18%, 30%, 42% { transform: rotate(4.2deg); }
 }
 
 @keyframes character-leaf-sway {
@@ -455,7 +471,7 @@
 
 @keyframes character-screen-pulse {
   0%, 100% { opacity: .5; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.25); }
+  50% { opacity: 1; transform: scale(1.6); }
 }
 
 @keyframes character-typing-posture {
@@ -465,9 +481,9 @@
 
 @keyframes character-bounce {
   0%, 100% { transform: translateY(0) scaleY(1); }
-  25% { transform: translateY(-6px) scaleY(1.015); }
-  55% { transform: translateY(1px) scaleX(1.018) scaleY(.985); }
-  75% { transform: translateY(-3px) scaleY(1.008); }
+  25% { transform: translateY(-5px) scaleY(1.015); }
+  55% { transform: translateY(1px) scaleX(1.015) scaleY(.985); }
+  75% { transform: translateY(-2.5px) scaleY(1.008); }
 }
 
 @keyframes character-sway {
@@ -477,7 +493,7 @@
 
 @keyframes character-wave-body {
   0%, 100% { transform: translateY(0); }
-  35%, 55% { transform: translateY(-3px); }
+  35%, 55% { transform: translateY(-2.5px); }
 }
 
 @keyframes character-nod-focus {
@@ -502,20 +518,20 @@
 
 @keyframes character-type-fast-left {
   0%, 100% { transform: rotate(0); }
-  25% { transform: rotate(-2.8deg); }
-  65% { transform: rotate(.8deg); }
+  25% { transform: rotate(-3.6deg); }
+  65% { transform: rotate(.9deg); }
 }
 
 @keyframes character-type-fast-right {
   0%, 100% { transform: rotate(0); }
-  25% { transform: rotate(3deg); }
-  65% { transform: rotate(-.8deg); }
+  25% { transform: rotate(7.5deg); }
+  65% { transform: rotate(-2deg); }
 }
 
 @keyframes character-hand-wave {
-  0%, 14%, 82%, 100% { transform: rotate(0); }
-  28%, 50%, 70% { transform: rotate(-11deg); }
-  39%, 60% { transform: rotate(-5deg); }
+  0%, 12%, 88%, 100% { transform: rotate(0); }
+  26%, 50%, 74% { transform: rotate(-26deg); }
+  38%, 62% { transform: rotate(-10deg); }
 }
 
 @keyframes character-steam {

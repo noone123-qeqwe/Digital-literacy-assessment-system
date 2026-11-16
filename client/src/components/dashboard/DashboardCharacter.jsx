@@ -40,7 +40,7 @@ const optionLabels = {
 };
 
 const animationMeta = {
-  float: { label: 'Relaxed', description: 'Soft blinks & subtle hand movement' },
+  float: { label: 'Relaxed', description: 'Gentle idle motion, soft blinks & light typing' },
   breathe: { label: 'Breathe', description: 'Calm chest breath & soft nod' },
   typing: { label: 'Focused study', description: 'Active typing & screen glow' },
   bounce: { label: 'Bounce', description: 'Upbeat hop & cheerful energy' },
