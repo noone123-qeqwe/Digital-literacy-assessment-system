@@ -198,23 +198,28 @@ export const LoginPage = () => {
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="group flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-green-900/15 transition hover:bg-green-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-wait disabled:opacity-60 sm:min-h-14 sm:text-base"
-                >
-                  {isLoading ? (
-                    <>
-                      <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                      <span>Signing in…</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Sign in</span>
-                      <ArrowRight aria-hidden="true" className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                    </>
-                  )}
-                </button>
+                <div>
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="group flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-700 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-green-900/15 transition hover:bg-green-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700 disabled:cursor-wait disabled:opacity-60 sm:min-h-14 sm:text-base"
+                  >
+                    {isLoading ? (
+                      <>
+                        <span aria-hidden="true" className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                        <span>Signing in…</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Sign in</span>
+                        <ArrowRight aria-hidden="true" className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                      </>
+                    )}
+                  </button>
+                  <div className="mt-1 flex justify-end">
+                    <Link to="/forgot-password" className="inline-flex min-h-11 items-center py-2 text-sm font-semibold text-green-800 underline-offset-4 hover:text-green-900 hover:underline sm:text-base">Forgot password?</Link>
+                  </div>
+                </div>
               </form> : <form className="space-y-5" onSubmit={handleMfaSubmit} aria-busy={mfaBusy}>
                 {authStep === 'mfa-setup' && (
                   <div className="rounded-xl border border-green-200 bg-green-50 p-4">
@@ -239,7 +244,6 @@ export const LoginPage = () => {
               </form>}
 
               {authStep === 'credentials' && <div className="mt-4 border-t border-slate-200 pt-3 text-center">
-                <p className="text-sm text-slate-700 sm:text-base">New to DLAS?</p>
                 <Link to="/register" className="login-create-account" aria-describedby={demoStatusAvailable && freeDemoReadOnly ? 'login-registration-note' : undefined}>
                   <UserRoundPlus aria-hidden="true" size={19} />
                   <span>Create account</span>
@@ -247,10 +251,7 @@ export const LoginPage = () => {
                 </Link>
                 {demoStatusLoading && <p className="mt-2 text-xs text-slate-600" role="status">Checking account options…</p>}
                 {demoStatusAvailable && freeDemoReadOnly && <p id="login-registration-note" className="mt-2 text-xs leading-5 text-slate-600">Preview student registration. This demo does not save new accounts.</p>}
-                <div className="mt-3 flex flex-wrap justify-center gap-x-5 gap-y-2 text-sm sm:text-base">
-                  <Link to="/forgot-password" className="font-semibold text-green-800 underline-offset-4 hover:text-green-900 hover:underline">Forgot password?</Link>
-                  {verificationRequired && <Link to="/verify-email" className="font-semibold text-green-800 underline-offset-4 hover:text-green-900 hover:underline">Resend verification</Link>}
-                </div>
+                {verificationRequired && <div className="mt-3 text-sm sm:text-base"><Link to="/verify-email" className="font-semibold text-green-800 underline-offset-4 hover:text-green-900 hover:underline">Resend verification</Link></div>}
               </div>}
             </div>
 
