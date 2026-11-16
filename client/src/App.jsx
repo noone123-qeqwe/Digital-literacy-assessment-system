@@ -6,10 +6,11 @@ import { DemoModeProvider } from './contexts/DemoModeContext';
 import { useAuth } from './contexts/useAuth';
 import Layout from './components/layout/Layout';
 import LoadingSpinner from './components/common/LoadingSpinner';
+// Recovery must not depend on fetching a page chunk after navigation.
+import AccountActionPage from './pages/auth/AccountActionPage';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
-const AccountActionPage = lazy(() => import('./pages/auth/AccountActionPage'));
 const GuardianConsentPage = lazy(() => import('./pages/auth/GuardianConsentPage'));
 const AdminDashboard = lazy(() => import('./pages/admin/AdminDashboard'));
 const AssessmentsManagement = lazy(() => import('./pages/admin/AssessmentsManagement'));

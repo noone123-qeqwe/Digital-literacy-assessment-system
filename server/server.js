@@ -137,12 +137,7 @@ app.use('/api/*', (req, res) => {
 // In production the Express service also serves the built React app, allowing
 // secure cookies and the API to share one HTTPS origin.
 const clientBuildPath = require('path').resolve(__dirname, '..', 'client', 'dist');
-app.use(express.static(clientBuildPath, { index: false, maxAge: '1h' }));
-app.get('*', (req, res, next) => {
-  res.sendFile(require('path').join(clientBuildPath, 'index.html'), (error) => {
-    if (error) next(error);
-  });
-});
+require('./utils/serveClient').mountClient(app, clientBuildPath);
 
 // Global Error Handler
 app.use((err, req, res, next) => {
