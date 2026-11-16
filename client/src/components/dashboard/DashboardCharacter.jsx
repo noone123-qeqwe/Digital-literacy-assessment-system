@@ -286,7 +286,7 @@ export default function DashboardCharacter() {
                         aria-pressed={draft.characterStyle === characterStyle}
                         onClick={() => chooseCharacterStyle(characterStyle)}
                       >
-                        <CharacterArt className="character-style-thumbnail" settings={{ ...draft, ...presets[characterStyle], characterStyle, showBooks: false, showPlant: false, showMug: false, showBackdrop: false }} viewBox="138 20 126 162" aria-hidden="true" />
+                        <CharacterArt className="character-style-thumbnail" settings={{ ...draft, ...presets[characterStyle], characterStyle, animation: 'none', showBooks: false, showPlant: false, showMug: false, showBackdrop: false }} viewBox="138 20 126 162" aria-hidden="true" />
                         <span>{characterStyle === 'male' ? 'Male' : 'Female'}</span>
                         {draft.characterStyle === characterStyle && <Check size={16} aria-hidden="true" />}
                       </button>)}

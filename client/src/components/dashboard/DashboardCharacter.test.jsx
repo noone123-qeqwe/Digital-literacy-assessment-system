@@ -60,6 +60,28 @@ describe('CharacterArt animation structure', () => {
     rerender(<CharacterArt settings={{ ...characterSchema.defaults, expression: 'focused' }} />);
     expect(container.querySelector('.character-eyes')).toBeInTheDocument();
     expect(container.querySelector('.character-eyes--happy')).toBeNull();
+    const gazeGroups = container.querySelectorAll('.character-eyes .character-gaze');
+    expect(gazeGroups).toHaveLength(2);
+    for (const gaze of gazeGroups) {
+      expect(gaze.parentElement).toHaveAttribute('clip-path');
+    }
+  });
+
+  it('swaps the typing hand for a raised, waving forearm in greeting mode', () => {
+    const { container, rerender } = render(
+      <CharacterArt settings={{ ...characterSchema.defaults, animation: 'wave' }} />
+    );
+    expect(container.querySelectorAll('.character-person')).toHaveLength(3);
+    expect(container.querySelector('.character-person .character-wave-arm .character-wave-palm')).toBeInTheDocument();
+    const cuff = container.querySelector('.character-wave-layer .character-wave-cuff');
+    expect(cuff).toBeInTheDocument();
+    expect(cuff.closest('.character-wave-arm')).toBeNull();
+    expect(container.querySelector('.character-hand-right')).toBeNull();
+    expect(container.querySelector('.character-hand-left')).toBeInTheDocument();
+
+    rerender(<CharacterArt settings={{ ...characterSchema.defaults, animation: 'typing' }} />);
+    expect(container.querySelector('.character-wave-arm')).toBeNull();
+    expect(container.querySelector('.character-hand-right')).toBeInTheDocument();
   });
 });
 

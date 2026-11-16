@@ -49,6 +49,7 @@ export default function CharacterArt({ settings, ...props }) {
     showHeadphones, showBooks, showPlant, showMug, showBackdrop,
   } = settings;
   const isFemale = characterStyle === 'female';
+  const isWaving = settings.animation === 'wave';
   const id = useId().replace(/:/g, '');
   const paint = name => 'url(#' + id + '-' + name + ')';
   const definition = name => id + '-' + name;
@@ -81,6 +82,8 @@ export default function CharacterArt({ settings, ...props }) {
       <linearGradient id={definition('leaf')} x1="45" y1="209" x2="96" y2="267" gradientUnits="userSpaceOnUse">
         <stop stopColor="#93d3a1" /><stop offset=".5" stopColor="#4e9b78" /><stop offset="1" stopColor="#28765e" />
       </linearGradient>
+      <clipPath id={definition('eye-left')}><path d="M174 121Q183 113 194 121Q184 129 174 121Z" /></clipPath>
+      <clipPath id={definition('eye-right')}><path d="M213 121Q222 113 233 121Q223 129 213 121Z" /></clipPath>
     </defs>
 
     {showBackdrop && <g className="character-scene-details" strokeLinecap="round" strokeLinejoin="round">
@@ -185,10 +188,10 @@ export default function CharacterArt({ settings, ...props }) {
         <path d="M137 266Q140 277 152 277L208 268" stroke={tint(skinColor, '#fffaf2', .45)} strokeWidth="2.5" />
         <path d="M221 263L235 271M230 261L243 272M239 265L250 273" stroke={skinShadow} strokeWidth="1.1" />
       </g>
-      <g className="character-hand character-hand-right">
+      {!isWaving && <g className="character-hand character-hand-right">
         <path d="M274 237L256 249L279 267L305 270Q316 269 313 262L285 252Z" fill={paint('skin')} />
         <path d="M282 260L305 267M298 261L306 267" stroke={skinShadow} strokeWidth="1.1" />
-      </g>
+      </g>}
 
       <g className="character-head">
         <ellipse cx="157" cy="123" rx="8" ry="12" fill={paint('skin')} />
@@ -207,14 +210,22 @@ export default function CharacterArt({ settings, ...props }) {
         <g className={expression === 'happy' ? 'character-eyes character-eyes--happy' : 'character-eyes'}>
           {expression === 'happy' ? <path d="M174 122Q183 113 194 122M213 122Q223 113 232 122" strokeWidth="2.5" /> : <>
             <path d="M174 121Q183 113 194 121Q184 129 174 121Z" fill="#fffef9" strokeWidth="1.1" />
-            <ellipse cx="185" cy="122" rx="4.5" ry="5" fill={eyeColor} stroke="none" />
-            <ellipse cx="186" cy="122.5" rx="2" ry="3" fill="#17243a" stroke="none" />
-            <circle cx="183.5" cy="119.5" r="1.4" fill="white" stroke="none" />
+            <g clipPath={paint('eye-left')}>
+              <g className="character-gaze">
+                <ellipse cx="185" cy="122" rx="4.5" ry="5" fill={eyeColor} stroke="none" />
+                <ellipse cx="186" cy="122.5" rx="2" ry="3" fill="#17243a" stroke="none" />
+                <circle cx="183.5" cy="119.5" r="1.4" fill="white" stroke="none" />
+              </g>
+            </g>
             {expression === 'wink' ? <path d="M213 122Q222 114 232 122" strokeWidth="2.5" /> : <>
               <path d="M213 121Q222 113 233 121Q223 129 213 121Z" fill="#fffef9" strokeWidth="1.1" />
-              <ellipse cx="224" cy="122" rx="4.5" ry="5" fill={eyeColor} stroke="none" />
-              <ellipse cx="225" cy="122.5" rx="2" ry="3" fill="#17243a" stroke="none" />
-              <circle cx="222.5" cy="119.5" r="1.4" fill="white" stroke="none" />
+              <g clipPath={paint('eye-right')}>
+                <g className="character-gaze">
+                  <ellipse cx="224" cy="122" rx="4.5" ry="5" fill={eyeColor} stroke="none" />
+                  <ellipse cx="225" cy="122.5" rx="2" ry="3" fill="#17243a" stroke="none" />
+                  <circle cx="222.5" cy="119.5" r="1.4" fill="white" stroke="none" />
+                </g>
+              </g>
             </>}
             {isFemale && <path d="M175 119L173 116M232 119L234 116" strokeWidth="1.4" />}
           </>}
@@ -260,6 +271,21 @@ export default function CharacterArt({ settings, ...props }) {
         </g>
         <path d="M274 284H402" stroke={tint(laptopColor, '#17243a', .5)} strokeWidth="2.7" />
       </g>
+
+      {isWaving && <g className="character-person character-wave-layer">
+        <g className="character-wave-arm">
+          <path d="M261 248L268 199L282 200L276 248Z" fill={paint('skin')} />
+          <path d="M266 238L271 207" stroke={tint(skinColor, '#fffaf2', .45)} strokeWidth="2" />
+          <g className="character-wave-palm">
+            <path d="M270 202L264 192Q260 186 264 183L270 188L269 171Q270 165 274 167L275 180L276 165Q278 160 281 163L281 180L283 168Q285 164 288 167L286 182L289 175Q292 172 292 177L288 191Q286 200 281 202Z" fill={paint('skin')} />
+            <path d="M275 183V189M281 183V189M286 185L285 190" stroke={skinShadow} strokeWidth="1" />
+          </g>
+        </g>
+        <g className="character-wave-cuff">
+          <path d="M255 241Q266 236 279 239L280 250Q268 247 257 252Z" fill={paint('shirt')} />
+          <path d="M257 246Q267 242 279 244" stroke={accentColor} strokeWidth="3" />
+        </g>
+      </g>}
 
       {showPlant && <g className="character-plant">
         <ellipse cx="76" cy="295" rx="25" ry="4" fill="#183b58" fillOpacity=".08" stroke="none" />
