@@ -7,8 +7,7 @@
   gap: 6px;
 }
 
-.dashboard-character-edit,
-.dashboard-character-motion-toggle {
+.dashboard-character-edit {
   display: inline-flex;
   min-height: 40px;
   align-items: center;
@@ -23,11 +22,9 @@
   font-weight: 650;
 }
 
-.dashboard-character-motion-toggle { width: 40px; padding: 8px; }
 .dashboard-character-actions button:focus-visible { outline: 2px solid #10264d; outline-offset: 3px; }
 
-.dashboard-character-edit:hover,
-.dashboard-character-motion-toggle:hover {
+.dashboard-character-edit:hover {
   background: #eff8f2;
 }
 
@@ -347,8 +344,7 @@
 
 @media (max-width: 639px) {
   .dashboard-character-actions { top: 12px; right: 8px; flex-direction: column; }
-  .dashboard-character-edit,
-  .dashboard-character-motion-toggle { min-height: 44px; width: 44px; padding: 8px; }
+  .dashboard-character-edit { min-height: 44px; width: 44px; padding: 8px; }
   .dashboard-character-edit span { display: none; }
   .character-dialog .modal-frame { align-items: flex-end; padding: 8px; }
   .character-dialog [role="dialog"] { width: 100%; height: calc(100dvh - 16px); max-height: calc(100dvh - 16px); padding: 16px 12px calc(8px + env(safe-area-inset-bottom)); border-radius: 20px; }
@@ -387,6 +383,5 @@
 @media (prefers-reduced-motion: reduce) {
   .character-motion,
   .character-art * { animation: none !important; }
-  .dashboard-character-motion-toggle,
   .character-preview-motion-toggle { display: none; }
 }

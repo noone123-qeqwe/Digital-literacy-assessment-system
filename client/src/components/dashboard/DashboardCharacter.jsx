@@ -142,13 +142,6 @@ export default function DashboardCharacter() {
       {!loading && <CharacterScene settings={settings} paused={motionPaused || isOpen} />}
     </div>
     <div className="dashboard-character-actions">
-      {!loading && settings.animation !== 'none' && <button
-        type="button"
-        onClick={() => setMotionPaused((paused) => !paused)}
-        className="dashboard-character-motion-toggle"
-        aria-label={motionPaused ? 'Resume character animation' : 'Pause character animation'}
-        title={motionPaused ? 'Resume character animation' : 'Pause character animation'}
-      >{motionPaused ? <Play aria-hidden="true" size={16} /> : <Pause aria-hidden="true" size={16} />}</button>}
       <button type="button" onClick={open} className="dashboard-character-edit" aria-label="Customize your dashboard character">
         <Pencil aria-hidden="true" size={14} />
         <span>Customize character</span>
