@@ -20,6 +20,8 @@ async function decodeIntroImage(image) {
 
 export default function LoginIntro({ children, skipIntro = false }) {
   const [phase, setPhase] = useState(() => shouldPlayIntro(skipIntro) ? 'preparing' : 'idle');
+  const [assets, setAssets] = useState({ campus: false, logo: false });
+  const [playbackDuration] = useState(() => window.matchMedia('(max-width: 767px), (max-width: 1023px) and (max-height: 499px)').matches ? 1850 : 2350);
   const isActive = !['idle', 'finished'].includes(phase);
   const isReady = isActive && phase !== 'preparing';
   const isCovered = phase === 'preparing' || phase === 'playing';
@@ -38,8 +40,15 @@ export default function LoginIntro({ children, skipIntro = false }) {
   useEffect(() => {
     if (!isActive) {
       if (shouldMoveFocus.current) {
-        pageRef.current?.querySelector('[data-login-heading]')?.focus({ preventScroll: true });
         shouldMoveFocus.current = false;
+        // Let the formerly hidden page paint before focusing it. This also
+        // handles an immediate exit caused by a motion-preference change.
+        let frame = window.requestAnimationFrame(() => {
+          frame = window.requestAnimationFrame(() => {
+            pageRef.current?.querySelector('[data-login-heading]')?.focus({ preventScroll: true });
+          });
+        });
+        return () => window.cancelAnimationFrame(frame);
       }
       return undefined;
     }
@@ -66,21 +75,26 @@ export default function LoginIntro({ children, skipIntro = false }) {
     let timeout;
 
     if (phase === 'preparing') {
-      // Start the timeline only after both images are downloaded, decoded and
-      // given a paint opportunity. A slow/failed image must never block sign-in.
-      timeout = window.setTimeout(finishIntro, 1500);
-      Promise.all([decodeIntroImage(campusRef.current), decodeIntroImage(logoRef.current)])
-        .then(() => {
-          if (cancelled) return;
-          frame = window.requestAnimationFrame(() => {
-            frame = window.requestAnimationFrame(() => {
-              if (!cancelled) setPhase('playing');
-            });
-          });
-        })
-        .catch(() => { if (!cancelled) finishIntro(); });
+      // Show the brand immediately. Use only assets decoded within this short
+      // window, so a slow mobile connection cannot cause a late background pop.
+      const decoded = { campus: false, logo: false };
+      let started = false;
+      const startPlayback = () => {
+        if (cancelled || started) return;
+        started = true;
+        window.clearTimeout(timeout);
+        setAssets({ ...decoded });
+        frame = window.requestAnimationFrame(() => {
+          if (!cancelled) setPhase('playing');
+        });
+      };
+      timeout = window.setTimeout(startPlayback, 350);
+      Promise.allSettled([
+        decodeIntroImage(campusRef.current).then(() => { decoded.campus = true; }),
+        decodeIntroImage(logoRef.current).then(() => { decoded.logo = true; }),
+      ]).then(startPlayback);
     } else if (phase === 'playing') {
-      timeout = window.setTimeout(() => setPhase('revealing'), 2350);
+      timeout = window.setTimeout(() => setPhase('revealing'), playbackDuration);
     } else if (phase === 'revealing') {
       // Paint the login page underneath the opaque intro before the fade.
       frame = window.requestAnimationFrame(() => {
@@ -96,7 +110,7 @@ export default function LoginIntro({ children, skipIntro = false }) {
       window.cancelAnimationFrame(frame);
       window.clearTimeout(timeout);
     };
-  }, [phase, finishIntro]);
+  }, [phase, finishIntro, playbackDuration]);
 
   return <>
     <div ref={pageRef} className={`login-intro-page${isCovered ? ' login-intro-page--covered' : ''}`} inert={isActive} aria-hidden={isActive ? true : undefined}>
@@ -105,6 +119,9 @@ export default function LoginIntro({ children, skipIntro = false }) {
     {isActive && <section
       className={`login-intro login-intro--${phase}${isReady ? ' login-intro--ready' : ''}`}
       data-phase={phase}
+      data-campus-ready={assets.campus}
+      data-logo-ready={assets.logo}
+      style={{ '--login-intro-duration': `${playbackDuration}ms` }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="login-intro-title"
@@ -114,7 +131,13 @@ export default function LoginIntro({ children, skipIntro = false }) {
       }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') { event.preventDefault(); finishIntro(); }
-        if (event.key === 'Tab') { event.preventDefault(); skipRef.current?.focus(); }
+        if (event.key === 'Tab') {
+          const buttons = [...event.currentTarget.querySelectorAll('button')].filter((button) => button.getClientRects().length > 0);
+          const index = buttons.indexOf(document.activeElement);
+          const nextIndex = index < 0 ? (event.shiftKey ? buttons.length - 1 : 0) : (index + (event.shiftKey ? -1 : 1) + buttons.length) % buttons.length;
+          event.preventDefault();
+          buttons[nextIndex]?.focus();
+        }
       }}
     >
       <div className="login-intro-scene" aria-hidden="true">
@@ -131,16 +154,19 @@ export default function LoginIntro({ children, skipIntro = false }) {
         <div className="login-intro-emblem" aria-hidden="true">
           <span className="login-intro-orbit" />
           <span className="login-intro-orbit login-intro-orbit--outer" />
+          <span className="login-intro-monogram">MC</span>
           <img ref={logoRef} src="/masbate-colleges-logo-login.webp" alt="" decoding="async" fetchPriority="high" />
         </div>
-        <p className="login-intro-eyebrow">Learn with purpose. Lead with confidence.</p>
+        <p className="login-intro-eyebrow">Welcome to your digital journey</p>
         <h1 id="login-intro-title">Masbate Colleges</h1>
         <p className="login-intro-system">Digital Literacy<br className="login-intro-mobile-break" /> Assessment System</p>
         <p id="login-intro-description" className="login-intro-tagline">Know your skills. Grow your confidence.</p>
       </div>
-      <footer className="login-intro-footer" aria-hidden="true">
-        <div className="login-intro-progress"><span /></div>
-        <p>Assess<span>·</span>Discover<span>·</span>Grow</p>
+      <footer className="login-intro-footer">
+        <button type="button" className="login-intro-continue" onClick={finishIntro}>Continue to sign in<ArrowRight aria-hidden="true" size={17} /></button>
+        <div className="login-intro-progress" aria-hidden="true"><span /></div>
+        <p className="login-intro-steps" aria-hidden="true">Assess<span>·</span>Discover<span>·</span>Grow</p>
+        <p className="login-intro-auto" aria-hidden="true">Sign-in opens automatically</p>
       </footer>
     </section>}
   </>;
