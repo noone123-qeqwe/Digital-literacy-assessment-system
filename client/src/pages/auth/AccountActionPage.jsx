@@ -29,7 +29,7 @@ function AccountActionForm({ pathname, token, initialEmail }) {
   const [completed, setCompleted] = useState(false);
   const submissionLock = useRef(false);
   const linkRequest = useRef(null);
-  const auth = useAuth();
+  const refreshUser = useAuth()?.refreshUser;
   const navigate = useNavigate();
 
   const title = isVerify ? 'Verify your email' : isReset ? completed ? 'Password updated' : 'Set a new password' : isMfaRecovery ? 'Recover authenticator access' : 'Reset your password';
@@ -57,9 +57,13 @@ function AccountActionForm({ pathname, token, initialEmail }) {
               channel.close();
             }
           } catch {}
-          const verifiedUser = (await auth?.refreshUser?.({ suppressSessionRedirect: true, suppressErrorToast: true }))
-            || response.data?.data?.user;
+          const verifiedUser = await refreshUser?.({ suppressSessionRedirect: true, suppressErrorToast: true });
           if (!active) return;
+          if (!verifiedUser) {
+            setCompleted(true);
+            setFeedback({ tone: 'error', text: 'Your email is verified. We could not finish signing you in. Please sign in to continue.' });
+            return;
+          }
           toast.success('Email verified! Welcome to DLAS.');
           navigate(dashboardPathForRole(verifiedUser?.role), { replace: true });
           return;
@@ -70,7 +74,7 @@ function AccountActionForm({ pathname, token, initialEmail }) {
       .catch(error => { if (active) setFeedback(errorFeedback(error)); })
       .finally(() => { if (active) setBusy(false); });
     return () => { active = false; };
-  }, [auth, isVerify, isMfaRecovery, navigate, token]);
+  }, [refreshUser, isVerify, isMfaRecovery, navigate, token]);
 
   const handleSubmit = async event => {
     event.preventDefault();

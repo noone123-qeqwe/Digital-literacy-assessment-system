@@ -8,6 +8,7 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [profilePictureUrl, setProfilePictureUrl] = useState('');
   const profilePictureUrlRef = useRef('');
+  const sessionRevision = useRef(0);
 
   const clearProfilePicture = useCallback(() => {
     if (profilePictureUrlRef.current) URL.revokeObjectURL(profilePictureUrlRef.current);
@@ -32,19 +33,24 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    const revision = sessionRevision.current;
     api.get('/auth/me', { suppressSessionRedirect: true, suppressErrorToast: true })
       .then(async (res) => {
+        if (!active || revision !== sessionRevision.current) return;
         if (res.data.success) {
           setUser(res.data.data);
           await refreshProfilePicture();
         }
       })
       .catch(() => {
+        if (!active || revision !== sessionRevision.current) return;
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         setUser(null);
       })
-      .finally(() => setLoading(false));
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
   }, [refreshProfilePicture]);
 
   const authErrorMessage = (err, fallback) => {
@@ -141,10 +147,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   const refreshUser = useCallback(async (options = {}) => {
+    const revision = ++sessionRevision.current;
     try {
       const res = await api.get('/auth/me', options);
-      if (res.data.success) {
+      if (res.data.success && revision === sessionRevision.current) {
         setUser(res.data.data);
+        setLoading(false);
         await refreshProfilePicture();
         return res.data.data;
       }

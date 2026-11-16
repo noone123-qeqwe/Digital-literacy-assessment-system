@@ -752,6 +752,28 @@ async function run() {
       && studentMe.data?.data?.id === autoLoginStudentId,
       'email verification signs in students directly and unlocks /auth/me'
     );
+    const verificationReplay = await request(baseUrl, '/auth/verify-email', {
+      method: 'POST', body: { token: studentVerifyToken },
+    });
+    check(verificationReplay.status === 400 && !verificationReplay.session?.dlas_session,
+      'a used verification link cannot create another sign-in session');
+    const verifiedStudentAdminRequest = await request(baseUrl, '/users', { token: studentVerified.session });
+    check(verifiedStudentAdminRequest.status === 403, 'automatic verification sign-in retains student-only permissions');
+    for (const kind of ['expired', 'inactive', 'wrong-purpose']) {
+      const rejectedToken = crypto.randomBytes(32).toString('base64url');
+      const tokenType = kind === 'wrong-purpose' ? 'password_reset' : 'email_verification';
+      const expiresAt = new Date(Date.now() + (kind === 'expired' ? -60_000 : 60_000)).toISOString();
+      db.prepare('INSERT INTO auth_tokens (user_id, token_hash, token_type, expires_at) VALUES (?, ?, ?, ?)')
+        .run(autoLoginStudentId, crypto.createHash('sha256').update(rejectedToken).digest('hex'), tokenType, expiresAt);
+      if (kind === 'inactive') db.prepare("UPDATE users SET status='inactive' WHERE id=?").run(autoLoginStudentId);
+      try {
+        const rejected = await request(baseUrl, '/auth/verify-email', { method: 'POST', body: { token: rejectedToken } });
+        check(rejected.status === 400 && !rejected.session?.dlas_session,
+          kind + ' verification links cannot create a sign-in session');
+      } finally {
+        if (kind === 'inactive') db.prepare("UPDATE users SET status='active' WHERE id=?").run(autoLoginStudentId);
+      }
+    }
 
     const mfaStaffRes = await request(baseUrl, '/users', {
       method: 'POST',
