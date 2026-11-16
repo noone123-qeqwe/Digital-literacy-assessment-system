@@ -93,7 +93,7 @@ export const LoginPage = () => {
 
   return (
     <LoginIntro skipIntro={searchParams.get('registered') === '1'}>
-    <main className="school-login-theme relative isolate flex min-h-svh items-center justify-center overflow-x-hidden bg-slate-950 px-3 py-3 sm:px-5 sm:py-5 lg:px-6 lg:py-5">
+    <main className="dlas-login-page school-login-theme relative isolate flex min-h-svh items-center justify-center overflow-x-hidden bg-slate-950 px-3 py-3 sm:px-5 sm:py-5 lg:px-6 lg:py-5">
       <img
         aria-hidden="true"
         alt=""
@@ -106,12 +106,12 @@ export const LoginPage = () => {
       <div aria-hidden="true" className="pointer-events-none absolute -left-32 -top-36 h-96 w-96 rounded-full bg-green-200/50 blur-3xl" />
       <div aria-hidden="true" className="pointer-events-none absolute -bottom-40 -right-28 h-96 w-96 rounded-full bg-amber-200/50 blur-3xl" />
 
-      <div className="relative z-10 grid w-full max-w-6xl overflow-hidden rounded-[1.25rem] border border-white/35 bg-white/10 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.42)] lg:min-h-[calc(100svh-2.5rem)] lg:grid-cols-[0.9fr_1.1fr] lg:rounded-[1.75rem]">
-        <section className="relative isolate order-2 flex flex-col justify-between overflow-hidden bg-green-950/45 px-5 py-5 text-white sm:px-7 sm:py-6 lg:order-1 lg:px-8 lg:py-6 xl:px-9">
+      <div className="login-shell relative z-10 grid w-full max-w-6xl overflow-hidden rounded-[1.25rem] border border-white/35 bg-white/10 shadow-[0_24px_80px_-32px_rgba(15,23,42,0.42)] lg:min-h-[calc(100svh-2.5rem)] lg:grid-cols-[0.9fr_1.1fr] lg:rounded-[1.75rem]">
+        <section className="login-brand-panel relative isolate order-2 flex flex-col justify-between overflow-hidden bg-green-950/45 px-5 py-5 text-white sm:px-7 sm:py-6 lg:order-1 lg:px-8 lg:py-6 xl:px-9">
           <div aria-hidden="true" className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_15%_10%,rgba(0,107,60,0.52),transparent_45%),radial-gradient(ellipse_at_90%_90%,rgba(241,212,0,0.16),transparent_42%)]" />
           <div aria-hidden="true" className="absolute -right-24 top-28 -z-10 h-72 w-72 rounded-full border border-white/[0.08]" />
 
-          <div className="flex items-center gap-3">
+          <div className="login-brand-row flex items-center gap-3">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white p-1 shadow-lg shadow-black/20 ring-1 ring-white/25 sm:h-16 sm:w-16">
               <img src="/masbate-colleges-logo-login.webp" alt="Masbate Colleges seal" decoding="async" className="h-full w-full object-contain" />
             </div>
@@ -121,7 +121,7 @@ export const LoginPage = () => {
             </div>
           </div>
 
-          <div className="my-4 max-w-lg sm:my-6 lg:my-0 lg:py-4">
+          <div className="login-brand-copy my-4 max-w-lg sm:my-6 lg:my-0 lg:py-4">
             <p className="mb-2 inline-flex items-center gap-2 text-[0.6875rem] font-bold uppercase tracking-[0.1em] text-amber-200 sm:text-xs lg:text-sm">
               <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-green-400" />
               Digital Literacy Assessment System
@@ -142,7 +142,7 @@ export const LoginPage = () => {
             </div>
           </div>
 
-          <div className="hidden items-center gap-3 border-t border-white/10 pt-3 sm:flex">
+          <div className="login-framework-note hidden items-center gap-3 border-t border-white/10 pt-3 sm:flex">
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-400/10 text-amber-300">
               <Sparkles aria-hidden="true" className="h-4 w-4" />
             </div>
@@ -201,7 +201,7 @@ export const LoginPage = () => {
                       disabled={isLoading}
                       value={password}
                       onChange={(e) => { setPassword(e.target.value); setFormError(''); }}
-                      placeholder="Enter your password"
+                      placeholder="Your password"
                       className="login-input login-input-password"
                     />
                     <button

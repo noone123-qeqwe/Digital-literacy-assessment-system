@@ -15,3 +15,9 @@ Sign-in and MFA submissions now prevent repeated requests while pending. A clien
 - No browser page exceptions occurred. Desktop, phone, error and narrow MFA screens were visually inspected or captured for review.
 
 The browser role-flow checks simulate server responses. They do not enroll or verify the owner's personal authenticator, deliver recovery emails or certify complete accessibility compliance.
+
+## Mobile refinement
+
+On phones and tablets below 1024px, the existing school branding now sits above the form in a compact header. The desktop marketing content is hidden at these widths, and the form no longer reserves a full viewport of blank space. Safe-area padding, 16px input text and touch-sized controls keep the form usable, with natural scrolling on short screens. Desktop retains its two-column presentation; registration retains its separate layout.
+
+Thirteen additional browser checks passed across 320×568, 360×640, 375×667, 390×844, 430×932, 768×1024 and 844×390. They cover layout and overflow, field and button reachability in a reduced-height viewport, long error messages, recovery navigation, skipping the intro, desktop and registration regressions, and browser exceptions. The reduced-height check simulates limited keyboard space; it is not a physical-device keyboard test. All API responses were fixtures and no live accounts were changed.
