@@ -2,8 +2,9 @@
 
 The shared password reset, verification, and account recovery card uses a compact
 layout with readable mobile type, 16px input text, and touch controls at least
-44px square. Password reset retains independent visibility and explicit clipboard
-controls; Copy and Paste sit beside each field label instead of in separate rows.
+44px square. Password reset retains independent visibility controls. Custom Copy
+and Paste buttons are removed; native text selection, keyboard shortcuts, and
+the browser's touch-and-hold menu remain available.
 Short screens can scroll to every field and action without horizontal overflow.
 
 Recovery requests show accessible inline feedback. Temporary service and network
