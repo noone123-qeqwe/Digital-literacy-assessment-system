@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useId } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../contexts/useAuth';
@@ -13,7 +13,12 @@ export function KnowledgePage({ title, description, children, action, eyebrow = 
   </div>;
 }
 export function Field({ label, children, help }) {
-  return <label className="kq-field"><span>{label}</span>{children}{help && <small>{help}</small>}</label>;
+  const id = useId();
+  const control = React.isValidElement(children) ? React.cloneElement(children, {
+    'aria-labelledby': children.props['aria-labelledby'] || `${id}-label`,
+    'aria-describedby': [children.props['aria-describedby'], help ? `${id}-help` : ''].filter(Boolean).join(' ') || undefined,
+  }) : children;
+  return <label className="kq-field"><span id={`${id}-label`}>{label}</span>{control}{help && <small id={`${id}-help`}>{help}</small>}</label>;
 }
 export function Empty({ children = 'No records match your filters.' }) { return <div className="kq-empty">{children}</div>; }
 export function ResearchLink({ to, children = 'Open research assessments' }) { return <Link className="kq-button kq-button-secondary" to={to}>{children}<ArrowRight size={16} aria-hidden="true" /></Link>; }

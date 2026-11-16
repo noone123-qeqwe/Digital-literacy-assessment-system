@@ -53,6 +53,7 @@ export const Navbar = ({ setIsSidebarOpen, isSidebarOpen, dashboardMode = false 
   }, [dashboardMode]);
   const pageTitle = routeTitles.find(([path]) => location.pathname.startsWith(path))?.[1] || 'Assessment';
   const roleLabel = user?.role === 'respondent' ? 'Student' : user?.role === 'assessor' ? 'Teacher / Assessor' : 'Administrator';
+  const ProfileWrapper = user?.role === 'admin' ? Link : 'div';
 
   return (
     <header className={`workspace-navbar sticky top-0 z-30 flex items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 py-5 backdrop-blur-md sm:px-8 2xl:px-12 2xl:py-7 ${dashboardMode ? 'dashboard-navbar' : ''}`}>
@@ -81,7 +82,7 @@ export const Navbar = ({ setIsSidebarOpen, isSidebarOpen, dashboardMode = false 
         </div>}
 
         {/* User Mini Profile */}
-        <div className="flex items-center space-x-3 border-l border-slate-200 pl-3 2xl:space-x-4 2xl:pl-4">
+        <ProfileWrapper {...(user?.role === 'admin' ? { to: '/security', 'aria-label': 'Open account settings', className: 'admin-account-link' } : { className: 'flex items-center space-x-3 border-l border-slate-200 pl-3 2xl:space-x-4 2xl:pl-4' })}>
           <div aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-slate-900 text-sm font-bold text-white shadow-xs ring-2 ring-slate-100 2xl:h-12 2xl:w-12 2xl:text-base">
             {profilePictureUrl ? (
               <img src={profilePictureUrl} alt="" className="h-full w-full object-cover" />
@@ -95,7 +96,7 @@ export const Navbar = ({ setIsSidebarOpen, isSidebarOpen, dashboardMode = false 
             </p>
             <p className="mt-1 text-xs capitalize text-slate-500 2xl:text-sm">{roleLabel}</p>
           </div>
-        </div>
+        </ProfileWrapper>
       </div>
     </header>
   );

@@ -75,15 +75,15 @@ export const SecuritySettings = () => {
   };
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-7 pb-10">
-      <PageHeader title="Security & sessions" subtitle="Manage your password and the devices signed in to this account." />
+    <div className="security-settings mx-auto w-full max-w-6xl space-y-7 pb-10">
+      <PageHeader title="Security & sessions" description="Manage your password and the devices signed in to this account." />
 
       <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
         <div className="flex items-start gap-4">
           <div className="rounded-2xl bg-green-50 p-3 text-green-800"><ShieldCheck aria-hidden="true" className="h-6 w-6" /></div>
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-bold text-slate-950">Sign-in protections</h2>
-            <p className="mt-1 text-sm leading-6 text-slate-600">Account: <span className="font-medium text-slate-800">{user?.email}</span></p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">Account: <span className="security-account-email font-medium text-slate-800">{user?.email}</span></p>
             <div className="mt-4 flex flex-wrap gap-2">
               <span className={`rounded-full px-3 py-1 text-xs font-semibold ${user?.email_verified ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-900'}`}>{user?.email_verified ? 'Email verified' : 'Email verification required'}</span>
               {user?.role !== 'respondent' && <span className={`rounded-full px-3 py-1 text-xs font-semibold ${user?.mfa_enabled ? 'bg-green-100 text-green-800' : 'bg-rose-100 text-rose-800'}`}>{user?.mfa_enabled ? 'Authenticator MFA enabled' : 'Authenticator MFA required'}</span>}
@@ -102,7 +102,7 @@ export const SecuritySettings = () => {
           <button type="button" onClick={refreshSessions} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-50"><RefreshCw aria-hidden="true" className="h-4 w-4" /> Refresh</button>
         </div>
         {loading ? <p className="mt-5 text-sm text-slate-500">Loading sessions…</p> : sessions.length ? <ul className="mt-5 divide-y divide-slate-100">
-          {sessions.map((session) => <li key={session.id} className="flex flex-wrap items-center gap-4 py-4 first:pt-0 last:pb-0">
+          {sessions.map((session) => <li key={session.id} className="security-device-row flex flex-wrap items-center gap-4 py-4 first:pt-0 last:pb-0">
             <div className="rounded-xl bg-slate-100 p-3 text-slate-700">{/Android|iPhone|iPad|Mobile/i.test(session.user_agent || '') ? <Smartphone aria-hidden="true" className="h-5 w-5" /> : <Laptop aria-hidden="true" className="h-5 w-5" />}</div>
             <div className="min-w-0 flex-1">
               <p className="font-semibold text-slate-900">{deviceName(session.user_agent)} {session.is_current ? <span className="ml-2 rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-800">This device</span> : null}</p>

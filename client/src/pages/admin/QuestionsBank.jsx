@@ -20,6 +20,7 @@ export const QuestionsBank = () => {
   const [areas, setAreas] = useState([]);
   const [activeArea, setActiveArea] = useState('ALL');
   const [loading, setLoading] = useState(true);
+  const [revision, setRevision] = useState(0);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(null);
@@ -53,7 +54,7 @@ export const QuestionsBank = () => {
     };
     void fetchData();
     return () => { active = false; };
-  }, []);
+  }, [revision]);
 
   const filteredQuestions =
     activeArea === 'ALL'
@@ -87,7 +88,7 @@ export const QuestionsBank = () => {
       });
       toast.success('Question added to the bank');
       setIsCreateModalOpen(false);
-      await fetchData();
+      setRevision((value) => value + 1);
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to create question');
     } finally {
@@ -98,6 +99,7 @@ export const QuestionsBank = () => {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     try {
+      setIsSaving(true);
       const res = await api.put(`/questions/${editingQuestion.id}`, {
         question_text: editingQuestion.question_text,
         is_active: editingQuestion.is_active,
@@ -105,17 +107,19 @@ export const QuestionsBank = () => {
       if (res.data.success) {
         toast.success('Question updated successfully');
         setIsEditModalOpen(false);
-        fetchData();
+        setRevision((value) => value + 1);
       }
     } catch {
       toast.error('Failed to update question');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   if (loading) return <LoadingSpinner text="Loading DigComp 2.1 Question Bank..." />;
 
   return (
-    <div className="space-y-6">
+    <div className="admin-research-bank space-y-6">
       <PageHeader
         eyebrow="Masbate Colleges · Research instrument"
         title="Question bank"
@@ -205,6 +209,7 @@ export const QuestionsBank = () => {
                 onClick={() => openEditModal(q)}
                 className="p-2 rounded-xl text-slate-400 hover:text-green-600 hover:bg-green-50 transition-colors shrink-0 cursor-pointer"
                 title="Edit Item"
+                aria-label={`Edit research question ${q.question_number}`}
               >
                 <Edit className="w-4 h-4" />
               </button>
@@ -302,8 +307,9 @@ export const QuestionsBank = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase">Question / Competency Statement</label>
+              <label htmlFor="research-question-wording" className="block text-xs font-bold text-slate-700 uppercase">Question / Competency Statement</label>
               <textarea
+                id="research-question-wording"
                 rows={4}
                 required
                 value={editingQuestion.question_text}
@@ -342,9 +348,10 @@ export const QuestionsBank = () => {
               </button>
               <button
                 type="submit"
+                disabled={isSaving}
                 className="px-5 py-2.5 rounded-xl bg-green-600 hover:bg-green-700 text-white text-xs font-bold shadow-md cursor-pointer transition-colors"
               >
-                Save Changes
+                {isSaving ? 'Saving…' : 'Save Changes'}
               </button>
             </div>
           </form>

@@ -1,8 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../../api/axios';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import Modal from '../../components/common/Modal';
 import PageHeader from '../../components/common/PageHeader';
+import { useAuth } from '../../contexts/useAuth';
+import { AdminNotice } from '../../components/admin/AdminPrimitives';
 import {
   UserPlus,
   Search,
@@ -11,6 +13,7 @@ import {
   Edit2,
   Upload,
   FileSpreadsheet,
+  ChevronDown,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -46,9 +49,13 @@ function parseRosterCsv(text) {
 }
 
 export const UsersManagement = () => {
+  const { user: currentUser } = useAuth();
+  const requestRef = useRef(null);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [page, setPage] = useState(1);
@@ -73,49 +80,43 @@ export const UsersManagement = () => {
   const [rosterResults, setRosterResults] = useState(null);
   const [rosterImporting, setRosterImporting] = useState(false);
 
-  const fetchUsers = useCallback(async (requestedPage = page, searchTerm = search) => {
+  useEffect(() => {
+    const timer = window.setTimeout(() => { setDebouncedSearch(search); setPage(1); }, 250);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  const fetchUsers = useCallback(async (requestedPage = page, searchTerm = debouncedSearch) => {
+    requestRef.current?.abort();
+    const controller = new AbortController();
+    requestRef.current = controller;
+    setLoading(true);
+    setError('');
     try {
       let url = `/users?page=${requestedPage}&limit=20`;
       if (roleFilter) url += `&role=${roleFilter}`;
       if (statusFilter) url += `&status=${statusFilter}`;
       if (searchTerm) url += `&search=${encodeURIComponent(searchTerm)}`;
 
-      const res = await api.get(url);
+      const res = await api.get(url, { signal: controller.signal });
+      if (controller.signal.aborted) return;
       if (res.data.success) {
+        setError('');
         setUsers(res.data.data.users);
         setPagination(res.data.data.pagination);
-      }
-    } catch {
-      toast.error('Failed to load users');
+      } else throw new Error('The user directory could not be loaded.');
+    } catch (requestError) {
+      if (!controller.signal.aborted) setError(requestError.response?.data?.message || 'The user directory could not be loaded. Please try again.');
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
-  }, [page, roleFilter, search, statusFilter]);
+  }, [page, roleFilter, debouncedSearch, statusFilter]);
 
   useEffect(() => {
     let active = true;
-    const loadUsers = async () => {
-      let url = `/users?page=${page}&limit=20`;
-      if (roleFilter) url += `&role=${roleFilter}`;
-      if (statusFilter) url += `&status=${statusFilter}`;
-      if (search) url += `&search=${encodeURIComponent(search)}`;
-
-      try {
-        const response = await api.get(url);
-        if (!active) return;
-        if (response.data.success) {
-          setUsers(response.data.data.users);
-          setPagination(response.data.data.pagination);
-        }
-      } catch {
-        if (active) toast.error('Failed to load users');
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    void loadUsers();
-    return () => { active = false; };
-  }, [page, roleFilter, search, statusFilter]);
+    // Start after the committed render; cancelled views must not start a request.
+    Promise.resolve().then(() => { if (active) void fetchUsers(); });
+    return () => { active = false; requestRef.current?.abort(); };
+  }, [fetchUsers]);
 
   useEffect(() => {
     api.get('/assessments').then((response) => {
@@ -156,6 +157,7 @@ export const UsersManagement = () => {
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
+    setLoading(true);
     setPage(1);
     fetchUsers(1, search);
   };
@@ -232,7 +234,7 @@ export const UsersManagement = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="admin-users-page space-y-6">
       <PageHeader
         eyebrow="Administration"
         title="User management"
@@ -249,13 +251,15 @@ export const UsersManagement = () => {
         )}
       />
 
+      <details className="admin-roster-panel">
+      <summary><FileSpreadsheet size={21} aria-hidden="true" /><div><strong>Research roster import</strong><p>Assign a research assessment to existing verified students using a CSV file.</p></div><ChevronDown size={18} aria-hidden="true" /></summary>
       <section aria-labelledby="roster-import-title" className="rounded-2xl border border-green-100 bg-white p-4 shadow-xs sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-xl">
             <div className="flex items-center gap-2 text-sm font-bold text-slate-900"><FileSpreadsheet aria-hidden="true" className="h-4 w-4 text-green-700" /><h2 id="roster-import-title">Import an assessment roster</h2></div>
             <p className="mt-1 text-xs leading-5 text-slate-500">Match existing, verified student accounts by email or student ID, then assign them in one step. No new accounts are created.</p>
           </div>
-          <div className="grid w-full gap-3 sm:grid-cols-[minmax(12rem,1fr)_minmax(12rem,1fr)_auto] lg:max-w-3xl">
+          <div className="admin-roster-controls grid w-full gap-3 sm:grid-cols-[minmax(12rem,1fr)_minmax(12rem,1fr)_auto] lg:max-w-3xl">
             <label className="block text-xs font-semibold text-slate-600">
               Assessment
               <select value={rosterAssessmentId} onChange={(event) => setRosterAssessmentId(event.target.value)} className="mt-1 min-h-11 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm text-slate-800">
@@ -283,13 +287,15 @@ export const UsersManagement = () => {
           {rosterResults.results.some((row) => row.status === 'skipped') && <ul className="mt-2 max-h-32 space-y-1 overflow-y-auto text-xs text-slate-600">{rosterResults.results.filter((row) => row.status === 'skipped').map((row) => <li key={row.row}>Row {row.row}: {row.reason}</li>)}</ul>}
         </div>}
       </section>
+      </details>
 
       {/* Filter and Search Bar */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div className="admin-user-filters bg-white rounded-2xl border border-slate-200/80 shadow-xs gap-3">
         <form onSubmit={handleSearchSubmit} className="relative w-full sm:w-80">
           <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
           <input
-            type="text"
+            type="search"
+            aria-label="Search users by name or email"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name or email..."
@@ -298,14 +304,15 @@ export const UsersManagement = () => {
         </form>
 
         <div className="flex items-center space-x-2 w-full sm:w-auto">
-          <Filter className="w-4 h-4 text-slate-400" />
+          <Filter aria-hidden="true" className="w-4 h-4 text-slate-400" />
           <select
+            aria-label="Filter users by role"
             value={roleFilter}
-            onChange={(e) => { setPage(1); setRoleFilter(e.target.value); }}
+            onChange={(e) => { setLoading(true); setPage(1); setRoleFilter(e.target.value); }}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
           >
             <option value="">All Roles</option>
-            <option value="respondent">Freshmen Students (Respondents)</option>
+            <option value="respondent">Students</option>
             <option value="assessor">Teachers / Assessors</option>
             <option value="admin">Administrators</option>
           </select>
@@ -313,7 +320,7 @@ export const UsersManagement = () => {
           <select
             id="user-status-filter"
             value={statusFilter}
-            onChange={(e) => { setPage(1); setStatusFilter(e.target.value); }}
+            onChange={(e) => { setLoading(true); setPage(1); setStatusFilter(e.target.value); }}
             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
           >
             <option value="">All Statuses</option>
@@ -326,17 +333,23 @@ export const UsersManagement = () => {
 
       {/* Users Table */}
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-        {loading ? (
+        <header className="admin-directory-heading"><div><h2>User directory</h2><p>{loading ? 'Loading accounts…' : `${pagination.total} matching account${pagination.total === 1 ? '' : 's'}`}</p></div>{(search || roleFilter || statusFilter) && <button type="button" className="admin-text-link" onClick={() => { setSearch(''); setRoleFilter(''); setStatusFilter(''); setPage(1); }}>Clear filters</button>}</header>
+        {error ? <div className="admin-directory-error"><AdminNotice tone="error" action={<button className="admin-button admin-button-secondary" onClick={() => fetchUsers()}>Try again</button>}>{error}</AdminNotice></div> : loading ? (
           <LoadingSpinner text="Retrieving user directory..." />
         ) : (
-          <div className="overflow-x-auto">
+          <>
+          <div className="admin-user-mobile-list">
+            {!users.length && <p className="p-6 text-sm text-slate-500">No accounts match these filters. Try a different name, role, or status.</p>}
+            {users.map((u) => <article key={u.id}><header><div><h3>{u.first_name} {u.last_name}</h3><p>{u.email}</p></div><span className={`admin-tag ${u.status === 'active' ? 'admin-tag-ready' : 'admin-tag-pending'}`}>{u.status}</span></header><dl><div><dt>Role</dt><dd>{u.role === 'respondent' ? 'Student' : u.role === 'assessor' ? 'Teacher / Assessor' : 'Administrator'}</dd></div><div><dt>Research submissions</dt><dd>{u.completed_assessments || 0}</dd></div><div><dt>Research profile</dt><dd>{u.role === 'respondent' ? u.municipality || 'Profile pending' : 'Not applicable'}</dd></div>{u.role === 'respondent' && u.municipality && <div><dt>Demographics</dt><dd>{u.sex || 'Unspecified'}{u.age ? ` · ${u.age} y/o` : ''}{u.shs_strand ? ` · ${u.shs_strand}` : ''}</dd></div>}</dl><footer><button type="button" className="admin-button admin-button-secondary" onClick={() => openEditUser(u)} aria-label={`Edit ${u.first_name} ${u.last_name}`}><Edit2 size={16} aria-hidden="true" />Edit account</button>{u.status === 'active' && <button type="button" className="admin-button admin-button-secondary admin-deactivate" disabled={u.id === currentUser?.id} onClick={() => handleDeactivate(u.id)} aria-label={`Deactivate ${u.first_name} ${u.last_name}`}><Trash2 size={16} aria-hidden="true" />Deactivate</button>}</footer></article>)}
+          </div>
+          <div className="admin-user-table overflow-x-auto" tabIndex={0} role="region" aria-label="User directory table; scroll horizontally to see all columns">
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="bg-slate-50/80 border-b border-slate-200/80 text-slate-500 uppercase font-bold tracking-wider">
                   <th className="py-3.5 px-6">User</th>
                   <th className="py-3.5 px-4">Role</th>
                   <th className="py-3.5 px-4">Demographics</th>
-                  <th className="py-3.5 px-4">Evaluations Completed</th>
+                  <th className="py-3.5 px-4">Research submissions</th>
                   <th className="py-3.5 px-4">Status</th>
                   <th className="py-3.5 px-6 text-right">Actions</th>
                 </tr>
@@ -370,7 +383,7 @@ export const UsersManagement = () => {
                             : 'bg-green-100 text-green-800'
                         }`}
                       >
-                        {u.role === 'assessor' ? 'Teacher / Assessor' : u.role}
+                        {u.role === 'assessor' ? 'Teacher / Assessor' : u.role === 'respondent' ? 'Student' : 'Administrator'}
                       </span>
                     </td>
 
@@ -383,7 +396,7 @@ export const UsersManagement = () => {
                           </span>
                         </div>
                       ) : (
-                        <span className="text-slate-400 italic">Profile pending</span>
+                        <span className="text-slate-400 italic">{u.role === 'respondent' ? 'Profile pending' : 'Not applicable'}</span>
                       )}
                     </td>
 
@@ -420,6 +433,8 @@ export const UsersManagement = () => {
                         <button
                           type="button"
                           onClick={() => handleDeactivate(u.id)}
+                          disabled={u.id === currentUser?.id}
+                          aria-label={`Deactivate ${u.first_name} ${u.last_name}`}
                           className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
                           title="Deactivate Account"
                         >
@@ -435,10 +450,11 @@ export const UsersManagement = () => {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500">
+      <div className="admin-pagination">
         <span>{pagination.total} account{pagination.total === 1 ? '' : 's'} · Page {pagination.page} of {Math.max(1, pagination.totalPages)}</span>
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1 || loading} className="rounded-lg border border-slate-200 bg-white px-3 py-2 font-semibold disabled:opacity-40">Previous</button>

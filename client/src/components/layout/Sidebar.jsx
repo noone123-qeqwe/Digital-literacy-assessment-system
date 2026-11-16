@@ -13,7 +13,7 @@ import {
   X,
   BookOpen,
   CircleHelp,
-  Layers3, Award, TrendingUp, ListChecks,
+  Layers3, Award, TrendingUp, ListChecks, ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/useAuth';
 
@@ -42,7 +42,7 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
     const onKeyDown = (event) => {
       if (event.key === 'Escape') setIsOpen(false);
       if (event.key !== 'Tab') return;
-      const focusable = sidebarRef.current?.querySelectorAll('a[href], button:not(:disabled)');
+      const focusable = Array.from(sidebarRef.current?.querySelectorAll('a[href], button:not(:disabled), summary') || []).filter((element) => element.getClientRects().length);
       if (!focusable?.length) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
@@ -101,6 +101,23 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
   ];
 
   const navItems = isAdmin ? adminNav : isAssessor ? assessorNav : respondentNav;
+  const adminGroups = [
+    ['Workspace', [0, 1]],
+    ['Assessment studio', [4, 2, 3, 7]],
+    ['Outcomes', [5, 6, 8, 9]],
+    ['Account', [10]],
+  ];
+  const researchNav = [
+    { name: 'Research assessments', path: '/admin/assessments', icon: ClipboardList },
+    { name: 'Research questions', path: '/admin/questions', icon: HelpCircle },
+    { name: 'Research reports', path: '/admin/reports', icon: BarChart3 },
+    { name: 'Research learning paths', path: '/admin/learning', icon: BookOpen },
+  ];
+  const renderAdminLink = (item) => {
+    const Icon = item.icon;
+    const active = location.pathname === item.path || (item.path !== '/admin/knowledge' && location.pathname.startsWith(`${item.path}/`));
+    return <NavLink key={item.path} to={item.path} end={item.path === '/admin/knowledge'} onClick={() => setIsOpen(false)} className={`admin-nav-link ${active ? 'is-active' : ''}`}><Icon aria-hidden="true" /><span>{item.name}</span></NavLink>;
+  };
 
   return (
     <>
@@ -144,10 +161,10 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
 
         {/* Navigation Links */}
         <nav className="sidebar-links min-h-0 flex-1 space-y-1.5 overflow-y-auto px-5 py-6">
-          {!light && <div className="px-3 pb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-400 2xl:text-sm">
+          {!light && !isAdmin && <div className="px-3 pb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-400 2xl:text-sm">
             Navigation
           </div>}
-          {navItems.map((item) => {
+          {isAdmin ? <>{adminGroups.map(([label, indices]) => <section className="admin-nav-group" key={label} aria-label={label}><h2 className="admin-nav-heading">{label}</h2>{indices.map((index) => renderAdminLink(adminNav[index]))}</section>)}<details className="admin-research-nav" open={researchNav.some((item) => location.pathname.startsWith(item.path)) || undefined}><summary>Research tools <ChevronDown size={16} aria-hidden="true" /></summary>{researchNav.map(renderAdminLink)}</details></> : navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path || (item.path !== '/admin/knowledge' && item.path !== '/assessor/knowledge' && location.pathname.startsWith(`${item.path}/`));
 
