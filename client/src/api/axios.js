@@ -1,5 +1,6 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
+const accountActionPaths = ['/verify-email', '/forgot-password', '/reset-password', '/recover-mfa'];
 
 const api = axios.create({
   baseURL: '/api',
@@ -32,19 +33,23 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    const pathname = window.location.pathname.replace(/\/+$/, '') || '/';
+    // Recovery pages own their inline feedback. Background status/session reads
+    // must not place unrelated notifications over these public forms.
+    const showErrorToast = error.config?.suppressErrorToast !== true && !accountActionPaths.includes(pathname);
     if (error.response?.status === 401) {
       // Remove tokens created by earlier versions of the app during the migration.
       localStorage.removeItem('token');
       localStorage.removeItem('user');
-      const publicPaths = ['/login', '/register', '/verify-email', '/forgot-password', '/reset-password', '/recover-mfa', '/guardian-consent', '/'];
-      if (!publicPaths.includes(window.location.pathname)) {
+      const publicPaths = ['/login', '/register', ...accountActionPaths, '/guardian-consent', '/'];
+      if (!publicPaths.includes(pathname)) {
         window.location.href = '/login';
-        toast.error('Session expired. Please login again.');
+        if (showErrorToast) toast.error('Session expired. Please login again.');
       }
     } else if (error.response?.status === 403) {
-      toast.error('You do not have permission to perform this action.');
+      if (showErrorToast) toast.error('You do not have permission to perform this action.');
     } else if (error.response?.status >= 500) {
-      toast.error('Server error. Please try again later.');
+      if (showErrorToast) toast.error('Server error. Please try again later.');
     }
 
     return Promise.reject(error);
