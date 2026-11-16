@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
+import PasswordEntry from '../../components/auth/PasswordEntry';
 
 export const AccountActionPage = () => {
   const location = useLocation();
@@ -11,8 +11,6 @@ export const AccountActionPage = () => {
   const [email, setEmail] = useState(searchParams.get('email') || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -83,20 +81,8 @@ export const AccountActionPage = () => {
         </form>}
 
         {showPasswordForm && <form className="mt-7 space-y-4" onSubmit={handleSubmit}>
-          <label className="block text-sm font-semibold text-slate-800" htmlFor="new-password">New password</label>
-          <div className="relative">
-            <input id="new-password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" minLength={10} maxLength={128} required value={password} onChange={(event) => setPassword(event.target.value)} className="min-h-12 w-full rounded-xl border border-slate-300 bg-slate-50 pl-4 pr-14 text-base text-slate-900 outline-none focus:border-green-700 focus:bg-white focus:ring-4 focus:ring-green-700/10" />
-            <button type="button" onClick={() => setShowPassword((visible) => !visible)} aria-label={showPassword ? 'Hide new password' : 'Show new password'} aria-controls="new-password" aria-pressed={showPassword} className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700">
-              {showPassword ? <EyeOff aria-hidden="true" size={20} strokeWidth={2.5} /> : <Eye aria-hidden="true" size={20} strokeWidth={2.5} />}
-            </button>
-          </div>
-          <label className="block text-sm font-semibold text-slate-800" htmlFor="confirm-password">Confirm new password</label>
-          <div className="relative">
-            <input id="confirm-password" type={showConfirmPassword ? 'text' : 'password'} autoComplete="new-password" minLength={10} maxLength={128} required value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="min-h-12 w-full rounded-xl border border-slate-300 bg-slate-50 pl-4 pr-14 text-base text-slate-900 outline-none focus:border-green-700 focus:bg-white focus:ring-4 focus:ring-green-700/10" />
-            <button type="button" onClick={() => setShowConfirmPassword((visible) => !visible)} aria-label={showConfirmPassword ? 'Hide password confirmation' : 'Show password confirmation'} aria-controls="confirm-password" aria-pressed={showConfirmPassword} className="absolute right-0.5 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-700">
-              {showConfirmPassword ? <EyeOff aria-hidden="true" size={20} strokeWidth={2.5} /> : <Eye aria-hidden="true" size={20} strokeWidth={2.5} />}
-            </button>
-          </div>
+          <PasswordEntry id="new-password" label="New password" visibilityLabel="new password" value={password} onChange={setPassword} disabled={busy} />
+          <PasswordEntry id="confirm-password" label="Confirm new password" visibilityLabel="password confirmation" value={confirmPassword} onChange={setConfirmPassword} disabled={busy} />
           <button disabled={busy} className="min-h-12 w-full rounded-xl bg-green-800 px-4 font-semibold text-white hover:bg-green-900 disabled:opacity-60">{busy ? 'Updating…' : 'Reset password'}</button>
         </form>}
 
