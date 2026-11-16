@@ -554,6 +554,7 @@ function initializeDatabase() {
     })();
   }
   require('./knowledge').initializeKnowledge(db);
+  require('./bookmarks').initializeBookmarks(db);
 }
 
 function logActivity(userId, action, details = null) {

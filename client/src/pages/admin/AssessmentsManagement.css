@@ -1,0 +1,7 @@
+.research-assessment-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 24px; }
+.research-assessment-grid > div { min-width: 0; }
+.research-assessment-actions { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.research-assessment-actions > button { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; padding: 8px; }
+.research-assessment-actions > button span { display: none; }
+.research-assessment-actions > a { grid-column: 1 / -1; min-height: 44px; }
+@media (max-width: 380px) { .research-assessment-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); } }

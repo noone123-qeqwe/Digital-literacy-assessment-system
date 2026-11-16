@@ -22,8 +22,13 @@ import { Link } from 'react-router-dom';
 import { formatDateTime, getStatusBadge, parseStoredDate } from '../../utils/helpers';
 import toast from 'react-hot-toast';
 import { downloadProtectedFile } from '../../utils/download';
+import { BookmarkButton, BookmarkFilter } from '../../components/assessments/AssessmentBookmarks';
+import { useAssessmentBookmarks } from '../../components/assessments/useAssessmentBookmarks';
+import './AssessmentsManagement.css';
 
 export const AssessmentsManagement = () => {
+  const bookmarks = useAssessmentBookmarks('research');
+  const [showBookmarks, setShowBookmarks] = useState(false);
   const { isAdmin } = useAuth();
   const [assessments, setAssessments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -364,9 +369,10 @@ export const AssessmentsManagement = () => {
       />
 
       {/* Assessment Cards Grid */}
-      {assessments.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {assessments.map((item) => {
+      <BookmarkFilter bookmarks={bookmarks} records={assessments} selected={showBookmarks} setSelected={setShowBookmarks} />
+      {assessments.filter((item) => !showBookmarks || bookmarks.saved.includes(item.id)).length > 0 ? (
+        <div className="research-assessment-grid">
+          {assessments.filter((item) => !showBookmarks || bookmarks.saved.includes(item.id)).map((item) => {
             const statusInfo = getStatusBadge(item.status);
             return (
               <div
@@ -374,13 +380,12 @@ export const AssessmentsManagement = () => {
                 className="bg-white rounded-3xl border border-slate-200/80 p-6 flex flex-col justify-between shadow-xs hover:shadow-md transition-all group"
               >
                 <div>
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                     <span className={`inline-flex px-2.5 py-1 rounded-full text-[11px] font-bold ${statusInfo.bgColor} ${statusInfo.textColor}`}>
                       {statusInfo.label}
                     </span>
-                    <span className="text-[11px] font-semibold text-slate-400">
-                      ID: #{item.id}
-                    </span>
+                    <span className="text-[11px] font-semibold text-slate-400">ID: #{item.id}</span>
+                    <BookmarkButton assessment={item} bookmarks={bookmarks} />
                   </div>
 
                   <h3 className="text-base font-bold text-slate-900 group-hover:text-green-600 transition-colors">
@@ -443,7 +448,7 @@ export const AssessmentsManagement = () => {
                   {remindingId === item.id ? 'Sending reminders…' : 'Remind unfinished participants'}
                 </button>
 
-                <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-between gap-2">
+                <div className="research-assessment-actions mt-6 pt-4 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => openEditModal(item)}
@@ -467,6 +472,7 @@ export const AssessmentsManagement = () => {
                     onClick={() => openParticipants(item)}
                     className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-2.5 py-2 text-xs font-semibold text-slate-600 transition-colors hover:border-green-200 hover:bg-green-50 hover:text-green-700"
                     aria-label={`View participants for ${item.title}`}
+                    title="View participants"
                   >
                     <Users aria-hidden="true" className="h-4 w-4" />
                     <span className="hidden xl:inline">Participants</span>
@@ -486,6 +492,7 @@ export const AssessmentsManagement = () => {
                       onClick={() => handleArchive(item.id)}
                       className="p-2 rounded-xl border border-slate-200 text-slate-400 hover:text-rose-600 hover:bg-rose-50 hover:border-rose-200 transition-colors cursor-pointer"
                       title="Archive Assessment"
+                      aria-label={`Archive ${item.title}`}
                     >
                       <Archive className="w-4 h-4" />
                     </button>
@@ -505,10 +512,10 @@ export const AssessmentsManagement = () => {
         </div>
       ) : (
         <EmptyState
-          title="No assessments created"
-          description="Create your first assessment to administer the DigComp 2.1 questionnaire to the freshmen cohort."
-          actionText="Create Assessment"
-          onAction={openCreateModal}
+          title={showBookmarks ? 'No bookmarked research assessments' : 'No assessments created'}
+          description={showBookmarks ? 'Bookmark an assessment to keep it in this list.' : 'Create your first assessment to administer the DigComp 2.1 questionnaire to the freshmen cohort.'}
+          actionText={showBookmarks ? 'Show all assessments' : 'Create Assessment'}
+          onAction={showBookmarks ? () => setShowBookmarks(false) : openCreateModal}
         />
       )}
 

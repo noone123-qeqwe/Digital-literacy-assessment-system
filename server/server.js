@@ -117,6 +117,7 @@ app.use('/api/analytics', require('./routes/analytics'));
 app.use('/api/export', require('./routes/export'));
 app.use('/api/learning', require('./routes/learning'));
 app.use('/api/knowledge', require('./routes/knowledge'));
+app.use('/api/bookmarks', require('./routes/bookmarks'));
 
 // 404 Handler for API
 app.use('/api/*', (req, res) => {

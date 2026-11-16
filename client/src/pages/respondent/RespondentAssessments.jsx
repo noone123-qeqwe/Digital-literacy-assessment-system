@@ -18,6 +18,8 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import PageHeader from '../../components/common/PageHeader';
 import { useDemoMode } from '../../contexts/useDemoMode';
 import { formatDateTime, parseStoredDate } from '../../utils/helpers';
+import { BookmarkButton, BookmarkFilter } from '../../components/assessments/AssessmentBookmarks';
+import { useAssessmentBookmarks } from '../../components/assessments/useAssessmentBookmarks';
 
 const getAssessmentState = (assessment, now) => {
   if (assessment.attempt_status === 'completed') {
@@ -72,6 +74,8 @@ const filterOptions = [
 ];
 
 export const RespondentAssessments = () => {
+  const bookmarks = useAssessmentBookmarks('research');
+  const [showBookmarks, setShowBookmarks] = useState(false);
   const { available: demoStatusAvailable, freeDemoReadOnly, loading: demoModeLoading } = useDemoMode();
   const [assessments, setAssessments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -145,9 +149,9 @@ export const RespondentAssessments = () => {
         ? assessment.attempt_status === 'completed'
         : activeFilter === 'all' || assessment.displayState === activeFilter;
       const searchableText = `${assessment.title || ''} ${assessment.description || ''}`.toLocaleLowerCase();
-      return matchesFilter && (!normalizedQuery || searchableText.includes(normalizedQuery));
+      return matchesFilter && (!showBookmarks || bookmarks.saved.includes(assessment.id)) && (!normalizedQuery || searchableText.includes(normalizedQuery));
     }).sort((first, second) => (priority[first.displayState] ?? 5) - (priority[second.displayState] ?? 5));
-  }, [activeFilter, assessedItems, query]);
+  }, [activeFilter, assessedItems, query, showBookmarks, bookmarks.saved]);
 
   if (loading) return <LoadingSpinner text="Loading your assessments..." />;
 
@@ -190,6 +194,7 @@ export const RespondentAssessments = () => {
       )}
 
       {(!error || assessedItems.length > 0) && <>
+      <BookmarkFilter bookmarks={bookmarks} records={assessments} selected={showBookmarks} setSelected={setShowBookmarks} />
       <section aria-label="Assessment summary" className="grid grid-cols-2 gap-2.5 sm:gap-3 xl:grid-cols-4">
         {summaryCards.map(({ label, value, Icon, tone }) => (
           <article key={label} className="flex min-h-20 min-w-0 items-center gap-2.5 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:gap-4 sm:p-4">
@@ -294,6 +299,7 @@ export const RespondentAssessments = () => {
                         {status.label}
                       </span>
                       {hasResult && canDownloadAward && <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200"><Award aria-hidden="true" className="h-3.5 w-3.5" />Award ready</span>}
+                      <BookmarkButton assessment={assessment} bookmarks={bookmarks} />
                     </div>
                     <h3 className="mt-3 break-words text-xl font-bold tracking-tight text-slate-950 sm:text-2xl">{assessment.title}</h3>
                     <p className={`mt-1 text-xs font-semibold ${isDigCompSat ? 'text-teal-800' : 'text-slate-600'}`}>
@@ -354,12 +360,12 @@ export const RespondentAssessments = () => {
             <span className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-green-50 text-green-700">
               <ClipboardList aria-hidden="true" className="h-6 w-6" />
             </span>
-            <p className="text-base font-semibold text-slate-900">{assessments.length ? 'No matching assessments' : 'No assessments assigned yet'}</p>
+            <p className="text-base font-semibold text-slate-900">{showBookmarks ? 'No matching bookmarked assessments' : assessments.length ? 'No matching assessments' : 'No assessments assigned yet'}</p>
             <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-500">
-              {assessments.length ? 'Try another status filter or search term.' : 'New assessments from your instructor will appear here.'}
+              {showBookmarks ? 'Bookmark an assessment, or adjust your search and status filters.' : assessments.length ? 'Try another status filter or search term.' : 'New assessments from your instructor will appear here.'}
             </p>
-            {assessments.length > 0 && (query || activeFilter !== 'all') && (
-              <button type="button" onClick={() => { setQuery(''); setActiveFilter('all'); }} className="mt-4 rounded-lg px-3 py-2 text-sm font-semibold text-green-800 hover:bg-green-50">
+            {assessments.length > 0 && (query || activeFilter !== 'all' || showBookmarks) && (
+              <button type="button" onClick={() => { setQuery(''); setActiveFilter('all'); setShowBookmarks(false); }} className="mt-4 rounded-lg px-3 py-2 text-sm font-semibold text-green-800 hover:bg-green-50">
                 Clear filters
               </button>
             )}
