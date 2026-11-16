@@ -61,7 +61,7 @@ export const Navbar = ({ setIsSidebarOpen, isSidebarOpen, dashboardMode = false 
   const ProfileWrapper = profileLink ? Link : 'div';
 
   return (
-    <header className={`workspace-navbar sticky top-0 z-30 flex items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 py-5 backdrop-blur-md sm:px-8 2xl:px-12 2xl:py-7 ${dashboardMode ? 'dashboard-navbar' : ''}`}>
+    <header className={`workspace-navbar sticky top-0 z-30 flex items-center justify-between border-b border-slate-200/80 bg-white/95 px-4 py-5 backdrop-blur-md sm:px-8 2xl:px-12 2xl:py-7 ${dashboardMode ? 'dashboard-navbar' : ''} ${takingAssessment ? 'workspace-navbar--assessment' : ''}`}>
       <div className="flex items-center space-x-4 sm:space-x-5">
         <button
           onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -81,7 +81,7 @@ export const Navbar = ({ setIsSidebarOpen, isSidebarOpen, dashboardMode = false 
 
       <div className="flex items-center space-x-3 sm:space-x-4 2xl:space-x-6">
         {dashboardMode && <Link to="/respondent/help" aria-label="Open help and support" className="hidden h-11 w-11 items-center justify-center rounded-xl bg-white text-slate-600 shadow-sm hover:text-green-700 sm:flex"><CircleHelp aria-hidden="true" className="h-5 w-5" /></Link>}
-        {!dashboardMode && <div className="hidden items-center rounded-full border border-green-100 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 sm:flex 2xl:px-4 2xl:py-2 2xl:text-sm">
+        {!dashboardMode && <div className="workspace-role-badge hidden items-center rounded-full border border-green-100 bg-green-50 px-3 py-1.5 text-xs font-semibold text-green-700 sm:flex 2xl:px-4 2xl:py-2 2xl:text-sm">
           <span aria-hidden="true" className="mr-2 h-1.5 w-1.5 rounded-full bg-green-600"></span>
           {roleLabel} workspace
         </div>}

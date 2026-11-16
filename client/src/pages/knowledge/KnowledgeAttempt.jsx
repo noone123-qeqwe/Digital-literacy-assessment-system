@@ -9,6 +9,8 @@ import { clearQuizRecovery, downloadQuizRecovery, readQuizRecovery, writeQuizRec
 import { Empty, Field, KnowledgePage, LevelBadge } from './KnowledgeCommon';
 import { displayDate, knowledgeDownload } from './knowledgeClient';
 
+const expandedQuestionMapQuery = '(min-width: 1024px), (min-width: 768px) and (min-height: 500px)';
+
 export default function KnowledgeAttemptRoute() {
   const { attemptId } = useParams();
   return <KnowledgeAttempt key={attemptId} attemptId={Number(attemptId)} />;
@@ -20,7 +22,7 @@ function KnowledgeAttempt({ attemptId }) {
   const [data, setData] = useState(null), [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true), [error, setError] = useState('');
   const [index, setIndex] = useState(0), [review, setReview] = useState(false);
-  const [questionMapOpen, setQuestionMapOpen] = useState(() => window.matchMedia('(min-width: 640px)').matches);
+  const [questionMapOpen, setQuestionMapOpen] = useState(() => window.matchMedia(expandedQuestionMapQuery).matches);
   const [syncStatus, setSyncStatus] = useState('Loading saved answers…');
   const [storageError, setStorageError] = useState('');
   const [pending, setPending] = useState(false), [clockOffset, setClockOffset] = useState(0);
@@ -31,7 +33,7 @@ function KnowledgeAttempt({ attemptId }) {
   const automaticSubmit = useRef(false), questionHeading = useRef(null), moveFocus = useRef(false);
   const canAnswer = user.role === 'respondent';
   useEffect(() => {
-    const media = window.matchMedia('(min-width: 640px)');
+    const media = window.matchMedia(expandedQuestionMapQuery);
     const update = () => setQuestionMapOpen(media.matches);
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
@@ -136,7 +138,7 @@ function KnowledgeAttempt({ attemptId }) {
       questionHeading.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
       moveFocus.current = false;
     }
-  }, [index, review]);
+  }, [index, review, questionMapOpen]);
 
   const remaining = data?.attempt.deadline ? Math.max(0, Math.ceil((Date.parse(data.attempt.deadline) - now - clockOffset) / 1000)) : null;
   const expired = remaining === 0;
@@ -176,7 +178,7 @@ function KnowledgeAttempt({ attemptId }) {
       void sync();
     });
   };
-  const selectQuestion = (value) => { moveFocus.current = true; setIndex(value); setReview(false); if (window.matchMedia('(max-width: 639px)').matches) setQuestionMapOpen(false); };
+  const selectQuestion = (value) => { moveFocus.current = true; setIndex(value); setReview(false); if (!window.matchMedia(expandedQuestionMapQuery).matches) setQuestionMapOpen(false); };
   const resolveConflict = async (keepLocal) => {
     if (!navigator.onLine) return;
     if (!window.confirm(keepLocal ? 'Replace the current server answers with this device’s responses?' : 'Replace this device’s pending answers with the server copy? Download the local copy first if you need to keep it.')) return;

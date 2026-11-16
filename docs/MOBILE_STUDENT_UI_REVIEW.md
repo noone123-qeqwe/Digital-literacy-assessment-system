@@ -15,3 +15,5 @@ Frontend lint and production build pass without warnings. Seven layout groups co
 Checks use Chrome mobile emulation. Keyboard behavior includes a simulated reduced visual viewport, not a physical iPhone or Android keyboard test. Browser scoring responses in these UI checks are fixtures; the repository's backend and libSQL suites separately verify scoring and permissions.
 
 The existing sixteen profile-photo checks also passed against an isolated application server and temporary database, covering native selection, optimization, saving, replacement, reload persistence, EXIF rotation, invalid files, upload failure/retry and authentication. No production photos were changed.
+
+The final assessment rotation check covered 320×568, 390×844, 667×375, 844×390, 768×1024 and 1365×900. Phones and short landscape views use the compact assessment header and collapsible question list; larger views retain the expanded list. Jumping to questions, saved answers and focus remained usable, and rotating between portrait, landscape and tablet sizes preserved the selected answers. All six cases passed without browser exceptions.
