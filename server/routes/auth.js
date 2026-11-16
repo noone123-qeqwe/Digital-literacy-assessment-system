@@ -49,8 +49,11 @@ function verifiedUserForToken(token, tokenType) {
   if (typeof token !== 'string' || token.length < 20 || token.length > 200) return null;
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   return db.prepare(`
-    SELECT t.id AS token_id, u.id, u.email, u.first_name, u.last_name, u.role
-    FROM auth_tokens t JOIN users u ON u.id = t.user_id
+    SELECT t.id AS token_id, u.id, u.email, u.first_name, u.last_name, u.role, u.mfa_enabled,
+           COALESCE(mfa_policy.setting_value, '0') AS mfa_optional
+    FROM auth_tokens t
+    JOIN users u ON u.id = t.user_id
+    LEFT JOIN system_settings mfa_policy ON mfa_policy.setting_key = 'mfa_optional_user:' || u.id
     WHERE t.token_hash = ? AND t.token_type = ? AND t.used_at IS NULL
       AND datetime(t.expires_at) > datetime('now') AND u.status = 'active'
   `).get(tokenHash, tokenType) || null;
@@ -270,7 +273,20 @@ router.post('/verify-email', tokenUseLimit, [body('token').isString().isLength({
     enrollPublishedQuizzes(db, token.id);
   })();
   logActivity(token.id, 'EMAIL_VERIFIED', 'Email address verified');
-  return res.json({ success: true, message: 'Email verified. You can sign in now.' });
+  if (!isMfaRequired(token)) {
+    issueSession(res, token, req, { mfaVerified: false });
+    return res.json({
+      success: true,
+      signedIn: true,
+      message: 'Email verified. Redirecting to your dashboard…',
+      data: { user: publicUser(token) },
+    });
+  }
+  return res.json({
+    success: true,
+    signedIn: false,
+    message: 'Email verified. Sign in to complete two-step verification.',
+  });
 });
 
 router.post('/resend-verification', tokenRequestLimit, [body('email').isEmail().normalizeEmail()], async (req, res, next) => {

@@ -160,3 +160,9 @@ export const downloadFile = (data, filename, type = 'application/pdf') => {
   document.body.removeChild(link);
   window.URL.revokeObjectURL(url);
 };
+
+export const dashboardPathForRole = (role) => {
+  if (role === 'admin') return '/admin/dashboard';
+  if (role === 'assessor') return '/assessor/dashboard';
+  return '/respondent/dashboard';
+};

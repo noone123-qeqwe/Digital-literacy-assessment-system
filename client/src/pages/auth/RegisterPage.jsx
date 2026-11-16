@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/useAuth';
 import { useDemoMode } from '../../contexts/useDemoMode';
+import { dashboardPathForRole } from '../../utils/helpers';
 import {
   ArrowRight,
   CheckCircle2,
@@ -31,10 +32,43 @@ export const RegisterPage = () => {
   const [submitted, setSubmitted] = useState(false);
   const [serverError, setServerError] = useState('');
   const [registrationComplete, setRegistrationComplete] = useState(false);
-  const { register } = useAuth();
+  const { register, refreshUser } = useAuth() || {};
   const { available: demoStatusAvailable, freeDemoReadOnly, loading: demoStatusLoading } = useDemoMode();
   const registrationPreview = demoStatusAvailable && freeDemoReadOnly;
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!registrationComplete || typeof refreshUser !== 'function') return undefined;
+    let active = true;
+    const syncVerifiedSession = async () => {
+      const currentUser = await refreshUser({ suppressSessionRedirect: true, suppressErrorToast: true });
+      if (active && currentUser?.email_verified) {
+        navigate(dashboardPathForRole(currentUser.role), { replace: true });
+      }
+    };
+
+    let channel = null;
+    try {
+      if (typeof BroadcastChannel !== 'undefined') {
+        channel = new BroadcastChannel('dlas:auth');
+        channel.onmessage = (event) => {
+          if (event.data?.type === 'EMAIL_VERIFIED') void syncVerifiedSession();
+        };
+      }
+    } catch {}
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') void syncVerifiedSession();
+    };
+    window.addEventListener('focus', syncVerifiedSession);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      active = false;
+      channel?.close();
+      window.removeEventListener('focus', syncVerifiedSession);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [navigate, refreshUser, registrationComplete]);
 
   const validate = (values) => {
     const errors = {};
@@ -184,7 +218,7 @@ export const RegisterPage = () => {
           <p className="mt-5 text-xs font-bold uppercase tracking-[0.14em] text-green-800">One last step</p>
           <h2 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Check your inbox</h2>
           <p className="mt-3 max-w-md text-sm leading-6 text-slate-600">
-            We sent a verification link to the email address below. Open it to activate your account before signing in.
+            We sent a verification link to the email address below. Open it to activate your account and go straight to your dashboard.
           </p>
           <p className="mt-4 max-w-full break-all rounded-xl border border-green-200/80 bg-green-50/70 px-4 py-2.5 text-sm font-semibold text-green-950">
             {formData.email}

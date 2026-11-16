@@ -724,6 +724,61 @@ async function run() {
     preservedDatabase?.close();
     check(restoredUsers > 0 && preservedSentinel === 'previous database', 'restore rehearsal recovers the snapshot and preserves the prior database in an isolated temporary folder');
 
+    const autoLoginStudentRes = await request(baseUrl, '/users', {
+      method: 'POST',
+      token: adminToken,
+      body: {
+        first_name: 'Verified',
+        last_name: 'Respondent',
+        email: 'autologin.student@example.test',
+        password: 'VerifiedStudentPass123!',
+        role: 'respondent',
+      },
+    });
+    const autoLoginStudentId = autoLoginStudentRes.data?.data?.id;
+    const studentVerifyToken = crypto.randomBytes(32).toString('base64url');
+    db.prepare("INSERT INTO auth_tokens (user_id, token_hash, token_type, expires_at) VALUES (?, ?, 'email_verification', ?)")
+      .run(autoLoginStudentId, crypto.createHash('sha256').update(studentVerifyToken).digest('hex'), new Date(Date.now() + 60_000).toISOString());
+    const studentVerified = await request(baseUrl, '/auth/verify-email', {
+      method: 'POST',
+      body: { token: studentVerifyToken },
+    });
+    const studentMe = await request(baseUrl, '/auth/me', { token: studentVerified.session });
+    check(
+      studentVerified.status === 200
+      && studentVerified.data?.signedIn === true
+      && Boolean(studentVerified.session?.dlas_session)
+      && studentMe.status === 200
+      && studentMe.data?.data?.id === autoLoginStudentId,
+      'email verification signs in students directly and unlocks /auth/me'
+    );
+
+    const mfaStaffRes = await request(baseUrl, '/users', {
+      method: 'POST',
+      token: adminToken,
+      body: {
+        first_name: 'Verified',
+        last_name: 'Staff',
+        email: 'verified.staff@example.test',
+        password: 'VerifiedStaffPass123!',
+        role: 'assessor',
+      },
+    });
+    const mfaStaffId = mfaStaffRes.data?.data?.id;
+    const staffVerifyToken = crypto.randomBytes(32).toString('base64url');
+    db.prepare("INSERT INTO auth_tokens (user_id, token_hash, token_type, expires_at) VALUES (?, ?, 'email_verification', ?)")
+      .run(mfaStaffId, crypto.createHash('sha256').update(staffVerifyToken).digest('hex'), new Date(Date.now() + 60_000).toISOString());
+    const staffVerified = await request(baseUrl, '/auth/verify-email', {
+      method: 'POST',
+      body: { token: staffVerifyToken },
+    });
+    check(
+      staffVerified.status === 200
+      && staffVerified.data?.signedIn === false
+      && !staffVerified.session?.dlas_session,
+      'email verification does not bypass MFA for staff accounts'
+    );
+
     // Email requests retain a tight quota without blocking one-time link use.
     let emailLimited = false;
     for (let count = 0; count < 6; count += 1) {

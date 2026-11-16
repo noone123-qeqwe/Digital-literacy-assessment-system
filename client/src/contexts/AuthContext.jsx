@@ -140,16 +140,17 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const refreshUser = useCallback(async () => {
+  const refreshUser = useCallback(async (options = {}) => {
     try {
-      const res = await api.get('/auth/me');
+      const res = await api.get('/auth/me', options);
       if (res.data.success) {
         setUser(res.data.data);
+        await refreshProfilePicture();
         return res.data.data;
       }
     } catch {}
     return null;
-  }, []);
+  }, [refreshProfilePicture]);
 
   const completeMfaLogin = async (challenge_id, code, options = {}) => {
     try {

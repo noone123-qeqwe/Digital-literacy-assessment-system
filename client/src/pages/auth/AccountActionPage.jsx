@@ -1,7 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle } from 'lucide-react';
+import toast from 'react-hot-toast';
 import api from '../../api/axios';
+import { useAuth } from '../../contexts/useAuth';
+import { dashboardPathForRole } from '../../utils/helpers';
 import PasswordEntry from '../../components/auth/PasswordEntry';
 import './AccountActionPage.css';
 
@@ -26,6 +29,8 @@ function AccountActionForm({ pathname, token, initialEmail }) {
   const [completed, setCompleted] = useState(false);
   const submissionLock = useRef(false);
   const linkRequest = useRef(null);
+  const auth = useAuth();
+  const navigate = useNavigate();
 
   const title = isVerify ? 'Verify your email' : isReset ? completed ? 'Password updated' : 'Set a new password' : isMfaRecovery ? 'Recover authenticator access' : 'Reset your password';
   const description = isVerify
@@ -41,11 +46,31 @@ function AccountActionForm({ pathname, token, initialEmail }) {
     let active = true;
     if (!linkRequest.current) linkRequest.current = api.post(isVerify ? '/auth/verify-email' : '/auth/mfa/recover', { token }, inlineFeedback);
     linkRequest.current
-      .then(response => { if (active) setFeedback({ tone: 'success', text: response.data.message || 'Your link has been confirmed. You can sign in.' }); })
+      .then(async (response) => {
+        if (!active) return;
+        if (isVerify && response.data?.signedIn) {
+          setFeedback({ tone: 'success', text: response.data.message || 'Email verified. Redirecting to your dashboard…' });
+          try {
+            if (typeof BroadcastChannel !== 'undefined') {
+              const channel = new BroadcastChannel('dlas:auth');
+              channel.postMessage({ type: 'EMAIL_VERIFIED' });
+              channel.close();
+            }
+          } catch {}
+          const verifiedUser = (await auth?.refreshUser?.({ suppressSessionRedirect: true, suppressErrorToast: true }))
+            || response.data?.data?.user;
+          if (!active) return;
+          toast.success('Email verified! Welcome to DLAS.');
+          navigate(dashboardPathForRole(verifiedUser?.role), { replace: true });
+          return;
+        }
+        setCompleted(Boolean(isVerify && response.data?.success));
+        setFeedback({ tone: 'success', text: response.data.message || 'Your link has been confirmed. You can sign in.' });
+      })
       .catch(error => { if (active) setFeedback(errorFeedback(error)); })
       .finally(() => { if (active) setBusy(false); });
     return () => { active = false; };
-  }, [isVerify, isMfaRecovery, token]);
+  }, [auth, isVerify, isMfaRecovery, navigate, token]);
 
   const handleSubmit = async event => {
     event.preventDefault();
@@ -108,7 +133,7 @@ function AccountActionForm({ pathname, token, initialEmail }) {
       </div>}
 
       {isReset && !token && <Link to="/forgot-password" className="account-action-primary account-action-next">Request a new reset link</Link>}
-      {isReset && completed && <Link to="/login" className="account-action-primary account-action-next">Sign in</Link>}
+      {(isReset || isVerify) && completed && <Link to="/login" className="account-action-primary account-action-next">Sign in</Link>}
 
       <footer className="account-action-footer">
         <Link to="/login"><ArrowLeft size={15} aria-hidden="true" />Return to sign in</Link>
