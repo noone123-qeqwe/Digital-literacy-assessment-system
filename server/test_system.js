@@ -114,6 +114,7 @@ async function run() {
 
     const health = await request(baseUrl, '/health');
     check(health.status === 200 && health.data.status === 'healthy', 'health endpoint responds');
+    check(health.data.selfPing?.enabled === false && health.data.selfPing.intervalSeconds === 60 && health.data.selfPing.lastStatus === 'disabled', 'health reports server ping configuration without starting network timers in isolated tests');
     const contentSecurityPolicy = health.headers.get('content-security-policy') || '';
     const imageSources = contentSecurityPolicy.split(';').find((directive) => directive.trim().startsWith('img-src '))?.trim().split(/\s+/).slice(1) || [];
     check(imageSources.includes("'self'") && imageSources.includes('blob:') && !imageSources.includes('*'), 'image policy permits local photo processing and avatar previews without allowing arbitrary image hosts');

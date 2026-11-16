@@ -18,6 +18,7 @@ async function pingSite(siteUrl, {
   attempts = 4,
   timeoutMs = 20000,
   retryDelayMs = 8000,
+  signal,
 } = {}) {
   const endpoint = healthUrl(siteUrl);
   for (let attempt = 1; attempt <= attempts; attempt++) {
@@ -25,7 +26,9 @@ async function pingSite(siteUrl, {
     try {
       const response = await fetchImpl(endpoint, {
         headers: { Accept: 'application/json', 'User-Agent': 'DLAS-Website-Ping/1.0', 'Cache-Control': 'no-cache' },
-        cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(timeoutMs),
+        cache: 'no-store', redirect: 'error', signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+          : AbortSignal.timeout(timeoutMs),
       });
       if (response.status !== 200) throw new Error(`HTTP ${response.status}`);
       if (!response.headers.get('content-type')?.toLowerCase().includes('application/json')) throw new Error('The server is still starting or returned an unexpected page.');

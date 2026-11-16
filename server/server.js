@@ -8,6 +8,7 @@ const { db } = require('./db/database');
 const { ensureDigCompSatQuestionBank } = require('./db/digcompsat');
 const { assertProductionReady } = require('./utils/studyReadiness');
 const { startAutomaticBackups, getBackupStatus } = require('./db/backup');
+const { startWebsitePing } = require('./utils/websitePing');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -90,6 +91,7 @@ app.get('/api/health', (req, res) => {
     status: 'healthy',
     timestamp: new Date().toISOString(),
     service: 'Digital Literacy Assessment System API',
+    selfPing: app.locals.websitePing?.status() || { enabled: false, intervalSeconds: 60, lastCheckedAt: null, lastHealthyAt: null, lastStatus: 'disabled' },
     encryptedBackupReady: process.env.NODE_ENV !== 'production' || getBackupStatus().encryptedBackupReady,
     dataProtectionReady: process.env.NODE_ENV !== 'production' || getBackupStatus().isReady,
   });
@@ -153,6 +155,7 @@ app.use((err, req, res, next) => {
 });
 
 function startServer(port = PORT) {
+  let websitePing;
   if (process.env.BACKUP_ENCRYPTION_KEY || process.env.BACKUP_STRATEGY === 'turso-pitr') {
     startAutomaticBackups()
       .catch((error) => console.error('Initial encrypted backup failed; API remains unavailable until a retry succeeds:', error.message));
@@ -166,7 +169,12 @@ function startServer(port = PORT) {
     console.log(`  Listening on port ${typeof address === 'object' ? address.port : port}`);
     console.log('  API Health: /api/health');
     console.log('=======================================================');
+    if (process.env.NODE_ENV !== 'test') {
+      websitePing = startWebsitePing();
+      app.locals.websitePing = websitePing;
+    }
   });
+  server.once('close', () => websitePing?.stop());
   return server;
 }
 

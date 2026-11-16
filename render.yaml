@@ -16,6 +16,8 @@ services:
         value: "false"
       - key: DLAS_RESEARCH_ENABLED
         value: "false"
+      - key: DLAS_SELF_PING_ENABLED
+        value: "true"
       - key: DLAS_DATABASE_DRIVER
         value: libsql
       - key: BACKUP_STRATEGY
