@@ -27,7 +27,7 @@ const optionLabels = {
   blazer: 'Blazer',
   happy: 'Happy',
   focused: 'Focused',
-  float: 'Float',
+  float: 'Relaxed',
   breathe: 'Breathe',
   typing: 'Focused study',
   bounce: 'Bounce',
@@ -40,7 +40,7 @@ const optionLabels = {
 };
 
 const animationMeta = {
-  float: { label: 'Float', description: 'Gentle hovering bob & idle blink' },
+  float: { label: 'Relaxed', description: 'Soft blinks & subtle hand movement' },
   breathe: { label: 'Breathe', description: 'Calm chest breath & soft nod' },
   typing: { label: 'Focused study', description: 'Active typing & screen glow' },
   bounce: { label: 'Bounce', description: 'Upbeat hop & cheerful energy' },
@@ -208,7 +208,7 @@ export default function DashboardCharacter() {
     <label className="character-field" key={key}>
       <span>{label}</span>
       <select value={draft[key]} onChange={(event) => update(key, event.target.value)}>
-        {choices[key].map((option) => <option key={option} value={option}>{formatOptionLabel(option)}</option>)}
+        {choices[key].map((option) => <option key={option} value={option}>{option === 'none' ? 'None' : formatOptionLabel(option)}</option>)}
       </select>
     </label>
   );

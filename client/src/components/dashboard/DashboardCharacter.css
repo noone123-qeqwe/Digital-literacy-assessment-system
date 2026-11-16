@@ -106,7 +106,7 @@
 
 .character-position {
   position: absolute;
-  inset: 0 -8% 0 -10%;
+  inset: 0;
   transform-origin: 50% 100%;
 }
 
@@ -126,7 +126,7 @@
 .character-motion[data-speed="lively"] { --motion-scale: 0.72; }
 
 .character-motion[data-animation="float"] {
-  animation: character-float calc(5.2s * var(--motion-scale)) ease-in-out infinite;
+  animation: none;
 }
 
 .character-motion[data-animation="breathe"] {
@@ -150,11 +150,11 @@
 }
 
 .character-art .character-head { transform-origin: 202px 177px; }
-.character-art .character-eyes { transform-origin: 204px 115px; }
-.character-art .character-hand-left { transform-origin: 141px 238px; }
-.character-art .character-hand-right { transform-origin: 266px 241px; }
-.character-art .character-leaves { transform-origin: 73px 246px; }
-.character-art .character-steam { transform-origin: 423px 214px; }
+.character-art .character-eyes { transform-origin: 204px 122px; }
+.character-art .character-hand-left { transform-origin: 141px 247px; }
+.character-art .character-hand-right { transform-origin: 266px 248px; }
+.character-art .character-leaves { transform-origin: 75px 266px; }
+.character-art .character-steam { transform-origin: 434px 230px; }
 
 .character-motion:not([data-animation="none"]) .character-eyes { animation: character-blink calc(6.4s * var(--motion-scale)) linear infinite; }
 .character-motion:not([data-animation="none"]) .character-leaves { animation: character-leaf-sway calc(5.5s * var(--motion-scale)) ease-in-out infinite; }
@@ -418,11 +418,6 @@
 .character-editor-error button { min-height: 40px; font-weight: 650; }
 .character-demo-note { color: #795312; background: #fff8e8; }
 
-@keyframes character-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
-}
-
 @keyframes character-breathe {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.025); }
@@ -560,7 +555,7 @@
   .character-field select { font-size: 16px; min-height: 48px; }
   .character-checkbox { min-height: 48px; }
   .character-range input { min-height: 44px; }
-  .character-skin-tones button { height: 42px; width: 42px; }
+  .character-skin-tones button { height: 44px; width: 44px; }
   .character-editor-footer { gap: 0; margin-top: 8px; padding-top: 10px; }
   .character-editor-footer > span { display: none; }
   .character-editor-footer > div { width: 100%; display: grid; grid-template-columns: 1fr 1.6fr; }

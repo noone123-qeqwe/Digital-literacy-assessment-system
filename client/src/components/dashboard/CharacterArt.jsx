@@ -2,7 +2,7 @@ import React, { useId } from 'react';
 
 const hairstyles = {
   swept: {
-    shape: 'M159 114C151 104 146 88 150 72C149 63 155 55 164 51C160 47 158 42 158 37C169 44 179 40 191 34C208 25 225 30 233 39C249 39 260 56 254 73C255 86 249 100 241 111L235 83C221 93 202 87 185 92C174 95 167 102 166 116Z',
+    shape: 'M157 114C147 101 146 82 153 66C158 54 169 48 181 47C191 32 211 30 225 39C242 35 258 48 256 66C258 85 250 103 242 114L237 84C222 98 201 88 181 98C173 103 168 111 166 121Z',
     strands: ['M163 69C177 47 207 39 228 48', 'M170 78C187 61 215 66 235 56', 'M157 84C157 95 160 103 163 107'],
   },
   short: {
@@ -50,346 +50,249 @@ export default function CharacterArt({ settings, ...props }) {
   } = settings;
   const isFemale = characterStyle === 'female';
   const id = useId().replace(/:/g, '');
-  const paint = (name) => `url(#${id}-${name})`;
-  const outline = '#25364a';
+  const paint = name => 'url(#' + id + '-' + name + ')';
+  const definition = name => id + '-' + name;
+  const outline = '#34465b';
   const hair = hairstyles[hairStyle];
+  const hairLight = tint(hairColor, '#ffffff', .22);
+  const skinShadow = tint(skinColor, '#784a3a', .24);
+  const paper = tint(accentColor, '#ffffff', .7);
 
-  return (
-    <svg viewBox="0 0 480 330" fill="none" xmlns="http://www.w3.org/2000/svg" data-character-style={isFemale ? 'female' : 'male'} {...props}>
-      <defs>
-        <linearGradient id={`${id}-skin`} x1="160" y1="65" x2="236" y2="178" gradientUnits="userSpaceOnUse">
-          <stop stopColor={tint(skinColor, '#ffffff', .18)} /><stop offset=".52" stopColor={skinColor} /><stop offset="1" stopColor={tint(skinColor, '#6e4532', .18)} />
-        </linearGradient>
-        <linearGradient id={`${id}-hair`} x1="172" y1="34" x2="231" y2="131" gradientUnits="userSpaceOnUse">
-          <stop stopColor={tint(hairColor, '#ffffff', .14)} /><stop offset=".55" stopColor={hairColor} /><stop offset="1" stopColor={tint(hairColor, '#000000', .22)} />
-        </linearGradient>
-        <linearGradient id={`${id}-shirt`} x1="153" y1="186" x2="276" y2="268" gradientUnits="userSpaceOnUse">
-          <stop stopColor={tint(shirtColor, '#ffffff', .16)} /><stop offset=".45" stopColor={shirtColor} /><stop offset="1" stopColor={tint(shirtColor, '#000000', .22)} />
-        </linearGradient>
-        <linearGradient id={`${id}-laptop`} x1="280" y1="196" x2="393" y2="275" gradientUnits="userSpaceOnUse">
-          <stop stopColor={tint(laptopColor, '#ffffff', .24)} /><stop offset=".58" stopColor={laptopColor} /><stop offset="1" stopColor={tint(laptopColor, '#000000', .16)} />
-        </linearGradient>
-        <linearGradient id={`${id}-laptop-deck`} x1="249" y1="250" x2="317" y2="279" gradientUnits="userSpaceOnUse">
-          <stop stopColor={tint(laptopColor, '#ffffff', .45)} /><stop offset="1" stopColor={tint(laptopColor, '#ffffff', .18)} />
-        </linearGradient>
-        <linearGradient id={`${id}-paper`} x1="0" y1="0" x2="0" y2="1">
-          <stop stopColor={tint(accentColor, '#ffffff', .58)} /><stop offset="1" stopColor={accentColor} />
-        </linearGradient>
-        <linearGradient id={`${id}-leaf`} x1="49" y1="190" x2="91" y2="246" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#86efac" /><stop offset=".45" stopColor="#34a875" /><stop offset="1" stopColor="#1e6b4f" />
-        </linearGradient>
-        <radialGradient id={`${id}-blush`} cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0%" stopColor="#d95f52" stopOpacity=".24" />
-          <stop offset="100%" stopColor="#d95f52" stopOpacity="0" />
-        </radialGradient>
-        <radialGradient id={`${id}-screen-glow`} cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0%" stopColor="#93c5fd" stopOpacity=".35" />
-          <stop offset="100%" stopColor="#93c5fd" stopOpacity="0" />
-        </radialGradient>
-      </defs>
+  return <svg viewBox="0 0 480 330" fill="none" xmlns="http://www.w3.org/2000/svg" data-character-style={isFemale ? 'female' : 'male'} data-character-design="campus-v2" {...props}>
+    <defs>
+      <linearGradient id={definition('skin')} x1="170" y1="75" x2="234" y2="176" gradientUnits="userSpaceOnUse">
+        <stop stopColor={tint(skinColor, '#fff7ed', .22)} /><stop offset=".52" stopColor={skinColor} /><stop offset="1" stopColor={skinShadow} />
+      </linearGradient>
+      <linearGradient id={definition('hair')} x1="170" y1="40" x2="231" y2="148" gradientUnits="userSpaceOnUse">
+        <stop stopColor={tint(hairColor, '#ffffff', .13)} /><stop offset=".55" stopColor={hairColor} /><stop offset="1" stopColor={tint(hairColor, '#0f172a', .28)} />
+      </linearGradient>
+      <linearGradient id={definition('shirt')} x1="155" y1="191" x2="280" y2="282" gradientUnits="userSpaceOnUse">
+        <stop stopColor={tint(shirtColor, '#ffffff', .16)} /><stop offset=".48" stopColor={shirtColor} /><stop offset="1" stopColor={tint(shirtColor, '#0f172a', .23)} />
+      </linearGradient>
+      <linearGradient id={definition('laptop')} x1="289" y1="204" x2="397" y2="284" gradientUnits="userSpaceOnUse">
+        <stop stopColor={tint(laptopColor, '#ffffff', .28)} /><stop offset=".6" stopColor={laptopColor} /><stop offset="1" stopColor={tint(laptopColor, '#0f172a', .22)} />
+      </linearGradient>
+      <linearGradient id={definition('laptop-deck')} x1="244" y1="252" x2="298" y2="289" gradientUnits="userSpaceOnUse">
+        <stop stopColor={tint(laptopColor, '#ffffff', .6)} /><stop offset="1" stopColor={tint(laptopColor, '#ffffff', .3)} />
+      </linearGradient>
+      <linearGradient id={definition('paper')} x1="0" y1="0" x2="0" y2="1">
+        <stop stopColor="#fffdf8" /><stop offset="1" stopColor={tint(accentColor, '#f4e6cf', .65)} />
+      </linearGradient>
+      <linearGradient id={definition('leaf')} x1="45" y1="209" x2="96" y2="267" gradientUnits="userSpaceOnUse">
+        <stop stopColor="#93d3a1" /><stop offset=".5" stopColor="#4e9b78" /><stop offset="1" stopColor="#28765e" />
+      </linearGradient>
+    </defs>
 
-      {showBackdrop && <g className="character-scene-details" stroke={accentColor} strokeLinecap="round" opacity=".55">
-        <circle cx="352" cy="130" r="35" strokeOpacity=".4" />
-        <circle cx="352" cy="130" r="25" strokeOpacity=".26" />
-        <path d="M352 114V130L363 137" strokeWidth="2" />
-        <path d="M108 118V130M102 124H114M304 65V75M299 70H309" strokeWidth="2" />
-        <circle cx="101" cy="161" r="3.2" fill={accentColor} stroke="none" />
-        <circle cx="395" cy="84" r="2.2" fill={accentColor} stroke="none" />
-      </g>}
+    {showBackdrop && <g className="character-scene-details" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="84" y="112" width="50" height="39" rx="11" fill="white" fillOpacity=".76" transform="rotate(-9 109 131)" />
+      <path d="M100 125H119V138H100ZM105 143H115M110 138V143" stroke={shirtColor} strokeOpacity=".7" strokeWidth="1.7" />
+      <circle cx="366" cy="113" r="31" fill="white" fillOpacity=".35" stroke="white" strokeOpacity=".7" />
+      <circle cx="366" cy="113" r="24" stroke={shirtColor} strokeOpacity=".18" />
+      <path d="M366 99V114L376 120" stroke={shirtColor} strokeOpacity=".55" strokeWidth="2" />
+      <path d="M305 62V72M300 67H310M104 184V192M100 188H108" stroke={accentColor} strokeWidth="2.5" />
+      <circle cx="399" cy="165" r="3" fill={accentColor} />
+      <circle cx="127" cy="77" r="3" fill="white" fillOpacity=".65" />
+      <path d="M326 160H345" stroke="white" strokeOpacity=".45" strokeWidth="3" />
+    </g>}
 
-      <g stroke={outline} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        {/* Desk shadow + baseline */}
-        <ellipse cx="259" cy="300" rx="192" ry="8.5" fill={outline} fillOpacity=".1" stroke="none" />
-        <path d="M55 295H448" strokeOpacity=".16" />
+    <g stroke={outline} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <ellipse cx="253" cy="303" rx="202" ry="10" fill="#183b58" fillOpacity=".08" stroke="none" />
+      <path d="M43 293H457L449 301H53Z" fill="white" fillOpacity=".3" stroke="none" />
+      <path d="M53 301H449" stroke={shirtColor} strokeOpacity=".16" />
+      <path d="M148 276V215C148 201 161 191 176 191H231C247 191 260 203 260 218V278Z" fill={tint(shirtColor, '#17243a', .5)} stroke="none" />
 
-        {/* Back hair & behind-head accessories */}
-        <g className="character-head">
-          {hairStyle === 'long' && <>
-            <path d="M161 65C136 89 133 122 138 156C141 182 132 197 141 218C171 232 232 228 261 213C254 191 263 171 257 143C255 113 256 84 237 63Z" fill={paint('hair')} />
-            <path d="M153 109C146 146 156 177 147 207M245 108C254 143 242 177 251 207" stroke={tint(hairColor, '#ffffff', .25)} strokeOpacity=".5" />
-          </>}
-          {hairStyle === 'bob' && <>
-            <path d="M156 69C137 91 134 128 143 157C152 169 165 174 177 171L233 170C244 173 255 167 259 152C264 126 260 88 240 66Z" fill={paint('hair')} />
-            <path d="M148 112C146 132 149 149 154 159M252 110C254 130 250 148 245 157" stroke={tint(hairColor, '#ffffff', .22)} strokeOpacity=".5" />
-          </>}
-          {hairStyle === 'bun' && <>
-            <circle cx="225" cy="42" r="24" fill={paint('hair')} />
-            <path d="M211 31C222 22 239 31 238 43M215 44C220 51 233 50 238 43" stroke={tint(hairColor, '#ffffff', .24)} strokeOpacity=".6" />
-            <path d="M210 60L237 63" stroke={accentColor} strokeWidth="4" />
-          </>}
-          {hairStyle === 'ponytail' && <>
-            <path d="M236 68C262 67 278 90 274 124C271 151 280 171 268 189C255 179 248 164 250 144C251 124 246 101 234 86Z" fill={paint('hair')} />
-            <path d="M254 89C265 110 264 142 259 166" stroke={tint(hairColor, '#ffffff', .24)} strokeOpacity=".5" />
-            <circle cx="240" cy="76" r="5" fill={accentColor} />
-          </>}
-        </g>
-
-        {/* Torso + Neck */}
-        <path d="M139 267C137 236 141 207 158 190C169 179 181 176 194 175H220C239 177 258 185 270 203C282 220 286 245 290 267Z" fill={paint('shirt')} />
-        <path d="M145 222C143 241 146 254 147 266H170L161 223ZM272 221L286 267H267L260 230Z" fill={outline} fillOpacity=".1" stroke="none" />
-        <path d="M164 190C171 185 179 182 187 181" stroke="white" strokeOpacity=".22" strokeWidth="3" />
-        <path d={isFemale ? 'M184 146L184 177C188 193 216 196 223 178L222 146Z' : 'M178 146L179 177C183 194 219 199 228 179L226 146Z'} fill={paint('skin')} />
-        <path d={isFemale ? 'M184 151C192 169 213 173 222 155L222 165C214 179 193 178 184 165Z' : 'M179 151C188 170 215 176 226 155L226 166C216 181 191 179 179 166Z'} fill={outline} fillOpacity=".14" stroke="none" />
-
-        {/* Outfits */}
-        {outfit === 'polo' && <>
-          <path d="M176 176L202 193L189 208L163 184Z" fill={paint('paper')} />
-          <path d="M227 176L202 193L215 208L239 185Z" fill={paint('paper')} />
-          <path d="M202 194V245" stroke={accentColor} strokeOpacity=".85" />
-          <path d="M205 202V243" stroke={outline} strokeOpacity=".15" />
-          <circle cx="208" cy="215" r="1.8" fill={accentColor} stroke="none" />
-          <circle cx="208" cy="230" r="1.8" fill={accentColor} stroke="none" />
+      <g className="character-head">
+        {hairStyle === 'long' && <>
+          <path d="M161 67C140 88 139 118 141 148C142 176 132 201 141 224C175 237 230 234 260 220C250 193 262 174 255 143C256 111 252 80 236 64Z" fill={paint('hair')} />
+          <path d="M151 110C144 151 156 185 148 217M245 111C253 151 242 184 251 215" stroke={hairLight} strokeOpacity=".45" />
         </>}
-        {outfit === 'tshirt' && <>
-          <path d="M175 176C181 195 220 198 230 177L239 183C228 210 178 211 165 183Z" fill={accentColor} />
-          <path d="M175 185C187 202 217 203 230 186" stroke={outline} strokeOpacity=".16" />
+        {hairStyle === 'bob' && <>
+          <path d="M156 72C138 94 137 132 144 158C151 175 166 179 179 173L231 173C246 179 256 170 260 154C264 123 257 86 239 67Z" fill={paint('hair')} />
+          <path d="M148 113Q144 142 154 163M251 111Q258 140 245 163" stroke={hairLight} strokeOpacity=".4" />
         </>}
-        {outfit === 'hoodie' && <>
-          <path d="M171 176L155 191L183 215L202 195L221 215L247 191L232 176C224 199 182 202 171 176Z" fill={paint('paper')} />
-          <path d="M171 184L184 204L202 195L221 204L233 184" stroke={outline} strokeOpacity=".18" />
-          <path d="M186 211L182 241M220 211L224 239" stroke={accentColor} strokeWidth="2.5" />
-          <path d="M182 237V244M224 236V242" stroke={outline} strokeWidth="2.5" strokeOpacity=".5" />
-          <path d="M181 257Q204 245 230 257" stroke={accentColor} strokeOpacity=".6" />
+        {hairStyle === 'bun' && <>
+          <circle cx="226" cy="43" r="23" fill={paint('hair')} />
+          <path d="M213 35Q226 23 239 39M216 47Q230 56 239 43" stroke={hairLight} strokeOpacity=".5" />
+          <path d="M211 61L238 64" stroke={accentColor} strokeWidth="4" />
         </>}
-        {outfit === 'sweater' && <>
-          <path d="M174 176C181 192 221 194 231 176L237 183C226 203 180 203 168 183Z" fill={paint('paper')} />
-          <path d="M173 178C183 197 220 198 232 179" stroke={outline} strokeOpacity=".18" strokeWidth="1.2" />
-          <path d="M180 185L176 193M191 190L189 198M204 192V200M217 190L219 198M228 185L231 193" stroke={outline} strokeOpacity=".22" strokeWidth="1.2" />
-          <path d="M167 216Q205 227 248 216" stroke="white" strokeOpacity=".15" strokeWidth="2" />
+        {hairStyle === 'ponytail' && <>
+          <path d="M238 71C264 66 279 91 273 121C268 148 281 169 267 191C253 182 247 165 251 144C254 119 246 99 234 86Z" fill={paint('hair')} />
+          <path d="M254 94C267 119 257 153 264 175" stroke={hairLight} strokeOpacity=".45" />
+          <circle cx="241" cy="77" r="5" fill={accentColor} />
         </>}
-        {outfit === 'blazer' && <>
-          <path d="M177 176L203 243L228 176C215 190 191 190 177 176Z" fill={paint('paper')} />
-          <path d="M198 189L203 236L208 189Z" fill={tint(shirtColor, '#0f172a', .35)} stroke="none" />
-          <path d="M174 177L160 194L177 212L173 219L199 246L180 179Z" fill={tint(shirtColor, '#0f172a', .18)} />
-          <path d="M230 177L244 194L227 212L231 219L205 246L224 179Z" fill={tint(shirtColor, '#0f172a', .18)} />
-        </>}
+      </g>
 
-        {/* School crest pin on chest */}
-        <g stroke={accentColor} strokeWidth="1.4" opacity=".85">
-          <path d="M241 208V220Q247 225 253 220V208Z" />
-          <path d="M244 213L247 212L250 213V218L247 217L244 218ZM247 212V217" strokeWidth="1" />
+      <path d="M135 278C134 246 139 221 153 204C167 190 182 188 198 188H215C236 189 256 198 269 217C281 236 283 257 285 279Z" fill={paint('shirt')} />
+      <path d="M143 238Q143 261 147 279H166L160 236M266 234L279 278H262L255 241" fill="#102440" fillOpacity=".13" stroke="none" />
+      <path d="M155 211Q165 201 180 197" stroke="white" strokeOpacity=".2" strokeWidth="3" />
+      <path d={isFemale ? 'M184 158V188Q201 209 222 189L222 157Z' : 'M179 156L181 187Q201 211 226 189L225 157Z'} fill={paint('skin')} />
+      <path d="M183 163Q202 181 222 163V175Q201 189 183 175Z" fill={skinShadow} stroke="none" fillOpacity=".6" />
+
+      {outfit === 'polo' && <>
+        <path d="M180 186L201 200L187 215L165 197Z" fill={paper} />
+        <path d="M225 186L201 200L216 215L240 198Z" fill={paper} />
+        <path d="M201 201V256" stroke={accentColor} strokeWidth="2" />
+        <circle cx="207" cy="222" r="1.7" fill={accentColor} stroke="none" />
+        <circle cx="207" cy="239" r="1.7" fill={accentColor} stroke="none" />
+      </>}
+      {outfit === 'tshirt' && <>
+        <path d="M178 187Q202 215 227 187L237 193Q204 228 168 194Z" fill={accentColor} />
+        <path d="M180 191Q202 212 225 192" stroke={outline} strokeOpacity=".2" />
+      </>}
+      {outfit === 'hoodie' && <>
+        <path d="M177 186L160 201L182 220L202 204L221 221L244 202L228 186Q204 214 177 186Z" fill={tint(shirtColor, '#ffffff', .3)} />
+        <path d="M173 195L183 214L202 204L221 214L233 196" stroke={accentColor} strokeOpacity=".6" />
+        <path d="M185 219L181 249M220 219L224 248" stroke={accentColor} strokeWidth="2.5" />
+        <path d="M181 245V251M224 244V250" strokeWidth="2.5" />
+        <path d="M179 269Q202 256 230 268" stroke={accentColor} strokeOpacity=".5" />
+      </>}
+      {outfit === 'sweater' && <>
+        <path d="M176 186Q201 213 229 186L236 193Q203 227 169 194Z" fill={accentColor} />
+        <path d="M180 193L177 200M191 199L189 207M204 202V211M217 198L220 206M228 192L232 200" stroke={shirtColor} strokeOpacity=".4" strokeWidth="1.2" />
+        <path d="M170 231Q205 242 252 230" stroke="white" strokeOpacity=".13" strokeWidth="2" />
+      </>}
+      {outfit === 'blazer' && <>
+        <path d="M179 187L202 256L227 187Q204 207 179 187Z" fill={paper} />
+        <path d="M199 201L203 247L208 201Z" fill={tint(shirtColor, '#17243a', .55)} stroke="none" />
+        <path d="M175 188L161 206L179 222L174 232L200 260L182 191ZM231 188L246 207L228 223L233 232L206 260L223 191Z" fill={tint(shirtColor, '#17243a', .16)} />
+      </>}
+      <path d="M242 220V231Q248 236 254 231V220Z" fill={accentColor} fillOpacity=".13" stroke={accentColor} strokeWidth="1.2" />
+      <path d="M245 224Q248 222 248 225Q250 222 252 224V229Q250 227 248 230Q246 227 245 229Z" stroke={accentColor} strokeWidth=".9" />
+      <path d="M149 211L131 237L161 249L178 224Z" fill={paint('shirt')} />
+      <path d="M134 235L162 246" stroke={accentColor} strokeWidth="3.5" />
+      <path d="M254 213L276 236L256 250L238 226Z" fill={paint('shirt')} />
+      <path d="M258 246L274 235" stroke={accentColor} strokeWidth="3" />
+
+      <g className="character-laptop-base">
+        <ellipse cx="314" cy="290" rx="96" ry="5" fill="#152d46" fillOpacity=".13" stroke="none" />
+        <path d="M220 256H358L408 284H270Z" fill={paint('laptop-deck')} />
+        <g className="character-laptop-keyboard" transform="matrix(1 0 1.4 .78 220 256)" stroke="none">
+          <rect x="8" y="16" width="122" height="17" rx="2" fill={outline} fillOpacity=".16" />
+          {[0, 1, 2, 3].map(row => <g key={row} fill={tint(laptopColor, '#10243a', .42)}>
+            {Array.from({ length: 12 }, (_, column) => <rect key={column} x={11 + column * 9.8} y={18 + row * 3.3} width="7.5" height="2" rx=".6" />)}
+          </g>)}
+          <rect x="53" y="4" width="35" height="8" rx="1.7" fill={laptopColor} fillOpacity=".18" stroke={outline} strokeOpacity=".28" strokeWidth=".7" />
         </g>
+        <path d="M220 256V260L270 288H408V284H270Z" fill={tint(laptopColor, '#17243a', .25)} />
+        <path d="M273 286H403" stroke="white" strokeOpacity=".23" strokeWidth=".8" />
+        <circle className="character-laptop-light" cx="259" cy="280" r="1.2" fill="#a5f3e7" stroke="none" />
+      </g>
+      <g className="character-hand character-hand-left">
+        <path d="M135 238L160 247L156 260L216 261C222 256 230 256 237 260L251 270Q257 277 249 277L226 270L155 282C138 286 127 273 131 257Z" fill={paint('skin')} />
+        <path d="M137 266Q140 277 152 277L208 268" stroke={tint(skinColor, '#fffaf2', .45)} strokeWidth="2.5" />
+        <path d="M221 263L235 271M230 261L243 272M239 265L250 273" stroke={skinShadow} strokeWidth="1.1" />
+      </g>
+      <g className="character-hand character-hand-right">
+        <path d="M274 237L256 249L279 267L305 270Q316 269 313 262L285 252Z" fill={paint('skin')} />
+        <path d="M282 260L305 267M298 261L306 267" stroke={skinShadow} strokeWidth="1.1" />
+      </g>
 
-        {/* Left sleeve */}
-        <path d="M146 205L132 228L162 242L177 216Z" fill={paint('shirt')} />
-        <path d="M134 225L163 238" stroke={accentColor} strokeWidth="3" />
-
-        {/* Subtle desk screen glow */}
-        <ellipse cx="268" cy="240" rx="52" ry="26" fill={paint('screen-glow')} stroke="none" />
-
-        {/* Laptop keyboard base */}
-        <g className="character-laptop-base">
-          <ellipse cx="312" cy="282" rx="90" ry="4.5" fill={outline} fillOpacity=".12" stroke="none" />
-          <path d="M218 250H354L399 274H263Z" fill={paint('laptop-deck')} strokeWidth="1.3" />
-          <path d="M218 250V255L263 279H399V274H263Z" fill={tint(laptopColor, '#000000', .18)} strokeWidth="1.2" />
-          <g className="character-laptop-keyboard" transform="matrix(1 0 -1.125 -.6 263 274)" stroke="none">
-            <rect x="9" y="4" width="118" height="18" rx="2" fill={outline} fillOpacity=".26" />
-            {[0, 1, 2, 3].map((row) => <g key={row} fill={tint(laptopColor, '#000000', .36)}>
-              {Array.from({ length: 12 }, (_, column) => <rect key={column} x={11 + column * 9.5} y={5 + row * 4} width="7.5" height="2.8" rx=".6" />)}
-            </g>)}
-            <rect x="49" y="26" width="39" height="10" rx="2" fill={laptopColor} fillOpacity=".28" stroke={outline} strokeOpacity=".4" strokeWidth=".7" />
-          </g>
-          <path d="M265 277H395" stroke="white" strokeOpacity=".25" strokeWidth=".8" />
-          <path d="M226 257L233 261M238 264L249 270" stroke={outline} strokeOpacity=".55" strokeWidth="1.3" />
-          <circle className="character-laptop-light" cx="255" cy="273.4" r="1.1" fill="#93c5fd" stroke="none" />
-        </g>
-
-        {/* Left hand */}
-        <g className="character-hand character-hand-left">
-          <path d="M134 229L159 239L158 253L216 254C224 250 232 251 239 255L252 264C257 269 252 274 246 273L224 266L148 275C131 274 126 258 131 241Z" fill={paint('skin')} />
-          <path d="M138 259C139 267 146 271 153 270L207 264" stroke="white" strokeOpacity=".22" strokeWidth="3" />
-          <path d="M222 257Q230 259 236 268M232 256L244 268M240 259L250 267" strokeOpacity=".35" strokeWidth="1.3" />
-          <path d="M216 264L225 267" strokeOpacity=".22" strokeWidth="1.2" />
-        </g>
-
-        {/* Right sleeve + hand */}
-        <path d="M257 208L278 234L255 249L239 221Z" fill={paint('shirt')} />
-        <path d="M257 243L276 232" stroke={accentColor} strokeWidth="3" />
-        <g className="character-hand character-hand-right">
-          <path d="M275 235L256 246L278 265L309 267C316 267 321 262 316 257L286 251Z" fill={paint('skin')} />
-          <path d="M285 258L307 263M300 256L307 263M309 258L314 263" strokeOpacity=".28" strokeWidth="1.3" />
-        </g>
-
-        {/* Head & facial features */}
-        <g className="character-head">
-          {/* Ears */}
-          <ellipse cx="156" cy="116" rx={isFemale ? 8 : 9} ry="13" fill={paint('skin')} />
-          <ellipse cx="246" cy="116" rx={isFemale ? 8 : 9} ry="13" fill={paint('skin')} />
-          <path d="M155 111Q149 115 156 121M246 111Q252 115 246 121" strokeOpacity=".3" strokeWidth="1.4" />
-
-          {/* Face shape */}
-          <path className="character-face" d={isFemale ? 'M160 94C158 68 175 49 200 49C228 47 246 69 244 96L241 126C238 147 225 165 202 174C181 169 167 150 163 127Z' : 'M159 94C158 68 174 49 200 49C229 47 247 69 245 96L242 128C239 152 223 173 202 176C180 174 164 154 161 129Z'} fill={paint('skin')} />
-          <path d="M165 98C164 78 175 62 187 59" stroke="white" strokeOpacity=".2" strokeWidth="5" />
-          <path d="M239 111C239 142 224 164 205 168" stroke={outline} strokeOpacity=".08" strokeWidth="5" />
-
-          {/* Soft blush glow */}
-          <ellipse cx="176" cy="133" rx="13" ry="7" fill={paint('blush')} stroke="none" />
-          <ellipse cx="229" cy="133" rx="13" ry="7" fill={paint('blush')} stroke="none" />
-
-          {/* Front hair */}
-          {hair && <g>
-            <path d={hair.shape} fill={paint('hair')} />
-            <g stroke={tint(hairColor, '#ffffff', .28)} strokeOpacity=".45" strokeWidth="2.2">
-              {hair.strands.map((strand) => <path key={strand} d={strand} />)}
-            </g>
-          </g>}
-
-          {/* Eyebrows */}
-          <path
-            d={expression === 'focused'
-              ? 'M173 103L192 105M212 105L231 103'
-              : isFemale
-                ? 'M173 102Q182 95 192 101M212 101Q222 95 232 102'
-                : 'M173 102Q182 97 191 102M212 102Q222 97 231 103'}
-            stroke={hairColor}
-            strokeWidth={isFemale ? 2.1 : 3}
-          />
-
-          {/* Eyes */}
-          <g className="character-eyes">
-            {expression === 'happy' ? (
-              <>
-                <path d="M174 116Q183 108 193 116" strokeWidth="2.6" />
-                <path d="M213 116Q222 108 232 116" strokeWidth="2.6" />
-              </>
-            ) : (
-              <>
-                <path d="M173 115Q183 107 194 115Q184 123 173 115Z" fill="#fffdf8" strokeWidth="1.2" />
-                <ellipse cx="184" cy="115" rx="4.7" ry="5.2" fill={eyeColor} stroke="none" />
-                <ellipse cx="184.6" cy="115.5" rx="2.1" ry="3.1" fill={outline} stroke="none" />
-                <circle cx="182.6" cy="112.6" r="1.6" fill="white" stroke="none" />
-                <circle cx="186.2" cy="117.5" r=".7" fill="white" fillOpacity=".7" stroke="none" />
-                {isFemale && <path d="M173 114L170 111M176 112L174 108" strokeWidth="1.5" />}
-                {expression === 'wink' ? <path d="M212 115Q222 108 232 115" strokeWidth="2.6" /> : <>
-                  <path d="M212 115Q222 107 233 115Q222 123 212 115Z" fill="#fffdf8" strokeWidth="1.2" />
-                  <ellipse cx="222" cy="115" rx="4.7" ry="5.2" fill={eyeColor} stroke="none" />
-                  <ellipse cx="222.6" cy="115.5" rx="2.1" ry="3.1" fill={outline} stroke="none" />
-                  <circle cx="220.6" cy="112.6" r="1.6" fill="white" stroke="none" />
-                  <circle cx="224.2" cy="117.5" r=".7" fill="white" fillOpacity=".7" stroke="none" />
-                  {isFemale && <path d="M232 114L235 111M230 112L232 108" strokeWidth="1.5" />}
-                </>}
-              </>
-            )}
-          </g>
-
-          {/* Nose */}
-          <path d="M203 118L199 130Q202 134 208 131" strokeOpacity=".36" strokeWidth="1.4" />
-
-          {/* Facial hair */}
-          {facialHair !== 'none' && <path d="M170 135Q181 146 192 143L202 140L214 144Q228 145 236 135C232 157 219 173 202 176C184 172 174 157 170 135Z" fill={paint('hair')} opacity={facialHair === 'stubble' ? '.24' : '.92'} stroke="none" />}
-
-          {/* Mouth */}
-          {expression === 'neutral' ? (
-            <>
-              <path d="M191 145Q202 149 214 145" strokeWidth="1.8" />
-              <path d="M198 153H207" stroke="#fff5e7" strokeOpacity=".25" />
-            </>
-          ) : expression === 'focused' ? (
-            <>
-              <path d="M190 144Q202 149 214 144" strokeWidth="1.8" />
-              <path d="M199 152H206" stroke={outline} strokeOpacity=".15" strokeWidth="1.2" />
-            </>
-          ) : (
-            <>
-              <path d={expression === 'happy' ? 'M181 139Q202 152 224 138C219 157 210 162 200 161C192 160 185 151 181 139Z' : 'M184 140Q202 150 222 139C217 154 209 159 200 158C193 157 187 150 184 140Z'} fill="#824b43" strokeWidth="1.2" />
-              <path d={expression === 'happy' ? 'M186 142Q203 151 220 141L216 149Q202 155 189 148Z' : 'M188 143Q203 150 218 142L215 148Q202 153 191 147Z'} fill="#fffdf5" stroke="none" />
-              <path d="M197 156Q203 152 209 155" stroke="#d8897c" strokeWidth="1.5" />
-            </>
-          )}
-
-          {/* Glasses */}
-          {glasses !== 'none' && <g stroke={tint(hairColor, outline, .5)} strokeWidth="2.2">
-            {glasses === 'round' ? <>
-              <circle cx="183" cy="115" r="14.5" fill="white" fillOpacity=".09" />
-              <circle cx="222" cy="115" r="14.5" fill="white" fillOpacity=".09" />
-            </> : glasses === 'browline' ? <>
-              <rect x="167" y="102" width="32" height="25" rx="7" fill="white" fillOpacity=".09" strokeWidth="1.4" />
-              <rect x="206" y="102" width="32" height="25" rx="7" fill="white" fillOpacity=".09" strokeWidth="1.4" />
-              <path d="M167 108Q183 99 199 107M206 107Q222 99 238 108" strokeWidth="3.6" />
-            </> : <>
-              <rect x="167" y="102" width="32" height="25" rx="6" fill="white" fillOpacity=".09" />
-              <rect x="206" y="102" width="32" height="25" rx="6" fill="white" fillOpacity=".09" />
+      <g className="character-head">
+        <ellipse cx="157" cy="123" rx="8" ry="12" fill={paint('skin')} />
+        <ellipse cx="246" cy="123" rx="8" ry="12" fill={paint('skin')} />
+        <path d="M156 119Q151 123 157 128M246 119Q251 124 245 128" stroke={skinShadow} />
+        <path className="character-face" d={isFemale ? 'M159 95C158 70 176 53 200 53C226 51 246 71 245 96L242 131C239 153 224 172 202 178C181 174 165 155 162 133Z' : 'M158 95C158 70 175 53 200 53C227 51 247 71 246 96L243 132C239 156 224 177 202 180C179 177 164 157 161 133Z'} fill={paint('skin')} />
+        <path d="M165 104C163 83 174 66 185 62" stroke="white" strokeOpacity=".2" strokeWidth="4" />
+        <path d="M240 118Q237 157 211 169" stroke={skinShadow} strokeOpacity=".38" strokeWidth="3.5" />
+        <ellipse cx="176" cy="140" rx="10" ry="5" fill="#c96e62" fillOpacity=".13" stroke="none" />
+        <ellipse cx="229" cy="140" rx="10" ry="5" fill="#c96e62" fillOpacity=".13" stroke="none" />
+        {hair && <g>
+          <path d={hair.shape} fill={paint('hair')} stroke={tint(hairColor, '#17243a', .3)} />
+          <g stroke={hairLight} strokeOpacity=".45" strokeWidth="1.8">{hair.strands.map(strand => <path key={strand} d={strand} />)}</g>
+        </g>}
+        <path d={expression === 'focused' ? 'M174 110L193 113M213 113L232 110' : 'M174 108Q183 102 193 108M213 108Q222 102 232 109'} stroke={hairColor} strokeWidth={isFemale ? 2 : 2.6} />
+        <g className="character-eyes">
+          {expression === 'happy' ? <path d="M174 122Q183 113 194 122M213 122Q223 113 232 122" strokeWidth="2.5" /> : <>
+            <path d="M174 121Q183 113 194 121Q184 129 174 121Z" fill="#fffef9" strokeWidth="1.1" />
+            <ellipse cx="185" cy="122" rx="4.5" ry="5" fill={eyeColor} stroke="none" />
+            <ellipse cx="186" cy="122.5" rx="2" ry="3" fill="#17243a" stroke="none" />
+            <circle cx="183.5" cy="119.5" r="1.4" fill="white" stroke="none" />
+            {expression === 'wink' ? <path d="M213 122Q222 114 232 122" strokeWidth="2.5" /> : <>
+              <path d="M213 121Q222 113 233 121Q223 129 213 121Z" fill="#fffef9" strokeWidth="1.1" />
+              <ellipse cx="224" cy="122" rx="4.5" ry="5" fill={eyeColor} stroke="none" />
+              <ellipse cx="225" cy="122.5" rx="2" ry="3" fill="#17243a" stroke="none" />
+              <circle cx="222.5" cy="119.5" r="1.4" fill="white" stroke="none" />
             </>}
-            <path d="M198 113Q202 109 207 113M168 110L159 107M238 110L245 107" />
-            <path d="M175 107L172 112M214 107L211 112" stroke="white" strokeOpacity=".55" strokeWidth="1.6" />
-          </g>}
-
-          {/* Optional Over-Ear Studio Headphones */}
-          {showHeadphones && <g className="character-headphones">
-            <path d="M153 108C151 64 172 42 202 42C232 42 252 64 250 108" stroke={tint(laptopColor, '#0f172a', .25)} strokeWidth="6.5" fill="none" />
-            <path d="M155 103C154 66 173 45 202 45C231 45 249 66 248 103" stroke={accentColor} strokeWidth="1.8" strokeOpacity=".5" fill="none" />
-            <rect x="145" y="99" width="13" height="29" rx="6.5" fill={tint(laptopColor, '#0f172a', .2)} />
-            <rect x="245" y="99" width="13" height="29" rx="6.5" fill={tint(laptopColor, '#0f172a', .2)} />
-            <rect x="148" y="104" width="6" height="19" rx="3" fill={accentColor} stroke="none" fillOpacity=".65" />
-            <rect x="249" y="104" width="6" height="19" rx="3" fill={accentColor} stroke="none" fillOpacity=".65" />
-          </g>}
+            {isFemale && <path d="M175 119L173 116M232 119L234 116" strokeWidth="1.4" />}
+          </>}
         </g>
-
-        {/* Laptop lid (front-facing back of screen) */}
-        <g className="character-laptop-lid">
-          <path d="M280 196H413C420 196 423 201 421 207L398 269Q397 274 391 274H262Q256 274 258 268L275 202Q276 196 280 196Z" fill={paint('laptop')} strokeWidth="1.6" />
-          <path d="M280 199H412Q418 199 418 204" stroke="white" strokeOpacity=".38" strokeWidth="1.3" />
-          <path d="M277 204L261 267" stroke="white" strokeOpacity=".22" strokeWidth="1.2" />
-          <path d="M419 206L396 268Q395 271 390 271H265" stroke={outline} strokeOpacity=".24" strokeWidth="2" />
-          {/* Sleek laptop emblem */}
-          <g transform="translate(339 233) skewX(-16)" stroke="none">
-            <circle cx="0" cy="1" r="11" fill="#ffffff" fillOpacity=".15" />
-            <path d="M-6-3Q-2-5 0-2V5Q-2 2-6 4ZM1-2Q4-5 7-3V4Q4 2 1 5Z" fill="#f8fafc" fillOpacity=".75" />
-          </g>
-          <path d="M266 274H390" stroke={outline} strokeWidth="3" />
-          <path d="M270 273.5H386" stroke={tint(laptopColor, '#ffffff', .35)} strokeWidth=".9" />
-        </g>
-
-        {/* Desk Plant */}
-        {showPlant && <g className="character-plant">
-          <ellipse cx="75" cy="286" rx="25" ry="4" fill={outline} fillOpacity=".09" stroke="none" />
-          <g className="character-leaves">
-            <path d="M73 247C69 227 67 215 66 202M73 246C80 233 90 224 100 221M72 244L49 231" stroke="#2d6a4f" />
-            <path d="M71 239C55 226 54 205 64 189C81 199 87 219 76 240Z" fill={paint('leaf')} />
-            <path d="M77 242C80 221 94 210 110 217C108 236 95 247 77 247Z" fill={paint('leaf')} />
-            <path d="M71 241C57 219 40 217 32 230C41 244 55 249 73 247Z" fill="#40916c" />
-            <path d="M66 203L73 241M99 223L79 242M43 232L66 242" stroke="#e7f1d9" strokeOpacity=".4" strokeWidth="1.3" />
-          </g>
-          <path d="M54 248H95L89 282Q75 287 61 282Z" fill={paint('paper')} />
-          <path d="M85 250H94L89 281Q85 283 82 283Z" fill={outline} fillOpacity=".09" stroke="none" />
-          <rect x="53" y="245" width="43" height="8" rx="2.5" fill={accentColor} />
-          <path d="M58 261H92" stroke="#d4a359" strokeWidth="3.5" />
+        <path d="M203 124L200 136Q203 139 208 136" stroke={skinShadow} strokeWidth="1.3" />
+        {facialHair !== 'none' && <path d="M168 140Q182 150 194 146L202 144L213 148Q227 150 238 140C233 160 219 178 202 180C184 177 173 160 168 140Z" fill={paint('hair')} fillOpacity={facialHair === 'stubble' ? '.23' : '.93'} stroke="none" />}
+        {['neutral', 'focused'].includes(expression)
+          ? <path d={expression === 'focused' ? 'M193 152Q202 149 213 151' : 'M191 151Q202 155 215 150'} strokeWidth="1.8" />
+          : <>
+            <path d={expression === 'happy' ? 'M184 145Q202 156 221 144Q216 164 202 164Q190 162 184 145Z' : 'M187 146Q202 155 218 145Q214 161 202 161Q193 160 187 146Z'} fill="#92584e" stroke={tint(skinShadow, '#703f3a', .5)} strokeWidth="1" />
+            <path d="M190 149Q203 156 216 148L213 153Q202 158 192 153Z" fill="#fffdf5" stroke="none" />
+          </>}
+        {glasses !== 'none' && <g stroke={tint(hairColor, outline, .55)} strokeWidth="2">
+          {glasses === 'round' ? <>
+            <circle cx="184" cy="122" r="14" fill="white" fillOpacity=".1" />
+            <circle cx="223" cy="122" r="14" fill="white" fillOpacity=".1" />
+          </> : <>
+            <rect x="168" y="109" width="32" height="26" rx={glasses === 'square' ? 6 : 9} fill="white" fillOpacity=".1" />
+            <rect x="207" y="109" width="32" height="26" rx={glasses === 'square' ? 6 : 9} fill="white" fillOpacity=".1" />
+            {glasses === 'browline' && <path d="M168 115Q184 108 200 115M207 115Q223 108 239 115" strokeWidth="3.5" />}
+          </>}
+          <path d="M199 121Q203 117 208 121M169 117L160 114M239 117L246 114" />
+          <path d="M175 114L172 119M214 114L211 119" stroke="white" strokeOpacity=".65" strokeWidth="1.5" />
         </g>}
-
-        {/* Desk Mug */}
-        {showMug && <g className="character-mug">
-          <ellipse cx="426" cy="249" rx="14" ry="2.6" fill={outline} fillOpacity=".1" stroke="none" />
-          <path className="character-steam" d="M419 216Q422 210 419 205M427 215Q430 209 427 203" stroke="#ffffff" strokeOpacity=".6" strokeWidth="1.5" />
-          <path d="M437 226H442C445 226 446 229 446 232C446 236 444 239 441 239H436" fill="none" strokeWidth="2.2" />
-          <path d="M414 221H438L436 246Q426 249 416 246Z" fill={paint('paper')} />
-          <ellipse cx="426" cy="221" rx="12" ry="3.2" fill={tint(accentColor, '#ffffff', .7)} />
-          <ellipse cx="426" cy="221.5" rx="8.5" ry="1.8" fill="#6f4e37" stroke="none" />
-          <path d="M417 232H435" stroke={shirtColor} strokeWidth="2.5" strokeOpacity=".75" />
-        </g>}
-
-        {/* Desk Books */}
-        {showBooks && <g className="character-books">
-          <g transform="translate(10 0)">
-            <path d="M363 259L443 255V272L363 277Z" fill={paint('paper')} />
-            <path d="M362 256L445 252V257L364 262Z" fill={paint('shirt')} />
-            <path d="M365 276L444 272" stroke={shirtColor} strokeWidth="3.5" />
-            <path d="M371 266L437 262M372 271L437 267" strokeOpacity=".13" strokeWidth=".9" />
-            <path d="M357 280L438 276V290L357 294Z" fill={paint('paper')} />
-            <path d="M356 278L440 274V278L358 283Z" fill="#d4a359" />
-            <path d="M358 294L439 290" stroke="#b9944f" strokeWidth="3.5" />
-            <path d="M366 287L432 282M366 291L432 286" strokeOpacity=".13" strokeWidth=".9" />
-          </g>
-          <g transform="translate(-7 47) scale(.83 .84)">
-            <path d="M124 280Q158 266 198 282Q232 268 263 277L278 298Q237 290 198 306Q161 291 117 302Z" fill={paint('paper')} />
-            <path d="M124 281Q159 272 195 283L198 301Q159 287 123 297Z" fill="white" fillOpacity=".18" stroke="none" />
-            <path d="M202 283Q231 274 260 279L270 294Q238 286 201 301Z" fill="white" fillOpacity=".35" stroke="none" />
-            <path d="M198 283V303" strokeOpacity=".25" strokeWidth="1.3" />
-            <path d="M137 281Q159 277 182 284M135 286Q157 282 183 289M135 291Q154 288 175 293M213 284Q234 278 252 283M213 289Q237 284 255 288M213 294Q232 289 249 292" strokeOpacity=".2" strokeWidth="1" />
-            <path d="M117 303Q159 293 198 307Q238 293 278 300" stroke={shirtColor} strokeWidth="3" />
-            <path d="M248 292L252 306L258 301L261 304L257 291" fill="#d4a359" stroke="none" />
-          </g>
+        {showHeadphones && <g className="character-headphones">
+          <path d="M152 114C149 71 170 44 202 44C235 44 255 71 251 114" stroke={tint(laptopColor, '#17243a', .35)} strokeWidth="6" />
+          <path d="M154 107C154 70 174 47 202 47C230 47 251 71 249 107" stroke={accentColor} strokeOpacity=".55" strokeWidth="1.5" />
+          <rect x="145" y="108" width="13" height="29" rx="6.5" fill={laptopColor} />
+          <rect x="246" y="108" width="13" height="29" rx="6.5" fill={laptopColor} />
+          <path d="M151 115V130M252 115V130" stroke={accentColor} strokeWidth="3" strokeOpacity=".75" />
         </g>}
       </g>
-    </svg>
-  );
+
+      <g className="character-laptop-lid">
+        <path d="M292 202H421Q428 202 426 209L408 279Q407 284 402 284H274Q267 284 269 277L286 208Q287 202 292 202Z" fill={paint('laptop')} />
+        <path d="M292 205H420Q424 205 423 210M289 210L273 276" stroke="white" strokeOpacity=".4" strokeWidth="1.2" />
+        <path d="M426 210L407 279Q406 282 402 282H275" stroke={tint(laptopColor, '#17243a', .35)} strokeWidth="2" />
+        <g transform="translate(346 243) skewX(-14)" stroke="none">
+          <circle r="13" fill="white" fillOpacity=".12" />
+          <path d="M-7-4Q-3-6 0-3Q4-6 8-4V5Q4 3 0 6Q-3 3-7 5Z" fill="#f8fafc" fillOpacity=".8" />
+          <path d="M0-2V5" stroke={laptopColor} strokeWidth="1.1" />
+        </g>
+        <path d="M274 284H402" stroke={tint(laptopColor, '#17243a', .5)} strokeWidth="2.7" />
+      </g>
+
+      {showPlant && <g className="character-plant">
+        <ellipse cx="76" cy="295" rx="25" ry="4" fill="#183b58" fillOpacity=".08" stroke="none" />
+        <g className="character-leaves">
+          <path d="M75 265L67 224M75 266L96 243M75 265L48 248" stroke="#3d7e60" strokeWidth="2" />
+          <path d="M72 260C56 247 54 224 65 210C81 221 86 241 76 261Z" fill={paint('leaf')} />
+          <path d="M77 264C79 242 98 229 112 239C107 257 94 266 77 267Z" fill={paint('leaf')} />
+          <path d="M72 265C56 244 38 240 32 254C44 266 58 270 73 268Z" fill="#5ba587" />
+          <path d="M66 224L73 258M98 243L81 261M44 254L65 264" stroke="#e5f3dc" strokeOpacity=".55" strokeWidth="1.1" />
+        </g>
+        <path d="M55 268H97L91 291Q76 297 61 291Z" fill={paint('paper')} />
+        <path d="M87 271H96L91 291L85 293Z" fill="#baa78b" fillOpacity=".15" stroke="none" />
+        <rect x="54" y="265" width="44" height="7" rx="2.5" fill={accentColor} />
+        <path d="M60 280H93" stroke={shirtColor} strokeOpacity=".4" strokeWidth="3" />
+      </g>}
+      {showMug && <g className="character-mug" transform={showBooks ? undefined : 'translate(0 28)'}>
+        <path className="character-steam" d="M431 231Q427 226 431 221M439 230Q435 223 439 217" stroke="white" strokeOpacity=".75" strokeWidth="1.6" />
+        <path d="M447 244H452Q460 244 458 252Q457 259 448 258" strokeWidth="2.2" />
+        <path d="M422 240H447L445 264Q434 269 424 264Z" fill={paper} />
+        <ellipse cx="434.5" cy="240" rx="12.5" ry="3" fill={tint(accentColor, '#ffffff', .6)} />
+        <ellipse cx="434.5" cy="240.5" rx="8.7" ry="1.5" fill="#87654e" stroke="none" />
+        <path d="M426 252H443" stroke={shirtColor} strokeOpacity=".55" strokeWidth="2.8" />
+      </g>}
+      {showBooks && <g className="character-books">
+        <path d="M389 274L453 269V282L389 287Z" fill={paint('paper')} />
+        <path d="M387 271L455 266V270L390 275Z" fill={shirtColor} />
+        <path d="M390 286L454 281" stroke={shirtColor} strokeWidth="3" />
+        <path d="M385 289L449 285V298L385 301Z" fill={paint('paper')} />
+        <path d="M383 287L451 282V286L386 291Z" fill="#d6b474" />
+        <path d="M386 301L450 297" stroke="#c49a58" strokeWidth="3" />
+        <path d="M395 279L446 275M394 295L443 291" stroke="#b3a489" strokeOpacity=".5" strokeWidth=".8" />
+        <path d="M120 294Q151 283 183 297Q218 284 243 294L254 315Q218 306 184 318Q151 306 111 316Z" fill={paint('paper')} />
+        <path d="M183 298L184 316" stroke="#c0ac8d" strokeWidth="1" />
+        <path d="M131 295Q150 290 173 299M128 301Q151 296 174 305M196 299Q215 291 236 297M196 305Q215 298 239 303" stroke="#a59c8c" strokeOpacity=".55" strokeWidth="1" />
+        <path d="M111 316Q151 308 184 320Q218 308 254 315" stroke={shirtColor} strokeWidth="3" />
+        <path d="M224 308L228 321L233 316L237 319L233 307Z" fill="#d6b474" stroke="none" />
+      </g>}
+    </g>
+  </svg>;
 }

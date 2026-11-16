@@ -65,9 +65,9 @@
   .dlas-student-dashboard .dashboard-welcome { order: 1; min-height: 236px; border-radius: 20px; }
   .dlas-student-dashboard .dashboard-welcome-copy { padding-left: 20px; }
   .dlas-student-dashboard .dashboard-welcome-art { inset: 100px 4px 0 57%; }
-  .dlas-student-dashboard .dashboard-welcome-art .character-position { inset: 0 -2% 0 -9%; }
+  .dlas-student-dashboard .dashboard-welcome-art .character-position { inset: 0; }
   .dlas-student-dashboard .dashboard-welcome h1 { font-size: 28px; }
-  .dlas-student-dashboard .dashboard-profile-prompt { min-height: 44px; align-content: center; }
+  .dlas-student-dashboard .dashboard-profile-prompt { min-height: 44px; max-width: 150px; align-content: center; }
   .dashboard-mobile-shortcuts { order: 2; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
   .dashboard-mobile-shortcuts a { display: grid; min-height: 78px; align-content: center; justify-items: center; gap: 8px; border: 1px solid #dce6f3; border-radius: 16px; background: #fff; color: #2855a1; font-size: 13px; font-weight: 650; }
   .dlas-student-dashboard .kq-student-pulse { order: 3; gap: 10px; }
