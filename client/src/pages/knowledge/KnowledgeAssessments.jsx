@@ -9,6 +9,7 @@ import { Empty, Field, KnowledgePage, ResearchLink } from './KnowledgeCommon';
 import { displayDate, useKnowledgeAction, useKnowledgeData } from './knowledgeClient';
 import { BookmarkButton, BookmarkFilter } from '../../components/assessments/AssessmentBookmarks';
 import { useAssessmentBookmarks } from '../../components/assessments/useAssessmentBookmarks';
+import { knowledgeQuizState } from './attemptStatus';
 
 function StudentPicker({ selected, setSelected }) {
   const [search, setSearch] = useState('');
@@ -67,20 +68,18 @@ export default function KnowledgeAssessments() {
     <Field label="Search assessments"><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by title or description…" /></Field>
     <BookmarkFilter bookmarks={bookmarks} records={quizzes} selected={showBookmarks} setSelected={setShowBookmarks} />
     <div className="kq-grid">{filtered.map((quiz) => {
-      const ongoing = quiz.latest_status === 'in_progress';
-      const exhausted = quiz.attempt_count >= quiz.max_attempts;
-      const closed = quiz.end_date && Date.parse(quiz.end_date) <= now;
-      const future = quiz.start_date && Date.parse(quiz.start_date) > now;
-      const locked = student && quiz.prerequisite_quiz_id && !quiz.prerequisite_completed && !ongoing;
+      const { ongoing, expired, exhausted, closed, future, locked, label } = knowledgeQuizState(quiz, now);
       return <article className="kq-card kq-assessment-card" key={quiz.id}>
-        <div className="assessment-bookmark-heading"><div className="kq-actions"><span className="kq-badge">{student ? ongoing ? 'In progress' : exhausted ? 'Completed' : locked ? 'Complete baseline first' : future ? 'Scheduled' : closed ? 'Closed' : 'Available' : quiz.status}</span><span className="kq-badge">{quiz.question_count} questions</span>{quiz.stage && <span className="kq-badge">{quiz.stage === 'baseline' ? 'Baseline' : 'Follow-up'}</span>}</div><BookmarkButton assessment={quiz} bookmarks={bookmarks} /></div>
+        <div className="assessment-bookmark-heading"><div className="kq-actions"><span className="kq-badge">{student ? label : quiz.status}</span><span className="kq-badge">{quiz.question_count} questions</span>{quiz.stage && <span className="kq-badge">{quiz.stage === 'baseline' ? 'Baseline' : 'Follow-up'}</span>}</div><BookmarkButton assessment={quiz} bookmarks={bookmarks} /></div>
         <h2>{quiz.title}</h2><p>{quiz.description || 'Evaluate your digital literacy knowledge across selected categories.'}</p>
-        {locked && <p className="kq-note">Complete {quiz.prerequisite_title || 'the baseline'} to unlock this assessment. No minimum baseline score is required.</p>}
+        {student && locked && <p className="kq-note">Complete {quiz.prerequisite_title || 'the baseline'} to unlock this assessment. No minimum baseline score is required.</p>}
+        {student && expired && <p className="kq-note">The timer continued while you were away. Your saved answers are kept; this attempt ended when time ran out.</p>}
+        {student && (ongoing || expired) && Number.isInteger(quiz.latest_answered_count) && <p className="kq-note">{quiz.latest_answered_count} of {quiz.question_count} answers saved to the server.</p>}
         {!student && quiz.auto_assign_verified === 1 && <p className="kq-note">Automatically assigned to current and newly verified students while published.</p>}
         <div className="kq-note"><p><Clock3 size={13} className="inline" aria-hidden="true" /> {quiz.time_limit_minutes ? `${quiz.time_limit_minutes} minutes` : 'No time limit'} · Certificate at {quiz.pass_percentage}%</p><p>{student ? `${quiz.attempt_count}/${quiz.max_attempts} attempts used` : `${quiz.assigned_count} assigned · ${quiz.completed_count} submissions`}</p>{quiz.start_date && <p>Opens {displayDate(quiz.start_date)}</p>}{quiz.end_date && <p>Deadline {displayDate(quiz.end_date)}</p>}</div>
         <div className="kq-actions">{student ? <>
-          {ongoing ? <Link className="kq-button" to={`/respondent/knowledge/attempts/${quiz.latest_attempt_id}`}>Resume assessment<ArrowRight size={15} aria-hidden="true" /></Link> : <button className="kq-button" disabled={freeDemoReadOnly || exhausted || closed || future} onClick={() => view(quiz)}>{quiz.attempt_count ? 'Take again' : 'View instructions'}</button>}
-          {quiz.latest_status === 'completed' && <Link className="kq-button kq-button-secondary" to={`/respondent/knowledge/attempts/${quiz.latest_attempt_id}`}>View result</Link>}
+          {ongoing ? <Link className="kq-button" to={`/respondent/knowledge/attempts/${quiz.latest_attempt_id}`}>{expired ? 'View saved attempt' : 'Resume assessment'}<ArrowRight size={15} aria-hidden="true" /></Link> : <button className="kq-button" disabled={freeDemoReadOnly || exhausted || closed || future} onClick={() => view(quiz)}>{quiz.attempt_count ? 'Take again' : 'View instructions'}</button>}
+          {quiz.latest_status === 'completed' && <Link className="kq-button kq-button-secondary" to={`/respondent/knowledge/attempts/${quiz.latest_attempt_id}`}>{expired ? 'View saved result' : 'View result'}</Link>}
         </> : <>
           <button className="kq-button kq-button-secondary" onClick={() => view(quiz)}>View</button>
           <button className="kq-button kq-button-secondary" disabled={busy || freeDemoReadOnly} onClick={() => changeStatus(quiz, quiz.status === 'published' ? 'draft' : 'published')}>{quiz.status === 'published' ? 'Unpublish' : 'Publish'}</button>
@@ -108,7 +107,7 @@ export default function KnowledgeAssessments() {
     </form></Modal></div>
     <div className="kq-modal"><Modal isOpen={Boolean(preview)} onClose={() => setPreview(null)} title={preview?.title || 'Assessment instructions'}>
       {preview && <div className="kq-form"><p className="kq-guide">{preview.instructions || 'Read each question carefully and answer independently.'}</p><p className="kq-note">{preview.time_limit_minutes || 'No'} minute time limit · {preview.max_attempts} permitted attempt(s) · Certificate threshold {preview.pass_percentage}%.</p>
-        {student ? <><p className="kq-note">Answers are linked to your account. A recovery copy is saved in this browser. Submission needs internet access. When time expires, only answers already received by the server are scored.</p>{preview.prerequisite_quiz_id && !preview.prerequisite_completed && <p className="kq-note" role="status">Complete your baseline before beginning this follow-up. Any completed baseline score unlocks it.</p>}<label className="kq-check"><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} />I have read the instructions and will answer independently using my own knowledge.</label><button className="kq-button" disabled={busy || !accepted || freeDemoReadOnly || (preview.prerequisite_quiz_id && !preview.prerequisite_completed)} onClick={begin}>{busy ? 'Starting…' : 'Begin assessment'}</button></>
+        {student ? <><p className="kq-note">Answers are linked to your account. A recovery copy is saved in this browser. Submission needs internet access. The timer keeps running if you leave this page, close the browser, or lose your connection. Return before the deadline to resume. When time expires, only answers already received by the server are scored.</p>{preview.prerequisite_quiz_id && !preview.prerequisite_completed && <p className="kq-note" role="status">Finish every baseline question and submit before beginning this follow-up. An incomplete timed-out baseline does not unlock it; no minimum score is required.</p>}<label className="kq-check"><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} />I have read the instructions and will answer independently using my own knowledge.</label><button className="kq-button" disabled={busy || !accepted || freeDemoReadOnly || (preview.prerequisite_quiz_id && !preview.prerequisite_completed)} onClick={begin}>{busy ? 'Starting…' : 'Begin assessment'}</button></>
           : <><p className="kq-note">{preview.assigned_user_ids?.length} assigned students · Version {preview.snapshot?.version}</p><div className="kq-list">{preview.snapshot?.questions.map((question, index) => <div className="kq-question-row" key={question.id}><div><strong>{index + 1}. {question.prompt}</strong><p>{question.category_name} · {question.points} points</p></div></div>)}</div></>}
       </div>}
     </Modal></div>

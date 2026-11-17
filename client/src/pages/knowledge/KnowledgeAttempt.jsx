@@ -8,6 +8,7 @@ import { useDemoMode } from '../../contexts/useDemoMode';
 import { clearQuizRecovery, downloadQuizRecovery, readQuizRecovery, writeQuizRecovery } from '../../utils/quizRecovery';
 import { Empty, Field, KnowledgePage, LevelBadge } from './KnowledgeCommon';
 import { displayDate, knowledgeDownload } from './knowledgeClient';
+import { timeExpiredResult } from './attemptStatus';
 
 const expandedQuestionMapQuery = '(min-width: 1024px), (min-width: 768px) and (min-height: 500px)';
 
@@ -155,7 +156,11 @@ function KnowledgeAttempt({ attemptId }) {
       if (latest.current.pending) setRetainedDraft({ ...latest.current, userId: user.id, attemptId });
       else await clearQuizRecovery(user.id, attemptId).catch(() => {});
       latest.current = { ...latest.current, data: completed };
-      if (active.current) { setData(completed); toast.success('Assessment scored. Your result is ready.'); }
+      if (active.current) {
+        setData(completed);
+        if (timeExpiredResult(completed.attempt)) toast('Time expired. Your saved answers have been scored.', { icon: '⏱' });
+        else toast.success('Assessment submitted. Your result is ready.');
+      }
     } catch (failure) { if (active.current) toast.error(failure.response?.data?.message || failure.message || 'Could not submit. Your saved answers remain available.'); }
     finally { if (active.current) setSubmitting(false); }
   }, [attemptId, freeDemoReadOnly, submitting, sync, user.id]);
@@ -197,10 +202,12 @@ function KnowledgeAttempt({ attemptId }) {
   const questions = data.snapshot.questions;
   const answered = questions.filter((question) => String(answers[question.id] ?? '').trim()).length;
   const question = questions[index];
+  const timedOut = timeExpiredResult(data.attempt);
 
-  return <KnowledgePage className={canAnswer ? 'student-quiz-page' : ''} title={data.snapshot.title} description={data.attempt.status === 'completed' ? `Completed ${displayDate(data.attempt.completed_at)} · Knowledge assessment` : 'Answer independently. You can review before submitting.'} action={<Link className="kq-button kq-button-secondary" to={back} aria-label={canAnswer ? 'Back to assessments' : 'Back to results'}><ArrowLeft size={16} aria-hidden="true" /><span className="kq-back-label">Back</span></Link>}>
+  return <KnowledgePage className={canAnswer ? 'student-quiz-page' : ''} title={data.snapshot.title} description={data.attempt.status === 'completed' ? `${timedOut ? 'Time expired' : 'Submitted'} ${displayDate(data.attempt.completed_at)} · Knowledge assessment` : 'Answer independently. You can review before submitting.'} action={<Link className="kq-button kq-button-secondary" to={back} aria-label={canAnswer ? 'Back to assessments' : 'Back to results'}><ArrowLeft size={16} aria-hidden="true" /><span className="kq-back-label">Back</span></Link>}>
     {data.results ? <>
-      <section className="kq-hero"><div><p className="kq-eyebrow">Assessment complete</p><h2>{data.attempt.first_name ? `${data.attempt.first_name} ${data.attempt.last_name}` : `${user.first_name} ${user.last_name}`}</h2><p>{data.results.earned} of {data.results.possible} points · <LevelBadge level={data.results.level} /></p></div><div className="kq-score">{data.results.percentage}%</div></section>
+      <section className="kq-hero"><div><p className="kq-eyebrow">{timedOut ? 'Time expired' : 'Assessment submitted'}</p><h2>{data.attempt.first_name ? `${data.attempt.first_name} ${data.attempt.last_name}` : `${user.first_name} ${user.last_name}`}</h2><p>{data.results.earned} of {data.results.possible} points · <LevelBadge level={data.results.level} /></p></div><div className="kq-score">{data.results.percentage}%</div></section>
+      {timedOut && <p role="status" className="kq-note">The timer continued while you were away. Time ran out before this attempt was submitted. {data.responses.filter(response => response.answer.trim()).length} of {questions.length} answers reached the server before the deadline. Unanswered questions received zero points. Your saved result is retained.</p>}
       <div className="kq-actions"><button className="kq-button kq-button-secondary" onClick={() => knowledgeDownload(`/knowledge/attempts/${attemptId}/export/pdf`, `Knowledge_Result_${attemptId}.pdf`)}><Download size={16} aria-hidden="true" />PDF report</button><button className="kq-button kq-button-secondary" onClick={() => knowledgeDownload(`/knowledge/attempts/${attemptId}/export/excel`, `Knowledge_Result_${attemptId}.xlsx`)}>Excel report</button>
         {data.attempt.certificate_earned === 1 && !freeDemoReadOnly && <button className="kq-button" onClick={() => knowledgeDownload(`/knowledge/attempts/${attemptId}/export/certificate`, `Achievement_${attemptId}.pdf`)}>Download achievement certificate</button>}
       </div><p className="kq-note">Achievement certificates require {data.snapshot.pass_percentage}%. {data.attempt.certificate_earned ? 'The requirement was met.' : 'The requirement was not met on this attempt.'} Percentage levels apply to knowledge quizzes only.</p>

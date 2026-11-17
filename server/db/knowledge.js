@@ -72,6 +72,7 @@ function initializeKnowledge(db) {
     );
   `);
   if (!db.prepare('PRAGMA table_info(quiz_attempts)').all().some((column) => column.name === 'answers_revision')) db.exec('ALTER TABLE quiz_attempts ADD COLUMN answers_revision INTEGER NOT NULL DEFAULT 0');
+  require('./quizCompletion').initializeQuizCompletion(db);
   if (!db.prepare('SELECT 1 FROM schema_migrations WHERE version=12').get()) {
     db.transaction(() => {
       for (const [name, description, tips] of categories) {

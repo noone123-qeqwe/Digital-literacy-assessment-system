@@ -6,6 +6,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { questionInput, publicSnapshot, scoreSnapshot, shuffled } = require('../utils/knowledgeQuiz');
 const { enrollPublishedQuizzes } = require('../utils/quizEnrollment');
 const { programProgress } = require('../utils/programProgress');
+const { nonblankAnswerSQL } = require('../db/quizCompletion');
 
 const router = express.Router();
 router.use(authenticate);
@@ -59,7 +60,9 @@ function categoryExists(categoryId) {
 function reportRows(user) {
   const scope = user.role === 'admin' ? '1=1' : user.role === 'assessor' ? 'q.created_by=?' : 'a.user_id=?';
   return db.prepare(`SELECT a.id,a.quiz_id,a.user_id,a.percentage,a.level,a.certificate_earned,a.started_at,a.completed_at,
-      a.earned_points,a.possible_points,u.first_name,u.last_name,q.title,q.program_code,q.stage,q.prerequisite_quiz_id
+      a.earned_points,a.possible_points,a.completion_reason,u.first_name,u.last_name,q.title,q.program_code,q.stage,q.prerequisite_quiz_id,
+      json_array_length(a.snapshot_json,'$.questions') question_count,
+      (SELECT COUNT(*) FROM quiz_responses r WHERE r.attempt_id=a.id AND ${nonblankAnswerSQL}) answered_count
     FROM quiz_attempts a JOIN knowledge_quizzes q ON q.id=a.quiz_id JOIN users u ON u.id=a.user_id
     WHERE a.status='completed' AND ${scope} ORDER BY a.completed_at DESC,a.id DESC`).all(...(user.role === 'admin' ? [] : [user.id]));
 }
@@ -144,14 +147,18 @@ router.get('/quizzes', handler((req, res) => {
   const rows = db.prepare(`SELECT q.id,q.title,q.description,q.instructions,q.status,q.time_limit_minutes,q.max_attempts,q.pass_percentage,q.start_date,q.end_date,q.created_at,
     q.program_code,q.stage,q.prerequisite_quiz_id,q.auto_assign_verified,
     (SELECT title FROM knowledge_quizzes required WHERE required.id=q.prerequisite_quiz_id) prerequisite_title,
-    EXISTS(SELECT 1 FROM quiz_attempts completed WHERE completed.quiz_id=q.prerequisite_quiz_id AND completed.user_id=? AND completed.status='completed') prerequisite_completed,
+    EXISTS(SELECT 1 FROM quiz_attempts completed WHERE completed.quiz_id=q.prerequisite_quiz_id AND completed.user_id=? AND completed.status='completed'
+      AND (SELECT COUNT(*) FROM quiz_responses r WHERE r.attempt_id=completed.id AND ${nonblankAnswerSQL})=json_array_length(completed.snapshot_json,'$.questions')) prerequisite_completed,
     json_array_length(q.snapshot_json,'$.questions') question_count,
     (SELECT COUNT(*) FROM quiz_assignments aa WHERE aa.quiz_id=q.id) assigned_count,
-    (SELECT COUNT(*) FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.status='completed') completed_count,
+    (SELECT COUNT(*) FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.status='completed' AND a.completion_reason='submitted') completed_count,
     (SELECT COUNT(*) FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=?) attempt_count,
     (SELECT a.id FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=? ORDER BY a.id DESC LIMIT 1) latest_attempt_id,
-    (SELECT a.status FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=? ORDER BY a.id DESC LIMIT 1) latest_status
-    FROM knowledge_quizzes q WHERE ${scope} ORDER BY CASE WHEN q.stage='baseline' THEN 0 WHEN q.stage='follow_up' THEN 1 ELSE 2 END,q.id DESC`).all(req.user.id, req.user.id, req.user.id, req.user.id, ...(req.user.role === 'admin' ? [] : [req.user.id]));
+    (SELECT a.status FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=? ORDER BY a.id DESC LIMIT 1) latest_status,
+    (SELECT a.deadline FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=? ORDER BY a.id DESC LIMIT 1) latest_deadline,
+    (SELECT a.completion_reason FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=? ORDER BY a.id DESC LIMIT 1) latest_completion_reason,
+    (SELECT COUNT(*) FROM quiz_responses r WHERE r.attempt_id=(SELECT a.id FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=? ORDER BY a.id DESC LIMIT 1) AND ${nonblankAnswerSQL}) latest_answered_count
+    FROM knowledge_quizzes q WHERE ${scope} ORDER BY CASE WHEN q.stage='baseline' THEN 0 WHEN q.stage='follow_up' THEN 1 ELSE 2 END,q.id DESC`).all(req.user.id, req.user.id, req.user.id, req.user.id, req.user.id, req.user.id, req.user.id, ...(req.user.role === 'admin' ? [] : [req.user.id]));
   return result(res, rows);
 }));
 router.get('/quizzes/:id', handler((req, res) => {
@@ -235,7 +242,8 @@ router.post('/quizzes/:id/start', authorize('respondent'), handler((req, res) =>
   const now = Date.now();
   if (quiz.start_date && Date.parse(quiz.start_date) > now) throw fail('This assessment has not opened yet.', 409);
   if (quiz.end_date && Date.parse(quiz.end_date) <= now) throw fail('The assessment deadline has passed.', 410);
-  if (quiz.prerequisite_quiz_id && !db.prepare("SELECT 1 FROM quiz_attempts WHERE quiz_id=? AND user_id=? AND status='completed'").get(quiz.prerequisite_quiz_id, req.user.id)) throw fail('Complete your baseline assessment before starting the follow-up. No minimum baseline score is required.', 409);
+  if (quiz.prerequisite_quiz_id && !db.prepare(`SELECT 1 FROM quiz_attempts a WHERE quiz_id=? AND user_id=? AND status='completed'
+    AND (SELECT COUNT(*) FROM quiz_responses r WHERE r.attempt_id=a.id AND ${nonblankAnswerSQL})=json_array_length(a.snapshot_json,'$.questions')`).get(quiz.prerequisite_quiz_id, req.user.id)) throw fail('Finish every question in your baseline assessment before starting the follow-up. An incomplete timed-out attempt does not unlock it; no minimum score is required.', 409);
   if (req.body.accepted_instructions !== true) throw fail('Confirm the instructions and independent-work statement before beginning.');
   if (db.prepare('SELECT COUNT(*) count FROM quiz_attempts WHERE quiz_id=? AND user_id=?').get(quiz.id, req.user.id).count >= quiz.max_attempts) throw fail('You have used all permitted attempts.', 409);
   const snapshot = JSON.parse(quiz.snapshot_json);
@@ -278,12 +286,14 @@ router.post('/attempts/:id/submit', authorize('respondent'), handler((req, res) 
   const expired = attempt.deadline && Date.now() >= Date.parse(attempt.deadline);
   if (!expired && (responses.filter((response) => response.answer.trim()).length !== snapshot.questions.length)) throw fail('Answer every question before submitting.');
   const score = scoreSnapshot(snapshot, responses);
+  const completionReason = expired ? 'time_expired' : 'submitted';
   db.transaction(() => {
-    db.prepare("UPDATE quiz_attempts SET status='completed',completed_at=?,earned_points=?,possible_points=?,percentage=?,level=?,certificate_earned=? WHERE id=? AND status='in_progress'")
-      .run(new Date().toISOString(), score.earned, score.possible, score.percentage, score.level, score.certificateEarned ? 1 : 0, attempt.id);
+    db.prepare("UPDATE quiz_attempts SET status='completed',completion_reason=?,completed_at=?,earned_points=?,possible_points=?,percentage=?,level=?,certificate_earned=? WHERE id=? AND status='in_progress'")
+      .run(completionReason, new Date().toISOString(), score.earned, score.possible, score.percentage, score.level, score.certificateEarned ? 1 : 0, attempt.id);
     for (const category of score.categories) db.prepare('INSERT INTO quiz_category_results(attempt_id,category_id,category_name,earned,possible,percentage) VALUES(?,?,?,?,?,?)')
       .run(attempt.id, category.id, category.name, category.earned, category.possible, category.percentage);
-    logActivity(req.user.id, 'KNOWLEDGE_ATTEMPT_COMPLETE', `Completed knowledge assessment #${attempt.quiz_id}`);
+    logActivity(req.user.id, expired ? 'KNOWLEDGE_ATTEMPT_TIMEOUT' : 'KNOWLEDGE_ATTEMPT_COMPLETE',
+      `${expired ? 'Time expired for' : 'Submitted'} knowledge assessment #${attempt.quiz_id}`);
   })();
   return result(res, attemptData(attemptFor(req.user, attempt.id)), 'Assessment scored.');
 }));
@@ -302,11 +312,15 @@ router.get('/overview', handler((req, res) => {
   const params = req.user.role === 'admin' ? [] : [req.user.id];
   const pendingAssignments = db.prepare(`SELECT COUNT(*) count FROM quiz_assignments aa JOIN knowledge_quizzes q ON q.id=aa.quiz_id
     WHERE ${scope} AND (q.status='published' OR EXISTS(SELECT 1 FROM quiz_attempts ip WHERE ip.quiz_id=q.id AND ip.user_id=aa.user_id AND ip.status='in_progress'))
-    AND NOT EXISTS(SELECT 1 FROM quiz_attempts done WHERE done.quiz_id=q.id AND done.user_id=aa.user_id AND done.status='completed')`).get(...params).count;
+    AND NOT EXISTS(SELECT 1 FROM quiz_attempts done WHERE done.quiz_id=q.id AND done.user_id=aa.user_id AND done.status='completed')
+    AND NOT EXISTS(SELECT 1 FROM quiz_attempts ended WHERE ended.quiz_id=q.id AND ended.user_id=aa.user_id AND ended.status='in_progress' AND julianday(ended.deadline)<=julianday('now'))`).get(...params).count;
   const assignedQuizCount = db.prepare(`SELECT COUNT(DISTINCT aa.quiz_id) count FROM quiz_assignments aa JOIN knowledge_quizzes q ON q.id=aa.quiz_id
     WHERE ${scope} AND (q.status='published' OR EXISTS(SELECT 1 FROM quiz_attempts old WHERE old.quiz_id=q.id AND old.user_id=aa.user_id))`).get(...params).count;
   const cohortStudents = req.user.role === 'assessor' ? db.prepare(`SELECT COUNT(DISTINCT aa.user_id) count FROM quiz_assignments aa JOIN knowledge_quizzes q ON q.id=aa.quiz_id WHERE q.created_by=?`).get(req.user.id).count : null;
   const scoreScope = req.user.role === 'admin' ? '1=1' : req.user.role === 'assessor' ? 'q.created_by=?' : 'a.user_id=?';
+  const expiredCount = db.prepare(`SELECT COUNT(*) count FROM quiz_attempts a JOIN knowledge_quizzes q ON q.id=a.quiz_id
+    WHERE ${scoreScope} AND (a.completion_reason='time_expired' OR (a.status='in_progress' AND julianday(a.deadline)<=julianday('now')))
+    AND NOT EXISTS(SELECT 1 FROM quiz_attempts newer WHERE newer.user_id=a.user_id AND newer.quiz_id=a.quiz_id AND newer.id>a.id)`).get(...params).count;
   const categoryScores = db.prepare(`SELECT cr.category_id id,COALESCE(c.name,MAX(cr.category_name)) name,SUM(cr.earned) earned,SUM(cr.possible) possible
     FROM quiz_category_results cr JOIN quiz_attempts a ON a.id=cr.attempt_id JOIN knowledge_quizzes q ON q.id=a.quiz_id LEFT JOIN quiz_categories c ON c.id=cr.category_id
     WHERE ${scoreScope} AND NOT EXISTS(SELECT 1 FROM quiz_attempts newer WHERE newer.user_id=a.user_id AND newer.quiz_id=a.quiz_id AND newer.status='completed'
@@ -320,7 +334,7 @@ router.get('/overview', handler((req, res) => {
   const programCategoryRows = db.prepare(`SELECT cr.attempt_id,cr.category_id,cr.category_name,cr.percentage
     FROM quiz_category_results cr JOIN quiz_attempts a ON a.id=cr.attempt_id JOIN knowledge_quizzes q ON q.id=a.quiz_id
     WHERE a.status='completed' AND q.program_code IS NOT NULL AND ${scoreScope}`).all(...params);
-  const programComparisons = programProgress(allRows, programCategoryRows);
+  const programComparisons = programProgress(allRows.filter(row => row.answered_count === row.question_count), programCategoryRows);
   const average = rows.length ? rows.reduce((sum, row) => sum + row.percentage, 0) / rows.length : null;
   const activities = req.user.role === 'admin' ? db.prepare(`SELECT l.action,l.details,l.created_at,u.first_name,u.last_name FROM activity_log l JOIN users u ON u.id=l.user_id ORDER BY l.id DESC LIMIT 8`).all()
     : db.prepare('SELECT action,details,created_at FROM activity_log WHERE user_id=? ORDER BY id DESC LIMIT 8').all(req.user.id);
@@ -328,7 +342,9 @@ router.get('/overview', handler((req, res) => {
     summary: { registeredStudents: req.user.role === 'admin' ? db.prepare("SELECT COUNT(*) count FROM users WHERE role='respondent'").get().count : cohortStudents ?? 1,
       totalAssessments: req.user.role === 'admin' ? db.prepare("SELECT COUNT(*) count FROM knowledge_quizzes WHERE status<>'archived'").get().count
         : req.user.role === 'assessor' ? db.prepare("SELECT COUNT(*) count FROM knowledge_quizzes WHERE created_by=? AND status<>'archived'").get(req.user.id).count : assignedQuizCount,
-      completed: rows.length, pending: pendingAssignments, average: average === null ? null : Math.round(average * 100) / 100,
+      completed: rows.filter(row => row.completion_reason !== 'time_expired').length,
+      expired: expiredCount,
+      pending: pendingAssignments, average: average === null ? null : Math.round(average * 100) / 100,
       highest: rows.length ? Math.max(...rows.map((row) => row.percentage)) : null, lowest: rows.length ? Math.min(...rows.map((row) => row.percentage)) : null,
       certificates: allRows.filter((row) => row.certificate_earned).length },
     distribution: ['Advanced', 'Proficient', 'Developing', 'Beginner', 'Needs Improvement'].map((level) => ({ level, count: rows.filter((row) => row.level === level).length })),
@@ -380,16 +396,18 @@ router.get('/reports/:format', authorize('admin', 'assessor'), handler(async (re
   if (!['pdf', 'excel'].includes(req.params.format)) throw fail('Choose PDF or Excel.');
   if (req.params.format === 'excel') {
     const workbook = new ExcelJS.Workbook(); const sheet = workbook.addWorksheet('Knowledge results');
-    sheet.addRow(['Student', 'Assessment', 'Score (%)', 'Level', 'Date', 'Achievement certificate']);
-    for (const row of rows) sheet.addRow([safeCell(`${row.first_name} ${row.last_name}`), safeCell(row.title), row.percentage, row.level, row.completed_at, row.certificate_earned ? 'Earned' : 'Not earned']);
+    sheet.addRow(['Student', 'Assessment', 'Score (%)', 'Level', 'Date finalized', 'Outcome', 'Answered', 'Achievement certificate']);
+    for (const row of rows) sheet.addRow([safeCell(`${row.first_name} ${row.last_name}`), safeCell(row.title), row.percentage, row.level, row.completed_at,
+      row.completion_reason === 'time_expired' ? 'Time expired' : 'Submitted', `${row.answered_count}/${row.question_count}`, row.certificate_earned ? 'Earned' : 'Not earned']);
     sheet.getRow(1).font = { bold: true }; sheet.columns.forEach((column) => { column.width = 28; }); sheet.views = [{ state: 'frozen', ySplit: 1 }];
     res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); res.attachment('Digital_Literacy_Knowledge_Results.xlsx');
     await workbook.xlsx.write(res); return res.end();
   }
   const doc = new PDFDocument({ size: 'A4', margin: 45 }); res.type('application/pdf'); res.attachment('Digital_Literacy_Knowledge_Report.pdf'); doc.pipe(res);
   doc.fontSize(20).fillColor('#153e75').text('Digital Literacy Knowledge Report').moveDown();
-  doc.fontSize(10).fillColor('#475569').text(`Generated ${new Date().toISOString().slice(0, 10)} · ${rows.length} completed attempts`).moveDown();
-  for (const row of rows) doc.fontSize(11).fillColor('#17243a').text(`${row.first_name} ${row.last_name} — ${row.title}`).fontSize(10).fillColor('#475569').text(`${row.percentage}% · ${row.level} · ${row.completed_at.slice(0, 10)}`).moveDown();
+  doc.fontSize(10).fillColor('#475569').text(`Generated ${new Date().toISOString().slice(0, 10)} · ${rows.length} scored attempts, including timed-out attempts`).moveDown();
+  for (const row of rows) doc.fontSize(11).fillColor('#17243a').text(`${row.first_name} ${row.last_name} — ${row.title}`).fontSize(10).fillColor('#475569')
+    .text(`${row.percentage}% · ${row.level} · ${row.completion_reason === 'time_expired' ? 'Time expired' : 'Submitted'} · ${row.answered_count}/${row.question_count} answered · ${row.completed_at.slice(0, 10)}`).moveDown();
   doc.end();
 }));
 router.get('/attempts/:id/export/:format', handler(async (req, res) => {
@@ -404,6 +422,7 @@ router.get('/attempts/:id/export/:format', handler(async (req, res) => {
     const workbook = new ExcelJS.Workbook(); const sheet = workbook.addWorksheet('Assessment result');
     sheet.addRow(['Student', safeCell(`${attempt.first_name} ${attempt.last_name}`)]);
     sheet.addRow(['Assessment', safeCell(snapshot.title)]); sheet.addRow(['Score', `${score.percentage}%`, score.level]);
+    sheet.addRow(['Outcome', attempt.completion_reason === 'time_expired' ? 'Time expired — scored saved answers at the deadline' : 'Submitted by student']);
     sheet.addRow(['Question', 'Your answer', 'Accepted answer', 'Points earned', 'Points possible']);
     for (const question of score.questions) sheet.addRow([safeCell(question.prompt), safeCell(question.options.find((option) => option.id === question.answer)?.text || question.answer), safeCell(question.answers.map((key) => question.options.find((option) => option.id === key)?.text || key).join(' / ')), question.earned, question.points]);
     sheet.columns.forEach((column) => { column.width = 32; });
@@ -425,13 +444,16 @@ router.get('/attempts/:id/export/:format', handler(async (req, res) => {
     while (doc.heightOfString(snapshot.title, { width: 642, align: 'center' }) > 65 && size > 9) doc.fontSize(--size);
     doc.fillColor('#17243a').text(snapshot.title, 100, 341, { width: 642, align: 'center' });
     doc.fontSize(16).fillColor('#2563eb').text(`${score.level} · ${score.percentage}%`, 70, 421, { width: 702, align: 'center' });
-    doc.font('Helvetica').fontSize(10).fillColor('#475569').text(`Completed ${attempt.completed_at.slice(0, 10)}     ·     MC-KQ-${String(attempt.id).padStart(7, '0')}`, 70, 480, { width: 702, align: 'center' });
+    doc.font('Helvetica').fontSize(10).fillColor('#475569').text(`Issued ${attempt.completed_at.slice(0, 10)}     ·     MC-KQ-${String(attempt.id).padStart(7, '0')}`, 70, 480, { width: 702, align: 'center' });
     doc.fontSize(8).text('An assessment achievement award issued by this platform; not an external qualification or academic credit.', 70, 530, { width: 702, align: 'center' });
     return doc.end();
   }
   const doc = new PDFDocument({ size: 'A4', margin: 45 }); res.type('application/pdf'); res.attachment(`Knowledge_Result_${attempt.id}.pdf`); doc.pipe(res);
   doc.fontSize(20).fillColor('#153e75').text(snapshot.title).moveDown();
   doc.fontSize(12).fillColor('#17243a').text(`${attempt.first_name} ${attempt.last_name}`).text(`${score.percentage}% · ${score.level} · ${score.earned}/${score.possible} points`).moveDown();
+  doc.fontSize(10).fillColor('#475569').text(attempt.completion_reason === 'time_expired'
+    ? 'Time expired. This result scores answers received by the server before the deadline; the student did not submit before time ended.'
+    : 'Submitted by student.').moveDown();
   for (const question of score.questions) {
     doc.font('Helvetica-Bold').fontSize(11).text(question.prompt);
     doc.font('Helvetica').fontSize(10).text(`Your answer: ${question.options.find((option) => option.id === question.answer)?.text || question.answer || 'Unanswered'}`)

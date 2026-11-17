@@ -25,8 +25,8 @@ export function ResearchLink({ to, children = 'Open research assessments' }) { r
 export function LevelBadge({ level }) { return <span className={`kq-badge ${['Advanced', 'Proficient'].includes(level) ? 'kq-badge-success' : level === 'Needs Improvement' ? 'kq-badge-warning' : ''}`}>{level}</span>; }
 
 export function KnowledgeStats({ summary, student = false }) {
-  const values = student ? [['Assigned assessments', summary.totalAssessments], ['Completed', summary.completed], ['Pending', summary.pending], ['Average score', summary.average === null ? '—' : `${summary.average}%`]]
-    : [['Registered students', summary.registeredStudents], ['Total assessments', summary.totalAssessments], ['Completed', summary.completed], ['Pending', summary.pending], ['Average score', summary.average === null ? '—' : `${summary.average}%`]];
+  const values = student ? [['Assigned assessments', summary.totalAssessments], ['Submitted', summary.completed], ['Pending', summary.pending], ['Average score', summary.average === null ? '—' : `${summary.average}%`]]
+    : [['Registered students', summary.registeredStudents], ['Total assessments', summary.totalAssessments], ['Submitted', summary.completed], ['Pending', summary.pending], ['Average score', summary.average === null ? '—' : `${summary.average}%`]];
   return <section className="kq-stats" aria-label="Knowledge assessment summary">{values.map(([label, value]) => <article key={label} className="kq-card"><p>{label}</p><strong>{value ?? 0}</strong></article>)}</section>;
 }
 export function KnowledgeCharts({ data }) {
@@ -42,7 +42,7 @@ export function KnowledgeCharts({ data }) {
       {data.categories.length ? <div className="kq-bars">{data.categories.map((category) => <div key={category.id}><div><span>{category.name}</span><strong>{category.percentage}%</strong></div><meter min="0" max="100" value={category.percentage} aria-label={`${category.name}: ${category.percentage}%`} /></div>)}</div> : <Empty>Complete an assessment to see category performance.</Empty>}
     </article>
     <article className="kq-card"><p className="kq-eyebrow">Achievement overview</p><h2>Digital literacy levels</h2><div className="kq-distribution">
-      <div className="kq-donut" role="img" aria-label={`${total} completed student-assessment results; level counts listed beside the chart.`} style={{ background: total ? `conic-gradient(${stops.join(',')})` : '#e2e8f0' }}><div><strong>{total}</strong><span>results</span></div></div>
+      <div className="kq-donut" role="img" aria-label={`${total} scored student-assessment results; level counts listed beside the chart.`} style={{ background: total ? `conic-gradient(${stops.join(',')})` : '#e2e8f0' }}><div><strong>{total}</strong><span>results</span></div></div>
       <ul>{data.distribution.map((item, index) => <li key={item.level}><i style={{ background: colors[index] }} /><span>{item.level}</span><strong>{item.count}</strong></li>)}</ul>
     </div><p className="kq-note">90+ Advanced · 80+ Proficient · 70+ Developing · 60+ Beginner · below 60 Needs Improvement.</p></article>
   </section>;
@@ -56,6 +56,7 @@ export function KnowledgePulse({ student = false }) {
   return <section className={`kq-page kq-dashboard-pulse ${student ? 'kq-student-pulse' : ''}`}>
     {student ? <div className="kq-student-summary-heading"><h2>Your assessments</h2><Link to={`${base}/knowledge`}>View all<ArrowRight aria-hidden="true" size={16} /></Link></div> : <div className="kq-hero"><div><p className="kq-eyebrow">Your digital learning hub</p><h2>Welcome to the Digital Literacy Assessment System!</h2><p>Assess your knowledge, discover strengths, and build the skills you need.</p></div><Link className="kq-button" to={`${base}/knowledge`}>Manage assessments<ArrowRight aria-hidden="true" size={17} /></Link></div>}
     {overview && <KnowledgeStats summary={overview.summary} student={student} />}
+    {overview?.summary.expired > 0 && <p className="kq-note">{overview.summary.expired} assessment attempt{overview.summary.expired === 1 ? '' : 's'} ended because time expired. Saved scores remain in your result history and are separate from submitted completions.</p>}
     {state.error && <p role="status" className="kq-note">Knowledge assessment statistics are unavailable. <button onClick={state.reload}>Retry</button></p>}
     {!student && overview && <><KnowledgeCharts data={overview} /><article className="kq-card"><div className="kq-section-title"><h2>Recent student activities</h2><Link to={`${base}/results`}>View results →</Link></div><div className="kq-activities">{overview.activities.map((activity, index) => <div key={index}><span className="kq-activity-dot" /><div><strong>{activity.first_name ? `${activity.first_name} ${activity.last_name}` : activity.action.replaceAll('_', ' ')}</strong><p>{activity.details || activity.action}</p></div><time>{displayDate(activity.created_at)}</time></div>)}</div></article></>}
     {student ? <details className="kq-score-explainer"><summary>About your scores</summary><p className="kq-note">Quiz scores use percentages. Research self-reflection scores use their own scale and are shown separately.</p></details> : <p className="kq-note">Knowledge scores use percentages. Research self-reflection scores below retain their original scale and are reported separately.</p>}
