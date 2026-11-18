@@ -62,7 +62,7 @@ input:not([type="checkbox"]):not([type="radio"]):focus,
 select:focus,
 textarea:focus {
   border-color: var(--dlas-primary);
-  box-shadow: 0 0 0 3px rgb(37 99 235 / 16%);
+  box-shadow: 0 0 0 3px rgb(0 107 60 / 16%);
 }
 
 input::placeholder,
@@ -131,7 +131,7 @@ textarea::placeholder {
 }
 
 .dlas-page-title {
-  color: #17243a;
+  color: #132a1e;
   font-size: clamp(1.35rem, 2.4vw, 1.75rem);
   font-weight: 750;
   letter-spacing: -0.035em;
@@ -141,7 +141,7 @@ textarea::placeholder {
 .dlas-page-description {
   max-width: 54rem;
   margin-top: 0.45rem;
-  color: #64748b;
+  color: #52685c;
   font-size: 0.875rem;
   line-height: 1.55;
 }

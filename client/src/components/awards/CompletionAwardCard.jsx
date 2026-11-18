@@ -12,14 +12,31 @@ const celebrationPieces = [
   [94, 9, 140], [75, 12, -220], [90, -11, 180], [83, 5, -140],
 ];
 
-function CertificatePreview({ attempt, theme, reference, celebrate = false }) {
-  const name = `${attempt.first_name || ''} ${attempt.last_name || ''}`.trim();
+export function CertificatePreview({
+  attempt,
+  theme,
+  reference,
+  celebrate = false,
+  variant = 'completion',
+  scoreText = '',
+}) {
+  const name = `${attempt.first_name || ''} ${attempt.last_name || ''}`.trim() || attempt.recipient_name || '';
   const title = attempt.assessment_title || 'Digital Literacy Assessment';
   const nameSize = `${Math.min(3.9, 180 / Math.max(1, name.length))}cqw`;
   const titleSize = `${Math.min(2.1, 230 / Math.max(1, title.length))}cqw`;
+  const isAchievement = variant === 'achievement';
+  const subtitle = isAchievement ? 'OF ACHIEVEMENT' : 'OF COMPLETION';
+  const purpose = isAchievement
+    ? 'for meeting the assessment achievement requirement in'
+    : 'for completing the digital literacy assessment';
+  const dateLabel = isAchievement ? 'ISSUED ON' : 'COMPLETED ON';
+  const footnote = isAchievement
+    ? 'An assessment achievement award issued by this platform; not an external qualification or academic credit.'
+    : 'Recognizes assessment completion only. This award does not confer proficiency certification or academic credit.';
+
   return (
     <div className={`award-preview-surface${celebrate ? ' is-celebrating' : ''}`}>
-      <div className="award-certificate" role="img" aria-label={`Completion certificate for ${name}. ${title}. Completed ${formatDate(attempt.completed_at)}. Reference ${reference}.`}>
+      <div className="award-certificate" role="img" aria-label={`${isAchievement ? 'Achievement' : 'Completion'} certificate for ${name}. ${title}. Issued ${formatDate(attempt.completed_at)}. Reference ${reference}.`}>
         {celebrate && <>
           <span className="award-cert-shimmer" aria-hidden="true" />
           <span className="award-cert-confetti" aria-hidden="true">
@@ -38,18 +55,19 @@ function CertificatePreview({ attempt, theme, reference, celebrate = false }) {
         </div>
         <div className="award-cert-rule" />
         <p className="award-cert-title">Certificate</p>
-        <p className="award-cert-subtitle">OF COMPLETION</p>
+        <p className="award-cert-subtitle">{subtitle}</p>
         <p className="award-cert-presented">PRESENTED TO</p>
         <p className="award-cert-recipient" style={{ '--award-name-size': nameSize }}>{name}</p>
         <div className="award-cert-name-rule" />
-        <p className="award-cert-purpose">for completing the digital literacy assessment</p>
+        <p className="award-cert-purpose">{purpose}</p>
         <p className="award-cert-assessment" style={{ fontSize: titleSize }}>{title}</p>
+        {scoreText && <p className="award-cert-score">{scoreText}</p>}
         <div className="award-cert-footer">
-          <div><span>COMPLETED ON</span><strong>{formatDate(attempt.completed_at)}</strong></div>
+          <div><span>{dateLabel}</span><strong>{formatDate(attempt.completed_at)}</strong></div>
           <span className="award-cert-seal"><CheckCircle2 aria-hidden="true" /></span>
           <div><span>AWARD REFERENCE</span><strong>{reference}</strong></div>
         </div>
-        <p className="award-cert-note">Recognizes assessment completion only. This award does not confer proficiency certification or academic credit.</p>
+        <p className="award-cert-note">{footnote}</p>
       </div>
     </div>
   );

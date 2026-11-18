@@ -6,6 +6,7 @@ import api from '../../api/axios';
 import { useAuth } from '../../contexts/useAuth';
 import { useDemoMode } from '../../contexts/useDemoMode';
 import { clearQuizRecovery, downloadQuizRecovery, readQuizRecovery, writeQuizRecovery } from '../../utils/quizRecovery';
+import { emitCertificateSync } from '../../utils/certificateEvents';
 import { Empty, Field, KnowledgePage, LevelBadge } from './KnowledgeCommon';
 import { displayDate, knowledgeDownload } from './knowledgeClient';
 import { timeExpiredResult } from './attemptStatus';
@@ -159,6 +160,7 @@ function KnowledgeAttempt({ attemptId }) {
       latest.current = { ...latest.current, data: completed };
       if (active.current) {
         setData(completed);
+        emitCertificateSync({ instrument: 'knowledge', attemptId, unlocked: completed.attempt?.certificate_earned === 1 });
         if (timeExpiredResult(completed.attempt)) toast('Time expired. Your saved answers have been scored.', { icon: '⏱' });
         else toast.success('Assessment submitted. Your result is ready.');
       }
@@ -262,6 +264,7 @@ function KnowledgeAttempt({ attemptId }) {
       {timedOut && <p role="status" className="kq-note">The timer continued while you were away. Time ran out before this attempt was submitted. {data.responses.filter(response => response.answer.trim()).length} of {questions.length} answers reached the server before the deadline. Unanswered questions received zero points. Your saved result is retained.</p>}
       <div className="kq-actions"><button className="kq-button kq-button-secondary" onClick={() => knowledgeDownload(`/knowledge/attempts/${attemptId}/export/pdf`, `Knowledge_Result_${attemptId}.pdf`)}><Download size={16} aria-hidden="true" />PDF report</button><button className="kq-button kq-button-secondary" onClick={() => knowledgeDownload(`/knowledge/attempts/${attemptId}/export/excel`, `Knowledge_Result_${attemptId}.xlsx`)}>Excel report</button>
         {data.attempt.certificate_earned === 1 && !freeDemoReadOnly && <button className="kq-button" onClick={() => knowledgeDownload(`/knowledge/attempts/${attemptId}/export/certificate`, `Achievement_${attemptId}.pdf`)}>Download achievement certificate</button>}
+        {canAnswer && data.attempt.certificate_earned === 1 && <Link className="kq-button kq-button-secondary" to="/respondent/certificates">Open My Certificates</Link>}
       </div><p className="kq-note">Achievement certificates require {data.snapshot.pass_percentage}%. {data.attempt.certificate_earned ? 'The requirement was met.' : 'The requirement was not met on this attempt.'} Percentage levels apply to knowledge quizzes only.</p>
       {retainedDraft && <section className="kq-card"><h2>Unsynced recovery copy retained</h2><p className="kq-note">Some local responses did not reach the server before completion or the deadline. They are not included in this score. You can keep a copy for follow-up with your instructor.</p><div className="kq-actions"><button className="kq-button kq-button-secondary" onClick={() => downloadQuizRecovery(retainedDraft)}>Download local recovery copy</button><button className="kq-button kq-button-danger" onClick={async () => { if (window.confirm('Discard the unsynced local copy? This cannot be undone.')) { await clearQuizRecovery(user.id, attemptId); setRetainedDraft(null); } }}>Discard local copy</button></div></section>}
       <section className="kq-card"><h2>Strengths and areas to develop</h2><div className="kq-bars" style={{ marginTop: 20 }}>{data.results.categories.map((category) => <div key={category.id}><div><span>{category.name}</span><strong>{category.percentage}%</strong></div><meter min={0} max={100} value={category.percentage} aria-label={`${category.name}: ${category.percentage}%`} />{canAnswer && category.percentage < 70 && <Link className="kq-note" to={`/respondent/materials?category=${category.id}`}>Explore learning materials for this area →</Link>}</div>)}</div></section>

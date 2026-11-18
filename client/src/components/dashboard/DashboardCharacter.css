@@ -42,7 +42,7 @@
   justify-content: space-between;
   gap: 8px;
   padding: 9px 11px;
-  border: 1px solid #d5e0ee;
+  border: 1px solid #d5e4db;
   border-radius: 10px;
   background: #fff;
   color: #1e293b;
@@ -242,9 +242,9 @@
 .character-preview-frame {
   height: 270px;
   overflow: hidden;
-  border: 1px solid #dbe4f0;
+  border: 1px solid #d5e4db;
   border-radius: 16px;
-  background: linear-gradient(140deg, #f8fbff, #e6effc);
+  background: linear-gradient(140deg, #f8fbf9, #e5f3ea);
 }
 
 .character-scene-preview .character-backdrop {
@@ -323,7 +323,7 @@
 .character-style-picker { min-width: 0; }
 .character-style-picker legend { margin-bottom: 9px; color: #1e293b; font-size: 13px; font-weight: 650; }
 .character-style-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.character-style-option { display: flex; min-width: 0; min-height: 78px; align-items: center; gap: 8px; padding: 8px; border: 1px solid #d5e0ee; border-radius: 12px; background: #fff; color: #1e293b; font-size: 13px; font-weight: 650; text-align: left; }
+.character-style-option { display: flex; min-width: 0; min-height: 78px; align-items: center; gap: 8px; padding: 8px; border: 1px solid #d5e4db; border-radius: 12px; background: #fff; color: #1e293b; font-size: 13px; font-weight: 650; text-align: left; }
 .character-style-option[aria-pressed="true"] { border-color: #006b3c; background: #eef7f1; box-shadow: inset 0 0 0 1px #006b3c; color: #005a32; }
 .character-style-option:hover { border-color: #579a70; }
 .character-style-option:focus-visible { outline: 2px solid #006b3c; outline-offset: 3px; }
@@ -347,7 +347,7 @@
   width: 100%;
   min-height: 44px;
   padding: 8px 10px;
-  border: 1px solid #d5e0ee;
+  border: 1px solid #d5e4db;
   border-radius: 8px;
   background: #fff;
   font-size: 13px;

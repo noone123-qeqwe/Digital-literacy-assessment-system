@@ -692,10 +692,10 @@ export const ReportsAnalytics = () => {
           {!isDigCompSat && <div className="rounded-3xl border border-slate-200/80 bg-white p-6 shadow-xs sm:p-7">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
               <div>
-                <span className="text-[11px] font-bold uppercase tracking-wider text-sky-700">Chapter 4 · Part III</span>
+                <span className="text-[11px] font-bold uppercase tracking-wider text-green-800">Chapter 4 · Part III</span>
                 <h3 className="mt-1 text-base font-bold text-slate-900">Skills respondents want to develop</h3>
               </div>
-              <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-800">{desiredSkillsResponses.length} reviewed · {desiredSkillsMeta.pendingReviewCount} pending</span>
+              <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-800">{desiredSkillsResponses.length} reviewed · {desiredSkillsMeta.pendingReviewCount} pending</span>
             </div>
             {desiredSkillsResponses.length ? (
               <div className="space-y-3">

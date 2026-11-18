@@ -150,13 +150,13 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
           </div>
           <div>
             <p className={`text-base font-bold leading-tight tracking-tight 2xl:text-lg ${light ? 'text-green-950' : 'text-white'}`}>DLAS Portal</p>
-            <p className={`text-[11px] font-medium 2xl:text-sm ${light ? 'text-slate-500' : 'text-slate-300'}`}>Masbate Colleges · CCS</p>
+            <p className={`text-[11px] font-medium 2xl:text-sm ${light ? 'text-slate-500' : 'text-green-100/80'}`}>Masbate Colleges · CCS</p>
           </div>
           <button
             type="button"
             onClick={() => setIsOpen(false)}
             aria-label="Close navigation menu"
-            className={`ml-auto rounded-lg p-2 transition-colors lg:hidden ${light ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' : 'text-slate-400 hover:bg-white/10 hover:text-white'}`}
+            className={`ml-auto rounded-lg p-2 transition-colors lg:hidden ${light ? 'text-slate-600 hover:bg-slate-100 hover:text-slate-900' : 'text-green-200/80 hover:bg-white/10 hover:text-white'}`}
           >
             <X aria-hidden="true" className="h-5 w-5" />
           </button>
@@ -164,7 +164,7 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
 
         {/* Navigation Links */}
         <nav className="sidebar-links min-h-0 flex-1 space-y-1.5 overflow-y-auto px-5 py-6">
-          {!light && !isAdmin && <div className="px-3 pb-2 text-xs font-bold uppercase tracking-[0.12em] text-slate-400 2xl:text-sm">
+          {!light && !isAdmin && <div className="px-3 pb-2 text-xs font-bold uppercase tracking-[0.12em] text-green-200/75 2xl:text-sm">
             Navigation
           </div>}
           {isAdmin ? <>{adminGroups.map(([label, indices]) => <section className="admin-nav-group" key={label} aria-label={label}><h2 className="admin-nav-heading">{label}</h2>{indices.map((index) => renderAdminLink(adminNav[index]))}</section>)}<details className="admin-research-nav" open={researchNav.some((item) => location.pathname.startsWith(item.path)) || undefined}><summary>Research tools <ChevronDown size={16} aria-hidden="true" /></summary>{researchNav.map(renderAdminLink)}</details></> : navItems.map((item) => {
@@ -181,10 +181,10 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
                     ? isActive ? 'bg-green-50 text-green-800 shadow-2xs' : 'text-slate-600 hover:bg-slate-50 hover:text-green-800'
                     : isActive
                     ? 'bg-green-600 text-white shadow-md shadow-black/15 ring-1 ring-white/15'
-                    : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'
+                    : 'text-green-100/85 hover:bg-white/[0.08] hover:text-white'
                 }`}
               >
-                <Icon aria-hidden="true" className={`h-4 w-4 shrink-0 transition-transform group-hover:scale-105 ${light ? isActive ? 'text-green-700' : 'text-slate-500' : isActive ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`} />
+                <Icon aria-hidden="true" className={`h-4 w-4 shrink-0 transition-transform group-hover:scale-105 ${light ? isActive ? 'text-green-700' : 'text-slate-500' : isActive ? 'text-white' : 'text-green-200/75 group-hover:text-white'}`} />
                 <span>{item.name}</span>
               </NavLink>
             );
@@ -197,7 +197,7 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
             <Sparkles className="w-3.5 h-3.5" />
             <span>Learn. Assess. Improve.</span>
           </div>
-          <p className={`mt-1 text-xs leading-relaxed 2xl:text-sm ${light ? 'text-slate-600' : 'text-slate-300'}`}>
+          <p className={`mt-1 text-xs leading-relaxed 2xl:text-sm ${light ? 'text-slate-600' : 'text-green-100/85'}`}>
             Knowledge quizzes and DigComp research assessments, with distinct scoring.
           </p>
         </div>
@@ -208,7 +208,7 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
             onClick={logout}
             type="button"
             aria-label="Sign out of your account"
-            className={`flex min-h-11 w-full items-center space-x-3 rounded-xl px-4 py-3.5 text-left text-sm font-semibold transition-colors 2xl:min-h-12 2xl:text-base ${light ? 'text-slate-600 hover:bg-rose-50 hover:text-rose-800' : 'text-slate-200 hover:bg-rose-500/10 hover:text-rose-200'}`}
+            className={`flex min-h-11 w-full items-center space-x-3 rounded-xl px-4 py-3.5 text-left text-sm font-semibold transition-colors 2xl:min-h-12 2xl:text-base ${light ? 'text-slate-600 hover:bg-rose-50 hover:text-rose-800' : 'text-green-100 hover:bg-rose-500/10 hover:text-rose-200'}`}
           >
             <LogOut className="w-4 h-4" />
             <span>Sign Out</span>

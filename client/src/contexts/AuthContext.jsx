@@ -3,6 +3,7 @@ import api from '../api/axios';
 import toast from 'react-hot-toast';
 import { AuthContext } from './AuthContextStore';
 import { clearAllQuizRecoveryForUser } from '../utils/quizRecovery';
+import { clearCertificateTransitionCache } from '../utils/certificateEvents';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -97,6 +98,7 @@ export const AuthProvider = ({ children }) => {
     const activeUserId = user?.id;
     try { await api.post('/auth/logout'); } catch {}
     await clearAllQuizRecoveryForUser(activeUserId);
+    clearCertificateTransitionCache(activeUserId);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     clearProfilePicture();

@@ -32,7 +32,7 @@
 .kq-badge-warning { background: #fffbeb; color: #92400e; }
 .kq-note { font-size: 12px; line-height: 1.7; color: #64748b; }
 .kq-note button, .kq-note a { color: #005a32; text-decoration: underline; }
-.kq-empty { padding: 30px 18px; border: 1px dashed #d6e0ed; border-radius: 12px; text-align: center; color: #64748b; font-size: 13px; line-height: 1.7; }
+.kq-empty { padding: 30px 18px; border: 1px dashed #cfe0d6; border-radius: 12px; text-align: center; color: #64748b; font-size: 13px; line-height: 1.7; }
 .kq-state { display: grid; justify-items: center; gap: 16px; padding: 50px 20px; font-size: 14px; color: #64748b; }
 .kq-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; }
 .kq-stats .kq-card { padding: 18px; }
@@ -72,7 +72,7 @@
 .kq-filter-row > .kq-field { flex: 1; min-width: min(180px, 100%); }
 .kq-picker { max-height: 310px; overflow-y: auto; display: grid; align-content: start; gap: 8px; padding: 2px; }
 .kq-guide { white-space: pre-wrap; line-height: 1.85; color: #475569; font-size: 14px; overflow-wrap: anywhere; }
-.kq-badge-media { background: #eef2ff; color: #3730a3; }
+.kq-badge-media { background: #fdf5e2; color: #8c5a08; }
 .kq-badge-subtle { background: #f1f5f9; color: #475569; }
 .kq-guide-summary { display: flex; align-items: center; justify-content: space-between; gap: 16px; list-style: none; cursor: pointer; padding: 4px 0; }
 .kq-guide-summary::-webkit-details-marker { display: none; }

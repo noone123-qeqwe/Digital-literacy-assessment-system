@@ -1,11 +1,11 @@
 .assessment-bookmark-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
 .assessment-bookmark-filters { display: flex; flex-wrap: wrap; gap: 8px; }
-.assessment-bookmark-filters button, .assessment-bookmark-button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; padding: 10px 13px; border: 1px solid #dbe4f0; border-radius: 10px; background: white; color: #425c80; font-size: 12px; font-weight: 650; line-height: 1.5; }
-.assessment-bookmark-filters button:hover, .assessment-bookmark-button:hover { background: #f0f6ff; border-color: #b5cdf5; }
-.assessment-bookmark-filters button[aria-pressed=true] { background: #245ed4; border-color: #245ed4; color: white; }
-.assessment-bookmark-filters button > span { display: inline-flex; min-width: 20px; justify-content: center; border-radius: 5px; padding: 1px 5px; background: #132b5510; font-size: 11px; }
+.assessment-bookmark-filters button, .assessment-bookmark-button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; padding: 10px 13px; border: 1px solid #cfe0d6; border-radius: 10px; background: white; color: #004a2a; font-size: 12px; font-weight: 650; line-height: 1.5; }
+.assessment-bookmark-filters button:hover, .assessment-bookmark-button:hover { background: #eef7f1; border-color: #86c5a0; }
+.assessment-bookmark-filters button[aria-pressed=true] { background: #006b3c; border-color: #006b3c; color: white; }
+.assessment-bookmark-filters button > span { display: inline-flex; min-width: 20px; justify-content: center; border-radius: 5px; padding: 1px 5px; background: #00281710; font-size: 11px; }
 .assessment-bookmark-filters button[aria-pressed=true] > span { background: #ffffff24; }
-.assessment-bookmark-button.is-bookmarked { background: #eef5ff; border-color: #bfd4f6; color: #245bb7; }
+.assessment-bookmark-button.is-bookmarked { background: #eef7f1; border-color: #b3dac2; color: #005a32; }
 .assessment-bookmark-button { flex-shrink: 0; }
 .assessment-bookmark-button svg { flex-shrink: 0; }
 .assessment-bookmark-button:disabled, .assessment-bookmark-filters button:disabled { cursor: not-allowed; opacity: .55; }

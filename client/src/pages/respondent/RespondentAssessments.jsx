@@ -44,7 +44,7 @@ const statusDetails = {
   },
   in_progress: {
     label: 'In progress',
-    tone: 'bg-sky-50 text-sky-800 ring-sky-200',
+    tone: 'bg-amber-50 text-amber-800 ring-amber-200',
     Icon: Timer,
   },
   available: {
@@ -54,7 +54,7 @@ const statusDetails = {
   },
   scheduled: {
     label: 'Scheduled',
-    tone: 'bg-indigo-50 text-indigo-800 ring-indigo-200',
+    tone: 'bg-stone-100 text-stone-700 ring-stone-200',
     Icon: CalendarClock,
   },
   closed: {
@@ -158,7 +158,7 @@ export const RespondentAssessments = () => {
   const summaryCards = [
     { label: 'Assigned', value: counts.all, Icon: ClipboardList, tone: 'bg-slate-100 text-slate-700' },
     { label: 'Ready', value: counts.available, Icon: PlayCircle, tone: 'bg-green-50 text-green-700' },
-    { label: 'In progress', value: counts.in_progress, Icon: Timer, tone: 'bg-sky-50 text-sky-700' },
+    { label: 'In progress', value: counts.in_progress, Icon: Timer, tone: 'bg-amber-50 text-amber-700' },
     { label: 'Completed', value: counts.completed, Icon: CheckCircle2, tone: 'bg-emerald-50 text-emerald-700' },
   ];
   const canDownloadAward = demoStatusAvailable && !demoModeLoading && !freeDemoReadOnly;
@@ -291,7 +291,7 @@ export const RespondentAssessments = () => {
               const closesAt = assessment.end_date ? parseStoredDate(assessment.end_date)?.getTime() : null;
 
               return (
-                <article key={assessment.id} className={`flex flex-col gap-4 rounded-2xl border bg-white p-4 shadow-sm sm:p-6 xl:flex-row xl:items-center xl:justify-between xl:gap-7 ${assessment.displayState === 'in_progress' ? 'border-l-4 border-l-sky-600' : assessment.displayState === 'available' && index === 0 ? 'border-l-4 border-l-green-600' : 'border-slate-200'}`}>
+                <article key={assessment.id} className={`flex flex-col gap-4 rounded-2xl border bg-white p-4 shadow-sm sm:p-6 xl:flex-row xl:items-center xl:justify-between xl:gap-7 ${assessment.displayState === 'in_progress' ? 'border-l-4 border-l-amber-500' : assessment.displayState === 'available' && index === 0 ? 'border-l-4 border-l-green-600' : 'border-slate-200'}`}>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2.5">
                       <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ring-1 ${status.tone}`}>

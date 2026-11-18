@@ -9,6 +9,8 @@ const { questionInput, publicSnapshot, scoreSnapshot, shuffled, withOpaqueOption
 const { enrollPublishedQuizzes } = require('../utils/quizEnrollment');
 const { programProgress } = require('../utils/programProgress');
 const { nonblankAnswerSQL } = require('../db/quizCompletion');
+const { drawCompletionAward } = require('../utils/completionAward');
+const awardThemes = require('../../shared/completion-awards.json');
 
 const router = express.Router();
 router.use(authenticate);
@@ -127,6 +129,308 @@ router.get('/research-results', handler((req, res) => {
     q.title,u.first_name,u.last_name FROM assessment_attempts a JOIN assessments q ON q.id=a.assessment_id JOIN users u ON u.id=a.user_id
     WHERE a.status='completed' AND ${scope} ORDER BY a.completed_at DESC,a.id DESC LIMIT 500`).all(...params);
   return result(res, rows);
+}));
+
+function buildStudentCertificateItems(userId) {
+  enrollPublishedQuizzes(db, userId);
+  const student = db.prepare('SELECT id, first_name, last_name FROM users WHERE id=?').get(userId);
+  const recipientName = `${student?.first_name || ''} ${student?.last_name || ''}`.trim();
+  const now = Date.now();
+
+  const quizzes = db.prepare(`SELECT q.id,q.title,q.description,q.status,q.pass_percentage,q.max_attempts,
+      q.time_limit_minutes,q.start_date,q.end_date,q.program_code,q.stage,q.prerequisite_quiz_id,
+      (SELECT title FROM knowledge_quizzes req WHERE req.id=q.prerequisite_quiz_id) prerequisite_title,
+      EXISTS(SELECT 1 FROM quiz_attempts comp WHERE comp.quiz_id=q.prerequisite_quiz_id AND comp.user_id=? AND comp.status='completed'
+        AND (SELECT COUNT(*) FROM quiz_responses r WHERE r.attempt_id=comp.id AND ${nonblankAnswerSQL})=json_array_length(comp.snapshot_json,'$.questions')) prerequisite_completed,
+      (SELECT COUNT(*) FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=?) attempt_count
+    FROM knowledge_quizzes q
+    JOIN quiz_assignments qa ON qa.quiz_id=q.id AND qa.user_id=?
+    WHERE q.status='published' OR EXISTS(SELECT 1 FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=?)
+    ORDER BY CASE WHEN q.stage='baseline' THEN 0 WHEN q.stage='follow_up' THEN 1 ELSE 2 END,q.id DESC`)
+    .all(userId, userId, userId, userId);
+
+  const quizAttempts = db.prepare(`SELECT id,quiz_id,status,percentage,level,certificate_earned,completion_reason,deadline,completed_at
+    FROM quiz_attempts WHERE user_id=? ORDER BY id DESC`).all(userId);
+  const attemptsByQuiz = new Map();
+  for (const row of quizAttempts) {
+    if (!attemptsByQuiz.has(row.quiz_id)) attemptsByQuiz.set(row.quiz_id, []);
+    attemptsByQuiz.get(row.quiz_id).push(row);
+  }
+
+  const knowledgeItems = quizzes.map((q) => {
+    const list = attemptsByQuiz.get(q.id) || [];
+    const latest = list[0] || null;
+    const qualifying = [...list]
+      .filter((row) => row.status === 'completed' && row.certificate_earned === 1)
+      .sort((a, b) => Number(b.percentage) - Number(a.percentage) || String(b.completed_at).localeCompare(String(a.completed_at)) || b.id - a.id)[0] || null;
+
+    if (qualifying) {
+      return {
+        key: `knowledge:quiz:${q.id}`,
+        instrument: 'knowledge',
+        scoring_version: 'knowledge-achievement',
+        certificate_title: 'Certificate of Achievement',
+        assessment_id: q.id,
+        assessment_title: q.title,
+        assessment_description: q.description,
+        stage: q.stage,
+        unlocked: true,
+        status: 'unlocked',
+        completion_status: 'completed',
+        completion_label: 'Completed',
+        attempt_id: qualifying.id,
+        recipient_name: recipientName,
+        first_name: student?.first_name || '',
+        last_name: student?.last_name || '',
+        percentage: qualifying.percentage,
+        level: qualifying.level,
+        pass_percentage: q.pass_percentage,
+        issued_at: qualifying.completed_at,
+        reference_code: `MC-KQ-${String(qualifying.id).padStart(7, '0')}`,
+        download_url: `/knowledge/attempts/${qualifying.id}/export/certificate`,
+        result_path: `/respondent/knowledge/attempts/${qualifying.id}`,
+        assessment_path: '/respondent/knowledge',
+        time_expired: qualifying.completion_reason === 'time_expired',
+        attempt_count: q.attempt_count,
+        max_attempts: q.max_attempts,
+      };
+    }
+
+    const latestExpired = Boolean(latest && (latest.completion_reason === 'time_expired'
+      || (latest.status === 'in_progress' && latest.deadline && Date.parse(latest.deadline) <= now)));
+    const completionStatus = latestExpired ? 'time_expired'
+      : latest?.status === 'in_progress' ? 'in_progress'
+      : latest?.status === 'completed' ? 'below_threshold'
+      : 'not_started';
+    const completionLabels = {
+      time_expired: 'Time expired',
+      in_progress: 'In progress',
+      below_threshold: 'Passing score not met',
+      not_started: 'Not started',
+    };
+    const prerequisiteLocked = Boolean(q.prerequisite_quiz_id && !q.prerequisite_completed && completionStatus !== 'in_progress');
+    const closed = q.status !== 'published' || Boolean(q.end_date && Date.parse(q.end_date) <= now);
+    const future = Boolean(q.start_date && Date.parse(q.start_date) > now);
+    const exhausted = (Number(q.attempt_count || 0) >= Number(q.max_attempts || 1) || closed) && completionStatus !== 'in_progress';
+    const lockedReason = completionStatus === 'below_threshold'
+      ? `Complete the required assessment with at least ${q.pass_percentage}% to unlock this certificate (latest score: ${latest.percentage}%).`
+      : completionStatus === 'time_expired'
+      ? `Complete the required assessment to unlock this certificate. Your previous attempt timed out before reaching ${q.pass_percentage}%.`
+      : prerequisiteLocked
+      ? `Complete ${q.prerequisite_title || 'the prerequisite assessment'} first, then complete this assessment with at least ${q.pass_percentage}% to unlock this certificate.`
+      : `Complete the required assessment to unlock this certificate.`;
+
+    return {
+      key: `knowledge:quiz:${q.id}`,
+      instrument: 'knowledge',
+      scoring_version: 'knowledge-achievement',
+      certificate_title: 'Certificate of Achievement',
+      assessment_id: q.id,
+      assessment_title: q.title,
+      assessment_description: q.description,
+      stage: q.stage,
+      unlocked: false,
+      status: 'locked',
+      completion_status: completionStatus,
+      completion_label: completionLabels[completionStatus],
+      locked_reason: lockedReason,
+      prerequisite_locked: prerequisiteLocked,
+      prerequisite_title: q.prerequisite_title || null,
+      attempt_id: null,
+      latest_percentage: latest?.status === 'completed' ? latest.percentage : null,
+      latest_level: latest?.status === 'completed' ? latest.level : null,
+      latest_result_path: latest?.status === 'completed' ? `/respondent/knowledge/attempts/${latest.id}` : null,
+      pass_percentage: q.pass_percentage,
+      start_date: q.start_date,
+      end_date: q.end_date,
+      exhausted,
+      future,
+      issued_at: null,
+      reference_code: null,
+      download_url: null,
+      assessment_path: completionStatus === 'in_progress' && latest ? `/respondent/knowledge/attempts/${latest.id}` : '/respondent/knowledge',
+      action_label: completionStatus === 'in_progress' ? 'Resume assessment' : 'Go to assessment',
+      attempt_count: q.attempt_count,
+      max_attempts: q.max_attempts,
+    };
+  });
+
+  const researchAssessments = db.prepare(`SELECT a.id,a.title,a.description,a.status,a.scoring_version,a.start_date,a.end_date,a.max_attempts,
+      (SELECT COUNT(*) FROM assessment_attempts aa2 WHERE aa2.assessment_id=a.id AND aa2.user_id=?) attempt_count
+    FROM assessments a
+    JOIN assessment_assignments aa ON aa.assessment_id=a.id AND aa.user_id=?
+    WHERE a.status='active' OR EXISTS(SELECT 1 FROM assessment_attempts done WHERE done.assessment_id=a.id AND done.user_id=? AND done.status='completed')
+    ORDER BY aa.assigned_at DESC,a.id DESC`).all(userId, userId, userId);
+
+  const researchAttempts = db.prepare(`SELECT id,assessment_id,status,overall_mean,overall_level,scoring_version,completed_at
+    FROM assessment_attempts WHERE user_id=? ORDER BY id DESC`).all(userId);
+  const researchByAssessment = new Map();
+  for (const row of researchAttempts) {
+    if (!researchByAssessment.has(row.assessment_id)) researchByAssessment.set(row.assessment_id, []);
+    researchByAssessment.get(row.assessment_id).push(row);
+  }
+
+  const researchItems = researchAssessments.map((a) => {
+    const list = researchByAssessment.get(a.id) || [];
+    const latest = list[0] || null;
+    const qualifying = [...list]
+      .filter((row) => row.status === 'completed' && row.completed_at)
+      .sort((first, second) => String(second.completed_at).localeCompare(String(first.completed_at)) || second.id - first.id)[0] || null;
+    const version = qualifying?.scoring_version || a.scoring_version || 'dlas-mean-1.0';
+    const theme = awardThemes[version] || awardThemes.default;
+
+    if (qualifying) {
+      return {
+        key: `research:assessment:${a.id}`,
+        instrument: 'research',
+        scoring_version: version,
+        certificate_title: 'Certificate of Completion',
+        assessment_id: a.id,
+        assessment_title: a.title,
+        assessment_description: a.description,
+        unlocked: true,
+        status: 'unlocked',
+        completion_status: 'completed',
+        completion_label: 'Completed',
+        attempt_id: qualifying.id,
+        recipient_name: recipientName,
+        first_name: student?.first_name || '',
+        last_name: student?.last_name || '',
+        overall_mean: qualifying.overall_mean,
+        overall_level: qualifying.overall_level,
+        issued_at: qualifying.completed_at,
+        reference_code: `${theme.referencePrefix}-${String(qualifying.id).padStart(7, '0')}`,
+        download_url: `/export/awards/${qualifying.id}/pdf`,
+        result_path: `/respondent/assessments/${qualifying.id}/results`,
+        assessment_path: '/respondent/assessments',
+        attempt_count: a.attempt_count,
+        max_attempts: a.max_attempts,
+      };
+    }
+
+    const completionStatus = latest?.status === 'in_progress' ? 'in_progress'
+      : latest?.status === 'expired' ? 'time_expired'
+      : 'not_started';
+    const completionLabels = {
+      in_progress: 'In progress',
+      time_expired: 'Time expired',
+      not_started: 'Not started',
+    };
+    const closed = Boolean(a.end_date && Date.parse(a.end_date) <= now);
+    const future = Boolean(a.start_date && Date.parse(a.start_date) > now);
+    return {
+      key: `research:assessment:${a.id}`,
+      instrument: 'research',
+      scoring_version: version,
+      certificate_title: 'Certificate of Completion',
+      assessment_id: a.id,
+      assessment_title: a.title,
+      assessment_description: a.description,
+      unlocked: false,
+      status: 'locked',
+      completion_status: completionStatus,
+      completion_label: completionLabels[completionStatus],
+      locked_reason: 'Complete the required assessment to unlock this certificate.',
+      attempt_id: null,
+      start_date: a.start_date,
+      end_date: a.end_date,
+      exhausted: completionStatus === 'time_expired' || closed,
+      future,
+      issued_at: null,
+      reference_code: null,
+      download_url: null,
+      assessment_path: !closed && !future && completionStatus !== 'time_expired' ? `/respondent/assessments/${a.id}/take` : '/respondent/assessments',
+      action_label: completionStatus === 'in_progress' ? 'Resume assessment' : 'Take assessment',
+      attempt_count: a.attempt_count,
+      max_attempts: a.max_attempts,
+    };
+  });
+
+  const combined = [...knowledgeItems, ...researchItems];
+  const unlockedItems = combined.filter((item) => item.unlocked)
+    .sort((a, b) => String(b.issued_at).localeCompare(String(a.issued_at)));
+  const lockedItems = combined.filter((item) => !item.unlocked);
+  const items = [...unlockedItems, ...lockedItems];
+  return {
+    items,
+    summary: { total: items.length, unlocked: unlockedItems.length, locked: lockedItems.length },
+  };
+}
+
+function buildStaffCertificateItems(user) {
+  const knowledgeEarned = reportRows(user)
+    .filter((row) => row.certificate_earned)
+    .map((row) => ({
+      key: `knowledge:attempt:${row.id}`,
+      instrument: 'knowledge',
+      scoring_version: 'knowledge-achievement',
+      certificate_title: 'Certificate of Achievement',
+      assessment_id: row.quiz_id,
+      assessment_title: row.title,
+      unlocked: true,
+      status: 'unlocked',
+      completion_status: 'completed',
+      completion_label: 'Completed',
+      attempt_id: row.id,
+      recipient_name: `${row.first_name} ${row.last_name}`.trim(),
+      first_name: row.first_name,
+      last_name: row.last_name,
+      percentage: row.percentage,
+      level: row.level,
+      issued_at: row.completed_at,
+      reference_code: `MC-KQ-${String(row.id).padStart(7, '0')}`,
+      download_url: `/knowledge/attempts/${row.id}/export/certificate`,
+      result_path: `/respondent/knowledge/attempts/${row.id}`,
+      time_expired: row.completion_reason === 'time_expired',
+    }));
+
+  const scope = user.role === 'admin' ? '1=1'
+    : '(q.created_by=? OR EXISTS(SELECT 1 FROM assessment_assignments aa WHERE aa.assessment_id=q.id AND aa.assigned_by=?))';
+  const params = user.role === 'admin' ? [] : [user.id, user.id];
+  const researchEarned = db.prepare(`SELECT a.id,a.assessment_id,a.user_id,a.overall_mean,a.overall_level,a.completed_at,a.scoring_version,
+      q.title,u.first_name,u.last_name FROM assessment_attempts a JOIN assessments q ON q.id=a.assessment_id JOIN users u ON u.id=a.user_id
+      WHERE a.status='completed' AND ${scope} ORDER BY a.completed_at DESC,a.id DESC LIMIT 500`).all(...params)
+    .map((row) => {
+      const version = row.scoring_version || 'dlas-mean-1.0';
+      const theme = awardThemes[version] || awardThemes.default;
+      return {
+        key: `research:attempt:${row.id}`,
+        instrument: 'research',
+        scoring_version: version,
+        certificate_title: 'Certificate of Completion',
+        assessment_id: row.assessment_id,
+        assessment_title: row.title,
+        unlocked: true,
+        status: 'unlocked',
+        completion_status: 'completed',
+        completion_label: 'Completed',
+        attempt_id: row.id,
+        recipient_name: `${row.first_name} ${row.last_name}`.trim(),
+        first_name: row.first_name,
+        last_name: row.last_name,
+        overall_mean: row.overall_mean,
+        overall_level: row.overall_level,
+        issued_at: row.completed_at,
+        reference_code: `${theme.referencePrefix}-${String(row.id).padStart(7, '0')}`,
+        download_url: `/export/awards/${row.id}/pdf`,
+        result_path: `/respondent/assessments/${row.id}/results`,
+      };
+    });
+
+  const items = [...knowledgeEarned, ...researchEarned]
+    .sort((a, b) => String(b.issued_at).localeCompare(String(a.issued_at)));
+  return {
+    items,
+    summary: { total: items.length, unlocked: items.length, locked: 0 },
+  };
+}
+
+router.get('/certificates', handler((req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
+  const payload = req.user.role === 'respondent'
+    ? buildStudentCertificateItems(req.user.id)
+    : buildStaffCertificateItems(req.user);
+  return result(res, payload);
 }));
 
 router.get('/categories', handler((_req, res) => result(res, db.prepare(`SELECT c.*,
@@ -542,22 +846,23 @@ router.get('/attempts/:id/export/:format', handler(async (req, res) => {
   }
   if (format === 'certificate') {
     const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 0 });
-    res.type('application/pdf'); res.attachment(`Masbate_Colleges_Achievement_${attempt.id}.pdf`); doc.pipe(res);
-    doc.rect(0, 0, 842, 595).fill('#f8fbff'); doc.rect(25, 25, 792, 545).lineWidth(2).stroke('#2563eb');
-    doc.fillColor('#153e75').font('Helvetica-Bold').fontSize(17).text('MASBATE COLLEGES', 70, 66, { width: 702, align: 'center' });
-    doc.font('Times-Roman').fontSize(40).text('Certificate of Achievement', 70, 125, { width: 702, align: 'center' });
-    doc.font('Helvetica').fontSize(11).fillColor('#64748b').text('Presented to', 70, 201, { width: 702, align: 'center' });
-    const name = `${attempt.first_name} ${attempt.last_name}`;
-    let size = 33; doc.font('Times-Italic').fontSize(size);
-    while (doc.heightOfString(name, { width: 702, align: 'center' }) > 65 && size > 9) doc.fontSize(--size);
-    doc.fillColor('#153e75').text(name, 70, 232, { width: 702, align: 'center' });
-    doc.font('Helvetica').fontSize(12).fillColor('#475569').text('For meeting the assessment achievement requirement in', 70, 308, { width: 702, align: 'center' });
-    size = 17; doc.font('Helvetica-Bold').fontSize(size);
-    while (doc.heightOfString(snapshot.title, { width: 642, align: 'center' }) > 65 && size > 9) doc.fontSize(--size);
-    doc.fillColor('#17243a').text(snapshot.title, 100, 341, { width: 642, align: 'center' });
-    doc.fontSize(16).fillColor('#2563eb').text(`${score.level} · ${score.percentage}%`, 70, 421, { width: 702, align: 'center' });
-    doc.font('Helvetica').fontSize(10).fillColor('#475569').text(`Issued ${attempt.completed_at.slice(0, 10)}     ·     MC-KQ-${String(attempt.id).padStart(7, '0')}`, 70, 480, { width: 702, align: 'center' });
-    doc.fontSize(8).text('An assessment achievement award issued by this platform; not an external qualification or academic credit.', 70, 530, { width: 702, align: 'center' });
+    res.type('application/pdf'); res.attachment(`Masbate_Colleges_Achievement_${attempt.id}.pdf`);
+    doc.pipe(res);
+    drawCompletionAward(doc, {
+      id: attempt.id,
+      assessment_title: snapshot.title,
+      first_name: attempt.first_name,
+      last_name: attempt.last_name,
+      completed_at: attempt.completed_at,
+      scoring_version: 'knowledge-achievement',
+    }, {
+      subtitle: 'OF ACHIEVEMENT',
+      purpose: 'for meeting the assessment achievement requirement in',
+      scoreLine: `${score.level} · ${score.percentage}%`,
+      dateLabel: 'ISSUED ON',
+      sealLabel: 'ACHIEVED',
+      footnote: 'An assessment achievement award issued by this platform; not an external qualification or academic credit.',
+    });
     return doc.end();
   }
   const doc = new PDFDocument({ size: 'A4', margin: 45 }); res.type('application/pdf'); res.attachment(`Knowledge_Result_${attempt.id}.pdf`); doc.pipe(res);

@@ -14,5 +14,13 @@
     "tint": "#eaf5f3",
     "label": "DigCompSAT Self-Reflection",
     "referencePrefix": "MC-DCS"
+  },
+  "knowledge-achievement": {
+    "primary": "#075b3b",
+    "accent": "#c49a43",
+    "paper": "#fffdf7",
+    "tint": "#eef7f1",
+    "label": "Achievement Certificate",
+    "referencePrefix": "MC-KQ"
   }
 }

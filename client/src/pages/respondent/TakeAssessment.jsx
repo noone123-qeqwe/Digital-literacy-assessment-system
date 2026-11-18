@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { ratingScale, competenceAreas, formatTime } from '../../utils/helpers';
 import toast from 'react-hot-toast';
+import { emitCertificateSync } from '../../utils/certificateEvents';
 import { useAuth } from '../../contexts/useAuth';
 import {
   clearAttemptCheckpoint,
@@ -749,6 +750,7 @@ export const TakeAssessment = () => {
           clearQueuedResponses(currentUserId, id),
           clearAttemptCheckpoint(currentUserId, id),
         ]);
+        emitCertificateSync({ instrument: 'research', assessmentId: Number(id), attemptId: attempt.id, unlocked: true });
         toast.success('Assessment submitted and evaluated successfully!');
         navigate(`/respondent/assessments/${attempt.id}/results`);
       }
@@ -969,7 +971,7 @@ export const TakeAssessment = () => {
         </p>
       )}
 
-      {showSyncNotice && <div role="status" className={`flex flex-col gap-3 rounded-2xl border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between ${isOnline ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-sky-200 bg-sky-50 text-sky-900'}`}>
+      {showSyncNotice && <div role="status" className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-bold">{syncBlockedReason ? 'Answers need instructor attention' : !isOnline ? 'Connection interrupted' : syncConnectionError ? 'Cannot sync with the assessment server' : isOfflineRecovery ? 'Recovered work is waiting to sync' : 'Answers are waiting to sync'}</p>
           <p className="mt-0.5 text-sm leading-5">{syncBlockedReason || 'Keep using this browser to sync your saved answers. Submit after every answer is saved to the system.'}</p>
@@ -1103,11 +1105,11 @@ export const TakeAssessment = () => {
           );
         })}
         {!isDigCompSat && activeDomain === 'ALL' && page + 1 === pageCount && (
-          <section className="rounded-3xl border border-sky-200 bg-white p-6 shadow-xs sm:p-7" aria-labelledby="desired-skills-title">
+          <section className="rounded-3xl border border-green-200 bg-white p-6 shadow-xs sm:p-7" aria-labelledby="desired-skills-title">
             <div className="flex flex-wrap items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-50 text-sky-700"><Info aria-hidden="true" className="h-5 w-5" /></div>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-green-50 text-green-700"><Info aria-hidden="true" className="h-5 w-5" /></div>
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-sky-700">Part III · Open-ended question</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-green-700">Part III · Open-ended question</p>
                 <h2 id="desired-skills-title" className="mt-1 text-base font-bold leading-snug text-slate-900">Which digital skills would you most like to develop in college?</h2>
                 <p className="mt-1 text-sm leading-5 text-slate-600">Your answer is optional and is not included in your digital literacy score.</p>
               </div>
@@ -1185,7 +1187,7 @@ export const TakeAssessment = () => {
           </div>
 
           {!isDigCompSat && (
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-sky-200 bg-sky-50/70 px-4 py-3 text-xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-green-200 bg-green-50/70 px-4 py-3 text-xs">
               <div className="min-w-0">
                 <p className="font-bold text-slate-900">Part III · Open-ended question (optional)</p>
                 <p className="mt-0.5 text-slate-600">
@@ -1197,7 +1199,7 @@ export const TakeAssessment = () => {
               <button
                 type="button"
                 onClick={goToPartThree}
-                className="min-h-9 shrink-0 rounded-lg border border-sky-200 bg-white px-3 font-semibold text-sky-800 hover:bg-sky-50"
+                className="min-h-9 shrink-0 rounded-lg border border-green-200 bg-white px-3 font-semibold text-green-800 hover:bg-green-50"
               >
                 {desiredSkills.trim() ? 'Edit response' : 'Answer Part III'}
               </button>

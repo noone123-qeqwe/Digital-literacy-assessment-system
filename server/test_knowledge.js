@@ -181,6 +181,46 @@ async function run() {
     check((await request('/reports/pdf', { actor: maria })).status === 403, 'students cannot export staff cohort reports');
     check([59.99, 60, 69.99, 70, 79.99, 80, 89.99, 90, 100].map(levelFor).join('|') === 'Needs Improvement|Beginner|Beginner|Developing|Developing|Proficient|Proficient|Advanced|Advanced', 'all percentage proficiency boundaries match the specification');
     check((await request('/research-results', { actor: maria })).data.data.every((row) => row.user_id === maria.id), 'research history remains separate and ownership filtered');
+
+    const certQuiz = await request('/quizzes', { actor: admin, method: 'POST', body: { ...config, title: 'Certificate Lock Flow Quiz', question_ids: [ids[1]], assigned_user_ids: [juan.id], max_attempts: 2, pass_percentage: 80, status: 'published' } });
+    const certQuizId = certQuiz.data.data.id;
+    const beforeCerts = await request('/certificates', { actor: juan });
+    const lockedBefore = beforeCerts.data.data.items.find((item) => item.instrument === 'knowledge' && item.assessment_id === certQuizId);
+    check(beforeCerts.status === 200 && lockedBefore && lockedBefore.unlocked === false && lockedBefore.status === 'locked' && lockedBefore.download_url === null && lockedBefore.reference_code === null && lockedBefore.completion_status === 'not_started', 'unattempted assigned assessment shows as a locked certificate in My Certificates');
+
+    const failAttempt = await request(`/quizzes/${certQuizId}/start`, { actor: juan, method: 'POST', body: { accepted_instructions: true } });
+    const failAttemptId = failAttempt.data.data.attempt.id;
+    const inProgressCerts = await request('/certificates', { actor: juan });
+    const lockedInProgress = inProgressCerts.data.data.items.find((item) => item.instrument === 'knowledge' && item.assessment_id === certQuizId);
+    check(lockedInProgress.unlocked === false && lockedInProgress.completion_status === 'in_progress' && lockedInProgress.download_url === null, 'in-progress assessments keep their certificate locked');
+
+    await request(`/attempts/${failAttemptId}/answers`, { actor: juan, method: 'PUT', body: { responses: [{ question_id: ids[1], answer: 'true' }] } });
+    await request(`/attempts/${failAttemptId}/submit`, { actor: juan, method: 'POST' });
+    const belowCerts = await request('/certificates', { actor: juan });
+    const lockedBelow = belowCerts.data.data.items.find((item) => item.instrument === 'knowledge' && item.assessment_id === certQuizId);
+    check(lockedBelow.unlocked === false && lockedBelow.completion_status === 'below_threshold' && lockedBelow.download_url === null, 'completing an assessment below the threshold keeps the certificate locked');
+
+    const passAttempt = await request(`/quizzes/${certQuizId}/start`, { actor: juan, method: 'POST', body: { accepted_instructions: true } });
+    const passAttemptId = passAttempt.data.data.attempt.id;
+    await request(`/attempts/${passAttemptId}/answers`, { actor: juan, method: 'PUT', body: { responses: [{ question_id: ids[1], answer: 'false' }] } });
+    await request(`/attempts/${passAttemptId}/submit`, { actor: juan, method: 'POST' });
+
+    const juanRelogin = session(db.prepare("SELECT id FROM users WHERE email='juan.delacruz@example.com'").get());
+    const unlockedCerts = await request('/certificates', { actor: juanRelogin });
+    const unlockedItem = unlockedCerts.data.data.items.find((item) => item.instrument === 'knowledge' && item.assessment_id === certQuizId);
+    check(unlockedItem && unlockedItem.unlocked === true && unlockedItem.status === 'unlocked' && unlockedItem.attempt_id === passAttemptId && unlockedItem.reference_code === `MC-KQ-${String(passAttemptId).padStart(7, '0')}` && unlockedItem.download_url === `/knowledge/attempts/${passAttemptId}/export/certificate`, 'meeting the requirement unlocks the certificate in DB and persists across re-login');
+
+    const unlockedPdf = await request(`/attempts/${passAttemptId}/export/certificate`, { actor: juanRelogin });
+    check(unlockedPdf.status === 200 && unlockedPdf.data.subarray(0, 4).toString() === '%PDF', 'unlocked knowledge certificate exports a valid PDF');
+
+    const extraResearchId = db.prepare("INSERT INTO assessments(title,description,created_by,status,max_attempts) VALUES('Research Lock Flow Survey','Certificate lock check',?,'active',1)").run(admin.id).lastInsertRowid;
+    db.prepare('INSERT INTO assessment_assignments(assessment_id,user_id,assigned_by) VALUES(?,?,?)').run(extraResearchId, juan.id, admin.id);
+    const lockedRes = (await request('/certificates', { actor: juanRelogin })).data.data.items.find((item) => item.instrument === 'research' && item.assessment_id === extraResearchId);
+    check(lockedRes && lockedRes.unlocked === false && lockedRes.status === 'locked' && lockedRes.download_url === null && lockedRes.reference_code === null, 'incomplete assigned research assessments show a locked certificate until submitted');
+    const completedResId = db.prepare("INSERT INTO assessment_attempts(assessment_id,user_id,status,started_at,completed_at,overall_mean,overall_level,scoring_version) VALUES(?,?,'completed',datetime('now','-5 minutes'),datetime('now'),3.5,'Very High','dlas-mean-1.0')").run(extraResearchId, juan.id).lastInsertRowid;
+    const unlockedRes = (await request('/certificates', { actor: juanRelogin })).data.data.items.find((item) => item.instrument === 'research' && item.assessment_id === extraResearchId);
+    check(unlockedRes && unlockedRes.unlocked === true && unlockedRes.status === 'unlocked' && unlockedRes.attempt_id === completedResId && unlockedRes.download_url === `/export/awards/${completedResId}/pdf`, 'completing an assigned research assessment unlocks its completion award in DB');
+
     console.log(`\nKnowledge checks: ${checks} passed, 0 failed`);
   } finally {
     await new Promise((resolve) => server.close(resolve)); db.close();

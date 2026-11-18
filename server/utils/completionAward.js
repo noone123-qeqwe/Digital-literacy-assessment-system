@@ -27,16 +27,22 @@ function fittedText(doc, text, { x, y, width, height, font, size, minSize, color
   });
 }
 
-function drawCompletionAward(doc, attempt) {
+function drawCompletionAward(doc, attempt, options = {}) {
   const theme = awardTheme(attempt);
   const { width, height } = doc.page;
   const reference = `${theme.referencePrefix}-${String(attempt.id).padStart(7, '0')}`;
   const name = `${attempt.first_name || ''} ${attempt.last_name || ''}`.trim();
   const logoPath = path.resolve(__dirname, '../../client/public/masbate-colleges-logo.png');
   const title = String(attempt.assessment_title || 'Digital Literacy Assessment');
-  doc.info.Title = `${title} - Completion Award`;
+  const subtitle = options.subtitle || 'OF COMPLETION';
+  const purpose = options.purpose || 'for completing the digital literacy assessment';
+  const dateLabel = options.dateLabel || 'COMPLETED ON';
+  const sealLabel = options.sealLabel || 'COMPLETED';
+  const scoreLine = options.scoreLine || '';
+  const footnote = options.footnote || 'Recognizes assessment completion only. This award does not confer proficiency certification or academic credit.';
+  doc.info.Title = `${title} - ${subtitle === 'OF ACHIEVEMENT' ? 'Achievement Certificate' : 'Completion Award'}`;
   doc.info.Author = 'Masbate Colleges - College of Computer Studies';
-  doc.info.Subject = `Assessment completion for ${name}`;
+  doc.info.Subject = `Assessment award for ${name}`;
 
   doc.rect(0, 0, width, height).fill(theme.paper);
   doc.moveTo(0, 0).lineTo(152, 0).lineTo(0, 152).closePath().fill(theme.primary);
@@ -56,7 +62,7 @@ function drawCompletionAward(doc, attempt) {
   doc.moveTo(66, 132).lineTo(width - 66, 132).lineWidth(0.5).strokeColor('#d9e1da').stroke();
 
   doc.fillColor(theme.primary).font('Times-Roman').fontSize(43).text('Certificate', 95, 154, { width: width - 190, align: 'center', lineBreak: false });
-  doc.font('Helvetica-Bold').fontSize(11).fillColor('#3a4840').text('OF COMPLETION', 100, 207, {
+  doc.font('Helvetica-Bold').fontSize(11).fillColor('#3a4840').text(subtitle, 100, 207, {
     width: width - 200, align: 'center', characterSpacing: 3,
   });
   doc.fillColor('#6b776f').font('Helvetica').fontSize(10.5).text('PRESENTED TO', 100, 244, {
@@ -68,17 +74,22 @@ function drawCompletionAward(doc, attempt) {
     font: 'Times-Italic', size: 37, minSize: 12, color: theme.primary, lineGap: 0,
   });
   doc.moveTo(251, 337).lineTo(width - 251, 337).lineWidth(1).strokeColor(theme.accent).stroke();
-  doc.fillColor('#58675e').font('Helvetica').fontSize(11).text('for completing the digital literacy assessment', 100, 352, {
+  doc.fillColor('#58675e').font('Helvetica').fontSize(11).text(purpose, 100, 352, {
     width: width - 200, align: 'center',
   });
   fittedText(doc, title, {
-    x: 115, y: 377, width: width - 230, height: 67,
+    x: 115, y: 377, width: width - 230, height: scoreLine ? 46 : 67,
     font: 'Helvetica-Bold', size: 19, minSize: 11, color: '#243e30', lineGap: 1,
   });
+  if (scoreLine) {
+    doc.fillColor(theme.primary).font('Helvetica-Bold').fontSize(13.5).text(scoreLine, 115, 427, {
+      width: width - 230, align: 'center', lineBreak: false,
+    });
+  }
 
   doc.moveTo(77, 463).lineTo(302, 463).lineWidth(0.5).strokeColor('#d9e1da').stroke();
   doc.moveTo(width - 302, 463).lineTo(width - 77, 463).stroke();
-  doc.font('Helvetica').fontSize(8).fillColor('#748077').text('COMPLETED ON', 77, 475, { width: 225, characterSpacing: 1 });
+  doc.font('Helvetica').fontSize(8).fillColor('#748077').text(dateLabel, 77, 475, { width: 225, characterSpacing: 1 });
   doc.font('Helvetica-Bold').fontSize(11).fillColor(theme.primary).text(completionDate(attempt.completed_at), 77, 492, { width: 225 });
   doc.font('Helvetica').fontSize(8).fillColor('#748077').text('AWARD REFERENCE', width - 302, 475, { width: 225, align: 'right', characterSpacing: 1 });
   doc.font('Helvetica-Bold').fontSize(10.5).fillColor(theme.primary).text(reference, width - 302, 492, { width: 225, align: 'right' });
@@ -99,10 +110,10 @@ function drawCompletionAward(doc, attempt) {
   doc.circle(0, 0, 19).lineWidth(0.8).strokeColor(theme.primary).stroke();
   doc.moveTo(-9, -3).lineTo(-2, 4).lineTo(10, -9).lineWidth(2.5).strokeColor(theme.primary).stroke();
   doc.restore();
-  doc.font('Helvetica-Bold').fontSize(5.4).fillColor(theme.primary).text('COMPLETED', centerX - 25, centerY + 9, { width: 50, align: 'center', characterSpacing: 0.4 });
+  doc.font('Helvetica-Bold').fontSize(5.4).fillColor(theme.primary).text(sealLabel, centerX - 25, centerY + 9, { width: 50, align: 'center', characterSpacing: 0.4 });
 
   doc.fillColor('#6f7a72').font('Helvetica').fontSize(8).text(
-    'Recognizes assessment completion only. This award does not confer proficiency certification or academic credit.',
+    footnote,
     72, 540, { width: width - 144, align: 'center' }
   );
   return reference;

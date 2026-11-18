@@ -863,7 +863,7 @@ export const AssessmentsManagement = () => {
                             : '—'}
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${isTimedOut ? 'bg-amber-50 text-amber-800' : participant.attempt_status === 'completed' ? 'bg-emerald-50 text-emerald-800' : participant.attempt_status === 'in_progress' ? 'bg-sky-50 text-sky-800' : 'bg-slate-100 text-slate-600'}`}>
+                          <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${isTimedOut ? 'bg-amber-50 text-amber-800' : participant.attempt_status === 'completed' ? 'bg-emerald-50 text-emerald-800' : participant.attempt_status === 'in_progress' ? 'bg-green-50 text-green-800' : 'bg-slate-100 text-slate-600'}`}>
                             {status}
                           </span>
                           {participant.completed_at && <p className="mt-1 text-[11px] text-slate-500">{formatDateTime(participant.completed_at)}</p>}

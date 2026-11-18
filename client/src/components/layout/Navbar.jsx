@@ -117,7 +117,7 @@ export const Navbar = ({ setIsSidebarOpen, isSidebarOpen, dashboardMode = false 
               : `student-profile-link flex items-center space-x-3 border-l border-slate-200 pl-3 2xl:space-x-4 2xl:pl-4 ${profileLink ? 'rounded-xl py-1 pr-2 transition-colors hover:bg-slate-100/80' : ''}`
           }
         >
-          <div aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-slate-800 to-slate-950 text-sm font-bold text-white shadow-xs ring-2 ring-green-100 2xl:h-12 2xl:w-12 2xl:text-base">
+          <div aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gradient-to-br from-green-800 to-green-950 text-sm font-bold text-white shadow-xs ring-2 ring-green-100 2xl:h-12 2xl:w-12 2xl:text-base">
             {profilePictureUrl ? (
               <img src={profilePictureUrl} alt="" className="h-full w-full object-cover" />
             ) : (
