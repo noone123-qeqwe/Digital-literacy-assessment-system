@@ -11,6 +11,7 @@ const { rateLimit } = require('../middleware/rateLimit');
 const {
   issueSession, revokeSession, revokeUserSessions, clearSessionCookies,
   encryptSecret, decryptSecret, generateTotpSecret, verifyTotp, safeEqual,
+  canonicalEmail, findCanonicalEmailConflict,
   generateEmailOtp, hashCode, normalizeBackupCode, generateBackupCodes,
 } = require('../utils/authSecurity');
 const { sendSecurityEmail, clientUrl } = require('../utils/email');
@@ -18,6 +19,14 @@ const { enrollPublishedQuizzes } = require('../utils/quizEnrollment');
 const { isMfaRequired } = require('../utils/mfaPolicy');
 
 const loginLimit = rateLimit({ id: 'auth-login', windowMs: 15 * 60 * 1000, max: 10, message: 'Too many sign-in attempts. Try again in 15 minutes.' });
+const loginAccountLimit = rateLimit({
+  id: 'auth-login-account',
+  windowMs: 15 * 60 * 1000,
+  max: 15,
+  message: 'Too many sign-in attempts for this account. Try again in 15 minutes.',
+  keyFn: (req) => canonicalEmail(req.body?.email || ''),
+});
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync(crypto.randomBytes(24).toString('hex'), 12);
 const registrationLimit = rateLimit({ id: 'auth-register', windowMs: 60 * 60 * 1000, max: 10, message: 'Too many registration attempts. Try again later.' });
 const tokenRequestLimit = rateLimit({ id: 'auth-token-request', windowMs: 60 * 60 * 1000, max: 5, message: 'Too many requests. Try again later.' });
 // Redeeming a one-time link must not spend the email-request quota. Several
@@ -131,7 +140,7 @@ function matchesImageSignature(imageBuffer, mimeType) {
 }
 
 // POST /api/auth/login
-router.post('/login', loginLimit, [
+router.post('/login', loginLimit, loginAccountLimit, [
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required'),
   body('password').notEmpty().withMessage('Password is required'),
 ], async (req, res, next) => {
@@ -149,6 +158,7 @@ router.post('/login', loginLimit, [
   ).get(email);
 
   if (!user) {
+    await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
     return res.status(401).json({ success: false, message: 'Invalid email or password.' });
   }
 
@@ -220,7 +230,7 @@ router.post('/register', registrationLimit, [
   const { email, password, first_name, last_name } = req.body;
   const institutionalId = String(req.body.institutional_id || '').trim().toUpperCase() || null;
 
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email) || findCanonicalEmailConflict(db, email);
   if (existing) {
     return res.status(409).json({ success: false, message: 'Email already registered.' });
   }

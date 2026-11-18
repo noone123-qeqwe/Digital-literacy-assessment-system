@@ -1,0 +1,19 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:04.000
+01 · OVERVIEW: Navigate websites critically instead of clicking blindly. Distinguish your web browser from search engines, ads, and spoofed login portals.
+
+00:00:04.000 --> 00:00:08.000
+02 · URL ANATOMY: Find the real domain just before the first /. In portal.school.edu.verify-login.net, the true owner is verify-login.net.
+
+00:00:08.000 --> 00:00:12.000
+03 · HTTPS PADLOCK: HTTPS encrypts traffic—not website honesty. It shields passwords on campus Wi-Fi, yet scam sites can still get TLS certificates.
+
+00:00:12.000 --> 00:00:16.000
+04 · SMART SEARCH: Filter ads and target authoritative sources. Combine "exact phrase", -exclude, and site:.gov.ph or site:.edu.ph queries.
+
+00:00:16.000 --> 00:00:20.000
+05 · DOWNLOADS: Check publisher and true file extension first. Avoid "Sponsored" installer clones; check that a syllabus isn't actually an .exe.
+
+00:00:20.000 --> 00:00:24.000
+06 · TRY IT: Bookmark official logins and test one filtered query. Bookmarks eliminate typosquatting traps when accessing portals or banking.

@@ -6,6 +6,7 @@ const { authenticate, authorize, canAccessAssessment } = require('../middleware/
 const { getStudyProfile } = require('../utils/studyProfile');
 const { getStudyReadiness } = require('../utils/studyReadiness');
 const { sendSecurityEmail, clientUrl } = require('../utils/email');
+const { canonicalEmail } = require('../utils/authSecurity');
 const { rateLimit } = require('../middleware/rateLimit');
 
 const router = express.Router();
@@ -60,6 +61,9 @@ router.post('/:assessmentId', authenticate, authorize('respondent'), [
   const guardianEmail = String(req.body.guardian_email || '').trim().toLowerCase();
   if (isMinor && (!guardianName || !guardianRelationship || !guardianEmail)) {
     return res.status(400).json({ success: false, message: 'Provide the parent or guardian’s name, relationship, and email. They must confirm consent from their own inbox.' });
+  }
+  if (isMinor && canonicalEmail(guardianEmail) === canonicalEmail(req.user.email)) {
+    return res.status(400).json({ success: false, message: 'The parent or guardian email must be different from the student’s own account email.' });
   }
 
   try {

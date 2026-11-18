@@ -20,6 +20,37 @@ const keyFor = (userId, attemptId) => `${userId}:${attemptId}`;
 export const readQuizRecovery = (userId, attemptId) => storage('get', keyFor(userId, attemptId));
 export const writeQuizRecovery = (userId, attemptId, record) => storage('put', keyFor(userId, attemptId), { ...record, userId, attemptId, savedAt: new Date().toISOString() });
 export const clearQuizRecovery = (userId, attemptId) => storage('delete', keyFor(userId, attemptId));
+export function clearAllQuizRecoveryForUser(userId) {
+  if (!userId || typeof window === 'undefined' || !('indexedDB' in window)) return Promise.resolve();
+  return new Promise((resolve) => {
+    try {
+      const request = indexedDB.open(DATABASE, 1);
+      request.onupgradeneeded = () => request.result.createObjectStore('attempts');
+      request.onerror = () => resolve();
+      request.onsuccess = () => {
+        const database = request.result;
+        try {
+          const transaction = database.transaction('attempts', 'readwrite');
+          const store = transaction.objectStore('attempts');
+          const keysReq = store.getAllKeys();
+          keysReq.onsuccess = () => {
+            const prefix = `${userId}:`;
+            for (const key of keysReq.result || []) {
+              if (String(key).startsWith(prefix)) store.delete(key);
+            }
+          };
+          transaction.oncomplete = () => { database.close(); resolve(); };
+          transaction.onerror = transaction.onabort = () => { database.close(); resolve(); };
+        } catch {
+          database.close();
+          resolve();
+        }
+      };
+    } catch {
+      resolve();
+    }
+  });
+}
 
 export function downloadQuizRecovery(record) {
   const file = new Blob([JSON.stringify(record, null, 2)], { type: 'application/json' });

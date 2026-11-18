@@ -7,6 +7,8 @@ const { drawCompletionAward } = require('../utils/completionAward');
 const { db, logActivity } = require('../db/database');
 const { authenticate, authorize, canAccessAttempt, canAccessAssessment } = require('../middleware/auth');
 
+const safeCell = (value) => (typeof value === 'string' && /^[=+@\-\t\r]/.test(value) ? `'${value}` : value);
+
 function auditSuccessfulExport(req, res, action, details) {
   res.once('finish', () => {
     if (res.statusCode < 400) logActivity(req.user.id, action, details);
@@ -261,8 +263,8 @@ router.get('/results/:attemptId/excel', authenticate, async (req, res) => {
         num: r.question_number,
         framework_id: r.framework_competence_id || '',
         response_type: r.response_type || '',
-        area: `${r.area_name} (${r.area_code})`,
-        text: r.question_text,
+        area: safeCell(`${r.area_name} (${r.area_code})`),
+        text: safeCell(r.question_text),
         rating: r.rating
       });
     }
@@ -284,7 +286,7 @@ router.get('/results/:attemptId/excel', authenticate, async (req, res) => {
         : (attempt.desired_skills_reviewed_at ? attempt.desired_skills_redacted : null);
       sheet.addRow({
         num: '', area: '',
-        text: skillsToShow || (attempt.desired_skills && req.user.role !== 'respondent' ? 'Withheld pending privacy review' : 'No response provided'),
+        text: safeCell(skillsToShow || (attempt.desired_skills && req.user.role !== 'respondent' ? 'Withheld pending privacy review' : 'No response provided')),
         rating: '',
       });
     } else {
@@ -522,7 +524,7 @@ router.get('/assessment/:id/excel', authenticate, authorize('admin', 'assessor')
     partThreeSheet.getRow(1).font = { bold: true };
     const reviewedPartThree = participants.filter((row) => row.desired_skills_reviewed_at && row.desired_skills_redacted);
     for (const participant of (reviewedPartThree.length >= 5 ? reviewedPartThree : [])) {
-      partThreeSheet.addRow({ respondent_code: participant.respondent_code, desired_skills: participant.desired_skills_redacted });
+      partThreeSheet.addRow({ respondent_code: participant.respondent_code, desired_skills: safeCell(participant.desired_skills_redacted) });
     }
     partThreeSheet.addRow({
       respondent_code: 'Privacy review',

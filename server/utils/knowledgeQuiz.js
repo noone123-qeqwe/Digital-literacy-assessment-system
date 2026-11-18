@@ -41,6 +41,28 @@ function questionInput(body) {
 function publicSnapshot(snapshot) {
   return { ...snapshot, questions: snapshot.questions.map(({ answers, explanation, ...question }) => question) };
 }
+// Authoring stores multiple-choice option ids as their original index ("0", "1", ...), and authors
+// often place the correct choice first. Each attempt receives random, unguessable ids instead so the
+// network payload never reveals the authored order or the likely correct option.
+function withOpaqueOptionIds(question) {
+  if (question.type !== 'multiple_choice') return question;
+  const used = new Set();
+  const remap = new Map();
+  const options = question.options.map((option) => {
+    let opaque;
+    do opaque = crypto.randomBytes(6).toString('base64url'); while (used.has(opaque));
+    used.add(opaque);
+    remap.set(option.id, opaque);
+    return { ...option, id: opaque };
+  });
+  return { ...question, options, answers: question.answers.map((key) => remap.get(key) ?? key) };
+}
+// Results returned to a student before the answer key is released: totals and category feedback only.
+function lockedReview(score) {
+  return { earned: score.earned, possible: score.possible, percentage: score.percentage, level: score.level,
+    certificateEarned: score.certificateEarned, categories: score.categories, review_locked: true,
+    questions: score.questions.map(({ id, category_id, category_name, prompt, type, options, points, answer }) => ({ id, category_id, category_name, prompt, type, options, points, answer })) };
+}
 function scoreSnapshot(snapshot, responses) {
   const byId = new Map(responses.map((response) => [response.question_id, response.answer]));
   const categories = new Map();
@@ -60,4 +82,4 @@ function scoreSnapshot(snapshot, responses) {
   return { earned, possible, percentage, level: levelFor(percentage), certificateEarned: percentage >= snapshot.pass_percentage,
     questions, categories: [...categories.values()].map((category) => ({ ...category, percentage: Math.round(category.earned / category.possible * 10000) / 100 })) };
 }
-module.exports = { questionInput, publicSnapshot, scoreSnapshot, levelFor, shuffled };
+module.exports = { questionInput, publicSnapshot, scoreSnapshot, levelFor, shuffled, withOpaqueOptionIds, lockedReview };

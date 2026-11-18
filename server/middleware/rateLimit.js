@@ -1,7 +1,7 @@
 const crypto = require('crypto');
 const { db } = require('../db/database');
 
-function rateLimit({ id, windowMs, max, message }) {
+function rateLimit({ id, windowMs, max, message, keyFn }) {
   const limiterId = id || 'default';
   let cleanupScheduled = false;
   const incrementBucket = db.prepare(`
@@ -14,11 +14,13 @@ function rateLimit({ id, windowMs, max, message }) {
   `);
   return (req, res, next) => {
     const now = Date.now();
-    const remoteAddress = req.ip || req.socket.remoteAddress || 'unknown';
-    const addressHash = crypto.createHmac('sha256', process.env.JWT_SECRET || 'dlas-local-rate-limit-key')
-      .update(remoteAddress)
+    const rawKey = keyFn ? keyFn(req) : undefined;
+    if (keyFn && !rawKey) return next();
+    const identity = rawKey || req.ip || req.socket.remoteAddress || 'unknown';
+    const identityHash = crypto.createHmac('sha256', process.env.JWT_SECRET || 'dlas-local-rate-limit-key')
+      .update(String(identity))
       .digest('hex');
-    const key = `${limiterId}:${addressHash}`;
+    const key = `${limiterId}:${identityHash}`;
     const resetAt = now + windowMs;
     const bucket = incrementBucket.get(key, resetAt, now, now, resetAt);
 

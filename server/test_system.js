@@ -351,6 +351,11 @@ async function run() {
     check(db.prepare('SELECT institutional_id FROM users WHERE id = ?').get(registration.data.data.user.id).institutional_id === '2026-0001', 'optional student ID is saved in normalized form for roster matching');
     const duplicateStudentId = await request(baseUrl, '/auth/register', { method: 'POST', body: { first_name: 'Another', last_name: 'Student', email: 'duplicate-id@example.test', password: 'SecureTestPass789!', institutional_id: '2026-0001' } });
     check(duplicateStudentId.status === 409 && duplicateStudentId.data.message.includes('Student ID'), 'duplicate optional student IDs are rejected clearly');
+    const aliasRegistration = await request(baseUrl, '/auth/register', {
+      method: 'POST',
+      body: { first_name: 'Alias', last_name: 'Bypass', email: 'jamie+alt1@example.test', password: 'SecureTestPass123!' },
+    });
+    check(aliasRegistration.status === 409 && aliasRegistration.data.message.includes('Email already registered'), 'email subaddress alias accounts targeting the same inbox are blocked');
     const secondRegistration = await request(baseUrl, '/auth/register', {
       method: 'POST',
       body: { first_name: 'Taylor', last_name: 'Student', email: 'taylor@example.test', password: 'SecureTestPass456!' },
@@ -454,6 +459,11 @@ async function run() {
       method: 'POST', token: studentToken, body: { assessment_id: assessmentId },
     });
     check(consentGate.status === 428 && consentGate.data.consentRequired, 'assigned respondent must consent before beginning research assessment');
+    const selfGuardianConsent = await request(baseUrl, `/consents/${assessmentId}`, {
+      method: 'POST', token: studentToken,
+      body: { participant_name: 'Jamie Student', participant_age: 16, participant_confirmed: true, guardian_name: 'Jamie Parent', guardian_relationship: 'Parent', guardian_email: 'jamie+self@example.test' },
+    });
+    check(selfGuardianConsent.status === 400 && selfGuardianConsent.data.message.includes('different'), 'minor participants cannot verify parental consent using their own email inbox');
     const adultConsent = await request(baseUrl, `/consents/${assessmentId}`, {
       method: 'POST', token: studentToken,
       body: { participant_name: 'Jamie Student', participant_age: 18, participant_confirmed: true },
@@ -602,7 +612,9 @@ async function run() {
     const scheduledAttempt = await request(baseUrl, '/attempts', {
       method: 'POST', token: studentToken, body: { assessment_id: scheduled.data.data.id },
     });
-    check(scheduled.status === 201 && scheduledAttempt.status === 400, 'future assessments cannot be started early');
+    const scheduledDetails = await request(baseUrl, `/assessments/${scheduled.data.data.id}`, { token: studentToken });
+    check(scheduled.status === 201 && scheduledAttempt.status === 400 && scheduledDetails.status === 200
+      && scheduledDetails.data.data.questions.length === 0 && !('instrument_snapshot' in scheduledDetails.data.data), 'future assessments cannot be started early and hide questions until opening');
 
     const assessorCreate = await request(baseUrl, '/users', {
       method: 'POST', token: adminToken,

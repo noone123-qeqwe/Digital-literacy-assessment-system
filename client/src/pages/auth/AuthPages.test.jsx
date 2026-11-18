@@ -8,7 +8,6 @@ import LoginPage from './LoginPage';
 import RegisterPage from './RegisterPage';
 
 function renderWithAuth(ui, authOverrides = {}, initialEntries = ['/']) {
-  sessionStorage.setItem('dlas:login-intro:seen:v1', '1');
   const authValue = {
     user: null,
     loading: false,
@@ -53,6 +52,8 @@ describe('LoginPage', () => {
 
     renderWithAuth(<LoginPage />, { login }, ['/login']);
 
+    expect(screen.queryByRole('button', { name: /Skip intro|Continue to sign in/i })).not.toBeInTheDocument();
+
     fireEvent.change(screen.getByLabelText(/Email address/i), { target: { value: 'admin@dlas.edu.ph' } });
     fireEvent.change(screen.getByLabelText(/^Password$/i), { target: { value: 'AdminPass123!' } });
     fireEvent.submit(screen.getByRole('button', { name: /Sign in/i }).closest('form'));
@@ -71,6 +72,8 @@ describe('LoginPage', () => {
     });
 
     renderWithAuth(<LoginPage />, { login }, ['/login']);
+
+    expect(screen.queryByRole('button', { name: /Skip intro|Continue to sign in/i })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText(/Email address/i), { target: { value: 'admin@dlas.edu.ph' } });
     fireEvent.change(screen.getByLabelText(/^Password$/i), { target: { value: 'AdminPass123!' } });

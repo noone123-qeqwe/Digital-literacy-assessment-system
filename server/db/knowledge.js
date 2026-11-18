@@ -1,3 +1,5 @@
+const { STARTER_MATERIALS } = require('./starterMaterials');
+
 const categories = [
   ['Computer Literacy', 'Understand devices, operating systems, files, and troubleshooting.', 'Name hardware and software and explain their roles.|Organize files into clearly named folders and keep a backup.|Install updates from trusted sources and restart when required.|Use keyboard shortcuts, accessibility tools, and safe troubleshooting.'],
   ['Internet Literacy', 'Navigate websites, browsers, searches, and online services.', 'Check the address of the website before entering information.|Use browser tabs, bookmarks, and specific search terms.|Distinguish a search result from a paid advertisement.|Download files only from trusted publishers.'],
@@ -63,6 +65,8 @@ function initializeKnowledge(db) {
     CREATE TABLE IF NOT EXISTS quiz_materials (
       id INTEGER PRIMARY KEY AUTOINCREMENT, category_id INTEGER NOT NULL REFERENCES quiz_categories(id),
       title TEXT NOT NULL, content TEXT NOT NULL, resource_url TEXT NOT NULL DEFAULT '',
+      image_url TEXT NOT NULL DEFAULT '', image_caption TEXT NOT NULL DEFAULT '',
+      video_url TEXT NOT NULL DEFAULT '', video_title TEXT NOT NULL DEFAULT '',
       is_published INTEGER NOT NULL DEFAULT 1, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS quiz_material_completions (
@@ -72,6 +76,15 @@ function initializeKnowledge(db) {
     );
   `);
   if (!db.prepare('PRAGMA table_info(quiz_attempts)').all().some((column) => column.name === 'answers_revision')) db.exec('ALTER TABLE quiz_attempts ADD COLUMN answers_revision INTEGER NOT NULL DEFAULT 0');
+  // Academic-integrity signals recorded during an attempt (tab switches, copy/paste, extra sign-in sessions).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS quiz_integrity_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      attempt_id INTEGER NOT NULL REFERENCES quiz_attempts(id) ON DELETE CASCADE,
+      event_type TEXT NOT NULL, detail TEXT NOT NULL DEFAULT '', occurred_at TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_quiz_integrity_attempt ON quiz_integrity_events(attempt_id, event_type);
+  `);
   require('./quizCompletion').initializeQuizCompletion(db);
   if (!db.prepare('SELECT 1 FROM schema_migrations WHERE version=12').get()) {
     db.transaction(() => {
@@ -94,6 +107,33 @@ function initializeKnowledge(db) {
       db.exec('ALTER TABLE knowledge_quizzes ADD COLUMN auto_assign_verified INTEGER NOT NULL DEFAULT 0 CHECK(auto_assign_verified IN (0,1));');
       db.exec('CREATE UNIQUE INDEX uq_quiz_curriculum_key ON knowledge_quizzes(curriculum_key) WHERE curriculum_key IS NOT NULL;');
       db.prepare('INSERT INTO schema_migrations(version) VALUES(13)').run();
+    })();
+  }
+  const materialColumns = new Set(db.prepare('PRAGMA table_info(quiz_materials)').all().map((column) => column.name));
+  if (!materialColumns.has('image_url')) db.exec("ALTER TABLE quiz_materials ADD COLUMN image_url TEXT NOT NULL DEFAULT '';");
+  if (!materialColumns.has('image_caption')) db.exec("ALTER TABLE quiz_materials ADD COLUMN image_caption TEXT NOT NULL DEFAULT '';");
+  if (!materialColumns.has('video_url')) db.exec("ALTER TABLE quiz_materials ADD COLUMN video_url TEXT NOT NULL DEFAULT '';");
+  if (!materialColumns.has('video_title')) db.exec("ALTER TABLE quiz_materials ADD COLUMN video_title TEXT NOT NULL DEFAULT '';");
+  if (!db.prepare('SELECT 1 FROM schema_migrations WHERE version=16').get()) {
+    db.transaction(() => {
+      const categoryIds = new Map(db.prepare('SELECT id, name FROM quiz_categories').all().map((row) => [row.name, row.id]));
+      const updateStarter = db.prepare('UPDATE quiz_materials SET title=?,content=?,image_url=?,image_caption=?,video_url=?,video_title=? WHERE id=?');
+      const insertStarter = db.prepare('INSERT INTO quiz_materials(category_id,title,content,image_url,image_caption,video_url,video_title) VALUES(?,?,?,?,?,?,?)');
+      for (const starter of STARTER_MATERIALS) {
+        const categoryId = categoryIds.get(starter.category);
+        if (!categoryId) continue;
+        const starterRow = db.prepare("SELECT id FROM quiz_materials WHERE category_id=? AND resource_url='' AND length(content) < 3500 AND (title=? OR title LIKE ?) ORDER BY id LIMIT 1")
+          .get(categoryId, starter.legacyTitle, `${starter.category.replace(/&/g, '%')}%`);
+        if (starterRow) {
+          updateStarter.run(starter.title, starter.content, starter.image_url, starter.image_caption, starter.video_url, starter.video_title, starterRow.id);
+        } else if (!db.prepare('SELECT 1 FROM quiz_materials WHERE category_id=?').get(categoryId)) {
+          insertStarter.run(categoryId, starter.title, starter.content, starter.image_url, starter.image_caption, starter.video_url, starter.video_title);
+        }
+      }
+      if (!db.prepare('SELECT 1 FROM schema_migrations WHERE version=15').get()) {
+        db.prepare('INSERT INTO schema_migrations(version) VALUES(15)').run();
+      }
+      db.prepare('INSERT INTO schema_migrations(version) VALUES(16)').run();
     })();
   }
 }

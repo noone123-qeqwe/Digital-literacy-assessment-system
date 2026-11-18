@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigationType } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
-import MobileStudentNav from './MobileStudentNav';
 import { useAuth } from '../../contexts/useAuth';
 import './MobileWorkspace.css';
 import './BlueWorkspace.css';
@@ -16,13 +15,12 @@ export const Layout = () => {
   const navigationType = useNavigationType();
   const isStudentDashboard = pathname === '/respondent/dashboard';
   const isStudent = user?.role === 'respondent';
-  const showMobileNav = isStudent && !/^\/respondent\/(assessments\/\d+\/take|knowledge\/attempts\/\d+)\/?$/.test(pathname);
   useEffect(() => {
     if (isStudent && navigationType !== 'POP') window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [pathname, isStudent, navigationType]);
 
   return (
-    <div className={`dlas-blue-workspace flex min-h-screen bg-slate-50 ${user?.role === 'admin' ? 'dlas-admin-workspace' : ''} ${isStudentDashboard ? 'dlas-dashboard-shell' : ''} ${isStudent ? 'dlas-student-workspace' : ''} ${showMobileNav ? 'has-student-mobile-nav' : ''}`}>
+    <div className={`dlas-blue-workspace flex min-h-screen bg-slate-50 ${user?.role === 'admin' ? 'dlas-admin-workspace' : ''} ${isStudentDashboard ? 'dlas-dashboard-shell' : ''} ${isStudent ? 'dlas-student-workspace' : ''}`}>
       <a href="#main-content" className="sr-only fixed left-3 top-3 z-[60] rounded-lg bg-white px-4 py-3 text-sm font-bold text-green-900 shadow-lg focus:not-sr-only focus:outline focus:outline-2 focus:outline-green-700">Skip to main content</a>
       {/* Sidebar navigation */}
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
@@ -39,7 +37,6 @@ export const Layout = () => {
           Digital Literacy Assessment System <span aria-hidden="true">·</span> College of Computer Studies, Masbate Colleges <span aria-hidden="true">·</span> DigComp 2.1
         </footer>
       </div>
-      {showMobileNav && <MobileStudentNav key={pathname} />}
     </div>
   );
 };

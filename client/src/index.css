@@ -2,30 +2,30 @@
 @import "tailwindcss";
 
 @theme {
-  /* Existing brand utilities share the new blue palette across all pages. */
-  --color-green-50: #eff6ff;
-  --color-green-100: #dbeafe;
-  --color-green-200: #bfdbfe;
-  --color-green-300: #93c5fd;
-  --color-green-400: #60a5fa;
-  --color-green-500: #3b82f6;
-  --color-green-600: #2563eb;
-  --color-green-700: #1d4ed8;
-  --color-green-800: #1e40af;
-  --color-green-900: #1e3a8a;
-  --color-green-950: #10264d;
+  /* Brand utilities mirror the Masbate Colleges emerald & gold login theme. */
+  --color-green-50: #eef7f1;
+  --color-green-100: #d8ecdf;
+  --color-green-200: #b3dac2;
+  --color-green-300: #86c5a0;
+  --color-green-400: #579a70;
+  --color-green-500: #1d8554;
+  --color-green-600: #006b3c;
+  --color-green-700: #005a32;
+  --color-green-800: #004a2a;
+  --color-green-900: #003d23;
+  --color-green-950: #002817;
 }
 
 :root {
   color-scheme: light;
-  --dlas-canvas: #f4f7fb;
+  --dlas-canvas: #f4f7f5;
   --dlas-surface: #ffffff;
-  --dlas-ink: #17243a;
-  --dlas-muted: #64748b;
-  --dlas-line: #e2e8f0;
-  --dlas-primary: #2563eb;
-  --dlas-primary-strong: #1d4ed8;
-  --dlas-accent-gold: #f1d400;
+  --dlas-ink: #132a1e;
+  --dlas-muted: #52685c;
+  --dlas-line: #dce7e0;
+  --dlas-primary: #006b3c;
+  --dlas-primary-strong: #005a32;
+  --dlas-accent-gold: #e4c96f;
   --dlas-accent-red: #dc2626;
   font-family: "Inter Variable", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-synthesis: none;

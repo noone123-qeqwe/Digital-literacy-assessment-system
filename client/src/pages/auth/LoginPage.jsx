@@ -15,7 +15,6 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
-import LoginIntro from '../../components/auth/LoginIntro';
 import AuthShell from '../../components/auth/AuthShell';
 import './LoginPage.css';
 
@@ -124,11 +123,10 @@ export const LoginPage = () => {
   };
 
   return (
-    <LoginIntro skipIntro={searchParams.get('registered') === '1'}>
-      <AuthShell
-        headline="Know your skills. Grow your confidence."
-        description="Sign in to take your assessment or review your results."
-      >
+    <AuthShell
+      headline="Know your skills. Grow your confidence."
+      description="Sign in to take your assessment or review your results."
+    >
         <header className="login-card-heading">
           <p className="login-card-eyebrow">
             {authStep === 'credentials' ? 'College of Computer Studies' : (
@@ -400,7 +398,6 @@ export const LoginPage = () => {
           </>
         )}
       </AuthShell>
-    </LoginIntro>
   );
 };
 

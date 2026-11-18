@@ -52,6 +52,33 @@ function safeEqual(first, second) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
+// Normalizes subaddressing (+tag) on all domains and Google dot-insensitivity so a student
+// cannot register alt accounts pointing to the same inbox to farm extra attempts.
+function canonicalEmail(rawEmail) {
+  const email = String(rawEmail || '').trim().toLowerCase();
+  const at = email.lastIndexOf('@');
+  if (at <= 0) return email;
+  let local = email.slice(0, at);
+  let domain = email.slice(at + 1);
+  if (domain === 'googlemail.com') domain = 'gmail.com';
+  const plus = local.indexOf('+');
+  if (plus >= 0) local = local.slice(0, plus);
+  if (domain === 'gmail.com') local = local.replace(/\./g, '');
+  return `${local}@${domain}`;
+}
+
+function findCanonicalEmailConflict(db, email, excludeUserId = null) {
+  const canonical = canonicalEmail(email);
+  const at = canonical.lastIndexOf('@');
+  if (at <= 0) return null;
+  const domain = canonical.slice(at + 1);
+  const domains = domain === 'gmail.com' ? ['gmail.com', 'googlemail.com'] : [domain];
+  const candidates = db.prepare(
+    `SELECT id, email FROM users WHERE (${domains.map(() => 'lower(email) LIKE ?').join(' OR ')})`
+  ).all(...domains.map((item) => `%@${item}`));
+  return candidates.find((row) => row.id !== excludeUserId && canonicalEmail(row.email) === canonical) || null;
+}
+
 function requireCsrf(req, res) {
   const cookie = readCookie(req, CSRF_COOKIE);
   const header = req.get('x-csrf-token');
@@ -218,6 +245,8 @@ module.exports = {
   setCsrfCookie,
   requireCsrf,
   safeEqual,
+  canonicalEmail,
+  findCanonicalEmailConflict,
   issueSession,
   revokeSession,
   revokeUserSessions,

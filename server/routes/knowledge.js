@@ -1,9 +1,11 @@
 const express = require('express');
+const crypto = require('node:crypto');
 const PDFDocument = require('pdfkit');
 const ExcelJS = require('exceljs');
 const { db, logActivity } = require('../db/database');
 const { authenticate, authorize } = require('../middleware/auth');
-const { questionInput, publicSnapshot, scoreSnapshot, shuffled } = require('../utils/knowledgeQuiz');
+const { rateLimit } = require('../middleware/rateLimit');
+const { questionInput, publicSnapshot, scoreSnapshot, shuffled, withOpaqueOptionIds, lockedReview } = require('../utils/knowledgeQuiz');
 const { enrollPublishedQuizzes } = require('../utils/quizEnrollment');
 const { programProgress } = require('../utils/programProgress');
 const { nonblankAnswerSQL } = require('../db/quizCompletion');
@@ -40,29 +42,71 @@ function quizFor(user, quizId) {
   return quiz;
 }
 function attemptFor(user, attemptId) {
-  const attempt = db.prepare(`SELECT a.*, u.first_name, u.last_name, q.created_by
+  const attempt = db.prepare(`SELECT a.*, u.first_name, u.last_name, q.created_by, q.max_attempts quiz_max_attempts, q.end_date quiz_end_date, q.status quiz_status
     FROM quiz_attempts a JOIN users u ON u.id=a.user_id JOIN knowledge_quizzes q ON q.id=a.quiz_id WHERE a.id=?`).get(id(attemptId));
   if (!attempt) throw fail('Attempt not found.', 404);
   if (!(user.role === 'admin' || (user.role === 'assessor' && attempt.created_by === user.id) || (user.role === 'respondent' && attempt.user_id === user.id))) throw fail('You cannot access this student’s attempt.', 403);
   return attempt;
 }
-function attemptData(attempt) {
+// Students only see accepted answers and explanations once they cannot use them to gain an advantage:
+// every permitted attempt is used AND the assessment no longer accepts attempts from anyone (deadline
+// passed, or staff unpublished/archived it). This blocks retaking with the key and sharing it with
+// classmates or a second account that has not yet taken the assessment.
+function answerKeyReleased(user, attempt) {
+  if (user.role !== 'respondent') return true;
+  if (attempt.status !== 'completed') return false;
+  const used = db.prepare('SELECT COUNT(*) count FROM quiz_attempts WHERE quiz_id=? AND user_id=?').get(attempt.quiz_id, attempt.user_id).count;
+  const closed = attempt.quiz_status !== 'published' || Boolean(attempt.quiz_end_date && Date.now() >= Date.parse(attempt.quiz_end_date));
+  return used >= attempt.quiz_max_attempts && closed;
+}
+const integrityTypes = ['page_hidden', 'window_blur', 'copy_attempt', 'paste', 'context_menu'];
+const maxIntegrityEvents = 400;
+const integrityLimit = rateLimit({
+  id: 'quiz-integrity',
+  windowMs: 5 * 60 * 1000,
+  max: 120,
+  message: 'Too many integrity events recorded.',
+  keyFn: (req) => (req.user?.id ? `user:${req.user.id}` : req.ip),
+});
+function integritySummary(attemptId) {
+  const counts = Object.fromEntries([...integrityTypes, 'new_session'].map((type) => [type, 0]));
+  for (const row of db.prepare("SELECT event_type,COUNT(*) count FROM quiz_integrity_events WHERE attempt_id=? AND event_type<>'attempt_started' GROUP BY event_type").all(attemptId)) counts[row.event_type] = row.count;
+  return { ...counts, total: Object.values(counts).reduce((sum, value) => sum + value, 0) };
+}
+const sessionFingerprint = (sessionId) => crypto.createHash('sha256').update(String(sessionId || 'unknown')).digest('hex').slice(0, 24);
+// Flags answers or submissions arriving from a sign-in session other than the one that began the attempt
+// (for example, another person signing in to the same account on a second device).
+function trackAttemptSession(attempt, sessionId) {
+  const fingerprint = sessionFingerprint(sessionId);
+  const known = db.prepare(`SELECT event_type FROM quiz_integrity_events WHERE attempt_id=? AND event_type IN ('attempt_started','new_session') AND detail=? LIMIT 1`).get(attempt.id, fingerprint);
+  if (known) return;
+  const hasBaseline = db.prepare("SELECT 1 FROM quiz_integrity_events WHERE attempt_id=? AND event_type='attempt_started' LIMIT 1").get(attempt.id);
+  db.prepare('INSERT INTO quiz_integrity_events(attempt_id,event_type,detail,occurred_at) VALUES(?,?,?,?)')
+    .run(attempt.id, hasBaseline ? 'new_session' : 'attempt_started', fingerprint, new Date().toISOString());
+}
+function attemptData(attempt, user) {
   const snapshot = JSON.parse(attempt.snapshot_json);
   const responses = db.prepare('SELECT question_id,answer FROM quiz_responses WHERE attempt_id=?').all(attempt.id);
-  const { snapshot_json, ...safeAttempt } = attempt;
+  const { snapshot_json, quiz_max_attempts, quiz_end_date, quiz_status, ...safeAttempt } = attempt;
+  const released = answerKeyReleased(user, attempt);
+  const score = attempt.status === 'completed' ? scoreSnapshot(snapshot, responses) : null;
   return { attempt: safeAttempt, snapshot: publicSnapshot(snapshot), responses, server_now: new Date().toISOString(),
     expired: Boolean(attempt.deadline && Date.now() >= Date.parse(attempt.deadline)),
-    results: attempt.status === 'completed' ? scoreSnapshot(snapshot, responses) : null };
+    answer_key_released: Boolean(score && released),
+    integrity: user.role === 'respondent' ? undefined : integritySummary(attempt.id),
+    results: score ? (released ? score : lockedReview(score)) : null };
 }
 function categoryExists(categoryId) {
   if (!db.prepare('SELECT id FROM quiz_categories WHERE id=?').get(categoryId)) throw fail('Choose an existing category.');
 }
 function reportRows(user) {
   const scope = user.role === 'admin' ? '1=1' : user.role === 'assessor' ? 'q.created_by=?' : 'a.user_id=?';
+  const integrityColumn = user.role === 'respondent' ? ''
+    : ",(SELECT COUNT(*) FROM quiz_integrity_events ie WHERE ie.attempt_id=a.id AND ie.event_type<>'attempt_started') integrity_flags";
   return db.prepare(`SELECT a.id,a.quiz_id,a.user_id,a.percentage,a.level,a.certificate_earned,a.started_at,a.completed_at,
       a.earned_points,a.possible_points,a.completion_reason,u.first_name,u.last_name,q.title,q.program_code,q.stage,q.prerequisite_quiz_id,
       json_array_length(a.snapshot_json,'$.questions') question_count,
-      (SELECT COUNT(*) FROM quiz_responses r WHERE r.attempt_id=a.id AND ${nonblankAnswerSQL}) answered_count
+      (SELECT COUNT(*) FROM quiz_responses r WHERE r.attempt_id=a.id AND ${nonblankAnswerSQL}) answered_count${integrityColumn}
     FROM quiz_attempts a JOIN knowledge_quizzes q ON q.id=a.quiz_id JOIN users u ON u.id=a.user_id
     WHERE a.status='completed' AND ${scope} ORDER BY a.completed_at DESC,a.id DESC`).all(...(user.role === 'admin' ? [] : [user.id]));
 }
@@ -236,8 +280,12 @@ router.delete('/quizzes/:id', authorize('admin', 'assessor'), handler((req, res)
 
 router.post('/quizzes/:id/start', authorize('respondent'), handler((req, res) => {
   const quiz = quizFor(req.user, req.params.id);
-  const ongoing = db.prepare("SELECT * FROM quiz_attempts WHERE quiz_id=? AND user_id=? AND status='in_progress'").get(quiz.id, req.user.id);
-  if (ongoing) return result(res, attemptData(ongoing));
+  const existing = db.prepare("SELECT id FROM quiz_attempts WHERE quiz_id=? AND user_id=? AND status='in_progress'").get(quiz.id, req.user.id);
+  if (existing) {
+    const ongoing = attemptFor(req.user, existing.id);
+    trackAttemptSession(ongoing, req.sessionId);
+    return result(res, attemptData(ongoing, req.user));
+  }
   if (quiz.status !== 'published') throw fail('This assessment is not accepting new attempts.', 409);
   const now = Date.now();
   if (quiz.start_date && Date.parse(quiz.start_date) > now) throw fail('This assessment has not opened yet.', 409);
@@ -245,21 +293,56 @@ router.post('/quizzes/:id/start', authorize('respondent'), handler((req, res) =>
   if (quiz.prerequisite_quiz_id && !db.prepare(`SELECT 1 FROM quiz_attempts a WHERE quiz_id=? AND user_id=? AND status='completed'
     AND (SELECT COUNT(*) FROM quiz_responses r WHERE r.attempt_id=a.id AND ${nonblankAnswerSQL})=json_array_length(a.snapshot_json,'$.questions')`).get(quiz.prerequisite_quiz_id, req.user.id)) throw fail('Finish every question in your baseline assessment before starting the follow-up. An incomplete timed-out attempt does not unlock it; no minimum score is required.', 409);
   if (req.body.accepted_instructions !== true) throw fail('Confirm the instructions and independent-work statement before beginning.');
-  if (db.prepare('SELECT COUNT(*) count FROM quiz_attempts WHERE quiz_id=? AND user_id=?').get(quiz.id, req.user.id).count >= quiz.max_attempts) throw fail('You have used all permitted attempts.', 409);
   const snapshot = JSON.parse(quiz.snapshot_json);
   if (quiz.randomize) snapshot.questions = shuffled(snapshot.questions).map((question) => ({ ...question, options: question.type === 'multiple_choice' ? shuffled(question.options) : question.options }));
+  snapshot.questions = snapshot.questions.map(withOpaqueOptionIds);
   const limits = [quiz.time_limit_minutes ? now + quiz.time_limit_minutes * 60000 : null, quiz.end_date ? Date.parse(quiz.end_date) : null].filter((value) => value !== null);
   const startedAt = new Date(now).toISOString();
-  const attemptId = db.prepare('INSERT INTO quiz_attempts(quiz_id,user_id,snapshot_json,deadline,started_at,integrity_confirmed_at) VALUES(?,?,?,?,?,?)')
-    .run(quiz.id, req.user.id, JSON.stringify(snapshot), limits.length ? new Date(Math.min(...limits)).toISOString() : null, startedAt, startedAt).lastInsertRowid;
-  logActivity(req.user.id, 'KNOWLEDGE_ATTEMPT_START', `Started knowledge attempt #${attemptId}`);
-  return result(res, attemptData(attemptFor(req.user, attemptId)), 'Assessment started.');
+  const attemptOutcome = db.transaction(() => {
+    const resume = db.prepare("SELECT id FROM quiz_attempts WHERE quiz_id=? AND user_id=? AND status='in_progress'").get(quiz.id, req.user.id);
+    if (resume) return { id: resume.id, resumed: true };
+    if (db.prepare('SELECT COUNT(*) count FROM quiz_attempts WHERE quiz_id=? AND user_id=?').get(quiz.id, req.user.id).count >= quiz.max_attempts) throw fail('You have used all permitted attempts.', 409);
+    const createdId = db.prepare('INSERT INTO quiz_attempts(quiz_id,user_id,snapshot_json,deadline,started_at,integrity_confirmed_at) VALUES(?,?,?,?,?,?)')
+      .run(quiz.id, req.user.id, JSON.stringify(snapshot), limits.length ? new Date(Math.min(...limits)).toISOString() : null, startedAt, startedAt).lastInsertRowid;
+    trackAttemptSession({ id: createdId }, req.sessionId);
+    logActivity(req.user.id, 'KNOWLEDGE_ATTEMPT_START', `Started knowledge attempt #${createdId}`);
+    return { id: createdId, resumed: false };
+  })();
+  const attemptRecord = attemptFor(req.user, attemptOutcome.id);
+  if (attemptOutcome.resumed) {
+    trackAttemptSession(attemptRecord, req.sessionId);
+    return result(res, attemptData(attemptRecord, req.user));
+  }
+  return result(res, attemptData(attemptRecord, req.user), 'Assessment started.');
 }));
-router.get('/attempts/:id', handler((req, res) => result(res, attemptData(attemptFor(req.user, req.params.id)))));
+router.get('/attempts/:id', handler((req, res) => {
+  const attempt = attemptFor(req.user, req.params.id);
+  if (req.user.role === 'respondent' && attempt.status === 'in_progress') trackAttemptSession(attempt, req.sessionId);
+  return result(res, attemptData(attempt, req.user));
+}));
+router.post('/attempts/:id/integrity', authorize('respondent'), integrityLimit, handler((req, res) => {
+  const attempt = attemptFor(req.user, req.params.id);
+  if (attempt.status !== 'in_progress' || (attempt.deadline && Date.now() >= Date.parse(attempt.deadline))) {
+    return result(res, { recorded: false });
+  }
+  trackAttemptSession(attempt, req.sessionId);
+  const eventType = typeof req.body?.event_type === 'string' ? req.body.event_type.trim() : '';
+  if (!integrityTypes.includes(eventType)) throw fail('Unsupported integrity event type.');
+  const detail = typeof req.body?.detail === 'string' ? req.body.detail.replace(/[\r\n]+/g, ' ').trim().slice(0, 100) : '';
+  const recorded = db.transaction(() => {
+    const total = db.prepare("SELECT COUNT(*) count FROM quiz_integrity_events WHERE attempt_id=? AND event_type<>'attempt_started'").get(attempt.id).count;
+    if (total >= maxIntegrityEvents) return false;
+    db.prepare('INSERT INTO quiz_integrity_events(attempt_id,event_type,detail,occurred_at) VALUES(?,?,?,?)')
+      .run(attempt.id, eventType, detail, new Date().toISOString());
+    return true;
+  })();
+  return result(res, { recorded });
+}));
 router.put('/attempts/:id/answers', authorize('respondent'), handler((req, res) => {
   const attempt = attemptFor(req.user, req.params.id);
   if (attempt.status !== 'in_progress') throw fail('Completed answers cannot be changed.', 409);
   if (attempt.deadline && Date.now() >= Date.parse(attempt.deadline)) throw fail('Time has ended. Only answers received before the deadline can be scored.', 410);
+  trackAttemptSession(attempt, req.sessionId);
   const questions = new Map(JSON.parse(attempt.snapshot_json).questions.map((question) => [question.id, question]));
   if (!Number.isSafeInteger(req.body.expected_revision) || req.body.expected_revision < 0) throw fail('Reload the assessment before saving answers.');
   if (!Array.isArray(req.body.responses) || req.body.responses.length > questions.size) throw fail('Provide a valid answer batch.');
@@ -280,7 +363,8 @@ router.put('/attempts/:id/answers', authorize('respondent'), handler((req, res) 
 }));
 router.post('/attempts/:id/submit', authorize('respondent'), handler((req, res) => {
   const attempt = attemptFor(req.user, req.params.id);
-  if (attempt.status === 'completed') return result(res, attemptData(attempt));
+  if (attempt.status === 'completed') return result(res, attemptData(attempt, req.user));
+  trackAttemptSession(attempt, req.sessionId);
   const responses = db.prepare('SELECT question_id,answer FROM quiz_responses WHERE attempt_id=?').all(attempt.id);
   const snapshot = JSON.parse(attempt.snapshot_json);
   const expired = attempt.deadline && Date.now() >= Date.parse(attempt.deadline);
@@ -288,14 +372,15 @@ router.post('/attempts/:id/submit', authorize('respondent'), handler((req, res) 
   const score = scoreSnapshot(snapshot, responses);
   const completionReason = expired ? 'time_expired' : 'submitted';
   db.transaction(() => {
-    db.prepare("UPDATE quiz_attempts SET status='completed',completion_reason=?,completed_at=?,earned_points=?,possible_points=?,percentage=?,level=?,certificate_earned=? WHERE id=? AND status='in_progress'")
+    const update = db.prepare("UPDATE quiz_attempts SET status='completed',completion_reason=?,completed_at=?,earned_points=?,possible_points=?,percentage=?,level=?,certificate_earned=? WHERE id=? AND status='in_progress'")
       .run(completionReason, new Date().toISOString(), score.earned, score.possible, score.percentage, score.level, score.certificateEarned ? 1 : 0, attempt.id);
+    if (!update.changes) return;
     for (const category of score.categories) db.prepare('INSERT INTO quiz_category_results(attempt_id,category_id,category_name,earned,possible,percentage) VALUES(?,?,?,?,?,?)')
       .run(attempt.id, category.id, category.name, category.earned, category.possible, category.percentage);
     logActivity(req.user.id, expired ? 'KNOWLEDGE_ATTEMPT_TIMEOUT' : 'KNOWLEDGE_ATTEMPT_COMPLETE',
       `${expired ? 'Time expired for' : 'Submitted'} knowledge assessment #${attempt.quiz_id}`);
   })();
-  return result(res, attemptData(attemptFor(req.user, attempt.id)), 'Assessment scored.');
+  return result(res, attemptData(attemptFor(req.user, attempt.id), req.user), 'Assessment scored.');
 }));
 
 router.get('/overview', handler((req, res) => {
@@ -357,20 +442,40 @@ router.get('/overview', handler((req, res) => {
 router.get('/materials', handler((req, res) => result(res, db.prepare(`SELECT m.*,c.name category_name,
   EXISTS(SELECT 1 FROM quiz_material_completions mc WHERE mc.material_id=m.id AND mc.user_id=?) completed
   FROM quiz_materials m JOIN quiz_categories c ON c.id=m.category_id ${req.user.role === 'admin' ? '' : 'WHERE m.is_published=1'} ORDER BY c.id,m.id`).all(req.user.id))));
+function validateHttpsUrl(raw, label) {
+  let parsed;
+  try { parsed = new URL(raw); } catch { throw fail(`Enter a complete HTTPS ${label.toLowerCase()}.`); }
+  if (parsed.protocol !== 'https:' || parsed.username || parsed.password) throw fail(`${label} must use HTTPS without credentials.`);
+  return parsed.toString();
+}
 function saveMaterial(req, res, materialId = null) {
   const categoryId = id(req.body.category_id); categoryExists(categoryId);
   const title = text(req.body.title, 3, 160, 'Title');
-  const content = text(req.body.content, 20, 12000, 'Learning guide');
+  const content = text(req.body.content, 20, 20000, 'Learning guide');
   const url = text(req.body.resource_url || '', 0, 500, 'Resource link');
-  if (url) { let parsed; try { parsed = new URL(url); } catch { throw fail('Enter a complete HTTPS resource URL.'); } if (parsed.protocol !== 'https:' || parsed.username || parsed.password) throw fail('Resource links must use HTTPS without credentials.'); }
+  if (url) validateHttpsUrl(url, 'Resource link');
+  const imageUrl = text(req.body.image_url || '', 0, 500, 'Image URL');
+  if (imageUrl && !/^\/learning\/images\/[a-z0-9_-]+\.(?:webp|png|jpe?g)$/i.test(imageUrl)) {
+    throw fail('Choose an approved diagram from the built-in image library.');
+  }
+  const imageCaption = text(req.body.image_caption || '', 0, 240, 'Image caption');
+  const videoUrl = text(req.body.video_url || '', 0, 500, 'Video URL');
+  if (videoUrl && !/^\/learning\/videos\/[a-z0-9_-]+\.(?:mp4|webm)$/i.test(videoUrl)) {
+    validateHttpsUrl(videoUrl, 'Video URL');
+  }
+  const videoTitle = text(req.body.video_title || '', 0, 160, 'Video title');
   if (typeof req.body.is_published !== 'boolean') throw fail('Choose a publication setting.');
   if (materialId) {
     if (!db.prepare('SELECT id FROM quiz_materials WHERE id=?').get(materialId)) throw fail('Learning guide not found.', 404);
     db.transaction(() => {
-      db.prepare('UPDATE quiz_materials SET category_id=?,title=?,content=?,resource_url=?,is_published=? WHERE id=?').run(categoryId, title, content, url, req.body.is_published ? 1 : 0, materialId);
+      db.prepare('UPDATE quiz_materials SET category_id=?,title=?,content=?,resource_url=?,image_url=?,image_caption=?,video_url=?,video_title=?,is_published=? WHERE id=?')
+        .run(categoryId, title, content, url, imageUrl, imageCaption, videoUrl, videoTitle, req.body.is_published ? 1 : 0, materialId);
       db.prepare('DELETE FROM quiz_material_completions WHERE material_id=?').run(materialId);
     })();
-  } else materialId = db.prepare('INSERT INTO quiz_materials(category_id,title,content,resource_url,is_published) VALUES(?,?,?,?,?)').run(categoryId, title, content, url, req.body.is_published ? 1 : 0).lastInsertRowid;
+  } else {
+    materialId = db.prepare('INSERT INTO quiz_materials(category_id,title,content,resource_url,image_url,image_caption,video_url,video_title,is_published) VALUES(?,?,?,?,?,?,?,?,?)')
+      .run(categoryId, title, content, url, imageUrl, imageCaption, videoUrl, videoTitle, req.body.is_published ? 1 : 0).lastInsertRowid;
+  }
   logActivity(req.user.id, 'KNOWLEDGE_MATERIAL_SAVE', `Saved learning guide #${materialId}`);
   return result(res, { id: materialId }, 'Learning guide saved. Updated guides require completion again.');
 }
@@ -415,6 +520,7 @@ router.get('/attempts/:id/export/:format', handler(async (req, res) => {
   if (attempt.status !== 'completed') throw fail('Complete the assessment before exporting results.', 409);
   const snapshot = JSON.parse(attempt.snapshot_json);
   const score = scoreSnapshot(snapshot, db.prepare('SELECT question_id,answer FROM quiz_responses WHERE attempt_id=?').all(attempt.id));
+  const released = answerKeyReleased(req.user, attempt);
   const format = req.params.format;
   if (!['pdf', 'excel', 'certificate'].includes(format)) throw fail('Choose a valid export.');
   if (format === 'certificate' && (!attempt.certificate_earned || process.env.DLAS_FREE_DEMO === 'true')) throw fail('An achievement certificate is not available for this attempt.', 409);
@@ -423,8 +529,14 @@ router.get('/attempts/:id/export/:format', handler(async (req, res) => {
     sheet.addRow(['Student', safeCell(`${attempt.first_name} ${attempt.last_name}`)]);
     sheet.addRow(['Assessment', safeCell(snapshot.title)]); sheet.addRow(['Score', `${score.percentage}%`, score.level]);
     sheet.addRow(['Outcome', attempt.completion_reason === 'time_expired' ? 'Time expired — scored saved answers at the deadline' : 'Submitted by student']);
-    sheet.addRow(['Question', 'Your answer', 'Accepted answer', 'Points earned', 'Points possible']);
-    for (const question of score.questions) sheet.addRow([safeCell(question.prompt), safeCell(question.options.find((option) => option.id === question.answer)?.text || question.answer), safeCell(question.answers.map((key) => question.options.find((option) => option.id === key)?.text || key).join(' / ')), question.earned, question.points]);
+    if (released) {
+      sheet.addRow(['Question', 'Your answer', 'Accepted answer', 'Points earned', 'Points possible']);
+      for (const question of score.questions) sheet.addRow([safeCell(question.prompt), safeCell(question.options.find((option) => option.id === question.answer)?.text || question.answer), safeCell(question.answers.map((key) => question.options.find((option) => option.id === key)?.text || key).join(' / ')), question.earned, question.points]);
+    } else {
+      sheet.addRow(['Review note', 'Detailed answer keys, correctness, and explanations are withheld until all attempts are used and the assessment closes.']);
+      sheet.addRow(['Question', 'Your answer', 'Points possible']);
+      for (const question of score.questions) sheet.addRow([safeCell(question.prompt), safeCell(question.options.find((option) => option.id === question.answer)?.text || question.answer), question.points]);
+    }
     sheet.columns.forEach((column) => { column.width = 32; });
     res.type('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); res.attachment(`Knowledge_Result_${attempt.id}.xlsx`); await workbook.xlsx.write(res); return res.end();
   }
@@ -454,11 +566,17 @@ router.get('/attempts/:id/export/:format', handler(async (req, res) => {
   doc.fontSize(10).fillColor('#475569').text(attempt.completion_reason === 'time_expired'
     ? 'Time expired. This result scores answers received by the server before the deadline; the student did not submit before time ended.'
     : 'Submitted by student.').moveDown();
+  if (!released) {
+    doc.fontSize(10).fillColor('#475569').text('Detailed answer keys, correctness, and explanations are withheld until all attempts are used and the assessment closes.').moveDown();
+  }
   for (const question of score.questions) {
     doc.font('Helvetica-Bold').fontSize(11).text(question.prompt);
-    doc.font('Helvetica').fontSize(10).text(`Your answer: ${question.options.find((option) => option.id === question.answer)?.text || question.answer || 'Unanswered'}`)
-      .text(`Accepted answer: ${question.answers.map((key) => question.options.find((option) => option.id === key)?.text || key).join(' / ')}`)
-      .text(`${question.correct ? 'Correct' : 'Incorrect'} · ${question.earned}/${question.points} points`).moveDown();
+    const entry = doc.font('Helvetica').fontSize(10).text(`Your answer: ${question.options.find((option) => option.id === question.answer)?.text || question.answer || 'Unanswered'}`);
+    if (released) {
+      entry.text(`Accepted answer: ${question.answers.map((key) => question.options.find((option) => option.id === key)?.text || key).join(' / ')}`)
+        .text(`${question.correct ? 'Correct' : 'Incorrect'} · ${question.earned}/${question.points} points`);
+    }
+    entry.moveDown();
   }
   return doc.end();
 }));

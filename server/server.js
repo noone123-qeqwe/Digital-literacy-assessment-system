@@ -54,8 +54,11 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       // Local photo optimization and authenticated avatar previews use blob URLs.
-      // Keep Helmet's other defaults, including the existing script restrictions.
+      // Learning videos allow local lessons plus privacy-enhanced YouTube/Vimeo embeds.
+      // Keep Helmet's other defaults, including script-src and object-src restrictions.
       imgSrc: ["'self'", 'data:', 'blob:'],
+      mediaSrc: ["'self'", 'blob:'],
+      frameSrc: ["'self'", 'https://www.youtube-nocookie.com', 'https://player.vimeo.com'],
     },
   },
 }));

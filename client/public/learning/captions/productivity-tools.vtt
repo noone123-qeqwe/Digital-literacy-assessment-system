@@ -1,0 +1,19 @@
+WEBVTT
+
+00:00:00.000 --> 00:00:04.000
+01 · OVERVIEW: Work faster and cleaner in docs, sheets & slides. Structured templates prevent broken formatting and lost team edits.
+
+00:00:04.000 --> 00:00:08.000
+02 · DOCUMENTS: Use Heading 1 / Heading 2 styles—not just bold text. True styles generate clickable outlines, Tables of Contents & screen-reader aid.
+
+00:00:08.000 --> 00:00:12.000
+03 · FORMULAS: Start formulas with = and check highlighted ranges. Use =SUM(B2:B10) or =AVERAGE(B2:B10) instead of typing manual calculator answers.
+
+00:00:12.000 --> 00:00:16.000
+04 · SLIDES: Keep slides scannable and add image alt text. Short bullet lines, strong color contrast & alt descriptions aid all viewers.
+
+00:00:16.000 --> 00:00:20.000
+05 · VERSIONS: Control permissions and rely on Version History. Prefer View/Comment links first and restore earlier drafts without file_v9 clutter.
+
+00:00:20.000 --> 00:00:24.000
+06 · TRY IT: Test live =SUM / =AVERAGE cells and heading outline. Check every group share link permission before submitting or publishing.

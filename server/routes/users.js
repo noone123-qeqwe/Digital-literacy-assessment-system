@@ -6,7 +6,7 @@ const { body, query, validationResult } = require('express-validator');
 const { db, logActivity } = require('../db/database');
 const { authenticate, authorize } = require('../middleware/auth');
 const { sendSecurityEmail, clientUrl } = require('../utils/email');
-const { clearSessionCookies } = require('../utils/authSecurity');
+const { clearSessionCookies, findCanonicalEmailConflict } = require('../utils/authSecurity');
 const { canAccessAssessment } = require('../middleware/auth');
 
 // GET /api/users - List users with search, role filter, pagination
@@ -113,7 +113,7 @@ router.post('/', authenticate, authorize('admin'), [
   const { email, password, first_name, last_name, role, status = 'active' } = req.body;
   const institutionalId = String(req.body.institutional_id || '').trim().toUpperCase() || null;
 
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email);
+  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email) || findCanonicalEmailConflict(db, email);
   if (existing) {
     return res.status(409).json({ success: false, message: 'Email already exists' });
   }
@@ -278,7 +278,8 @@ router.put('/:id', authenticate, authorize('admin'), [
   let verificationToken = null;
 
   if (emailChanged) {
-    const existing = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email, targetUser.id);
+    const existing = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(email, targetUser.id)
+      || findCanonicalEmailConflict(db, email, targetUser.id);
     if (existing) {
       return res.status(409).json({ success: false, message: 'Email already in use' });
     }

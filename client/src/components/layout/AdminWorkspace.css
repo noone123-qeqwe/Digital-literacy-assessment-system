@@ -1,20 +1,20 @@
 /* Administrator-only presentation: student and assessor workspaces keep their layouts. */
-.dlas-admin-workspace { --admin-ink: #182b49; --admin-muted: #5b6d85; --admin-line: #e1e8f2; color: var(--admin-ink); }
+.dlas-admin-workspace { --admin-ink: #132a1e; --admin-muted: #52685c; --admin-line: #dce7e0; color: var(--admin-ink); }
 .dlas-admin-workspace .dlas-workspace-main { max-width: 1650px; padding: 28px 32px 36px; }
 .dlas-admin-workspace .workspace-navbar { min-height: 80px; padding: 16px 32px; background: #ffffffed; }
 .dlas-admin-workspace .workspace-navbar h2 { font-size: 17px; }
 .dlas-admin-workspace .workspace-navbar p { line-height: 1.5; }
 .dlas-admin-workspace .admin-account-link { display: flex; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 12px; }
-.dlas-admin-workspace .admin-account-link:hover { background: #eff6ff; }
+.dlas-admin-workspace .admin-account-link:hover { background: #eef7f1; }
 .dlas-admin-workspace .admin-nav-group + .admin-nav-group { margin-top: 22px; }
-.dlas-admin-workspace .admin-nav-heading { padding: 0 14px 8px; color: #a9bbd8; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
-.dlas-admin-workspace .admin-nav-link { display: flex; min-height: 44px; align-items: center; gap: 12px; margin: 3px 0; padding: 10px 14px; border-radius: 10px; font-size: 14px; font-weight: 550; color: #d8e3f5; }
-.dlas-admin-workspace .admin-nav-link svg { width: 18px; height: 18px; flex-shrink: 0; color: #a8bfe4; }
+.dlas-admin-workspace .admin-nav-heading { padding: 0 14px 8px; color: #a8ccb9; font-size: 10px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+.dlas-admin-workspace .admin-nav-link { display: flex; min-height: 44px; align-items: center; gap: 12px; margin: 3px 0; padding: 10px 14px; border-radius: 10px; font-size: 14px; font-weight: 550; color: #dfeee6; }
+.dlas-admin-workspace .admin-nav-link svg { width: 18px; height: 18px; flex-shrink: 0; color: #9cc3ae; }
 .dlas-admin-workspace .admin-nav-link:hover { color: white; background: #ffffff0c; }
-.dlas-admin-workspace .admin-nav-link.is-active { background: #2c61c4; color: white; box-shadow: 0 3px 8px #00000012; }
+.dlas-admin-workspace .admin-nav-link.is-active { background: #006b3c; color: white; box-shadow: 0 3px 8px #00000012; }
 .dlas-admin-workspace .admin-nav-link.is-active svg { color: white; }
 .dlas-admin-workspace .admin-research-nav { border-top: 1px solid #ffffff1c; margin-top: 20px; padding-top: 12px; }
-.dlas-admin-workspace .admin-research-nav summary { display: flex; min-height: 44px; align-items: center; justify-content: space-between; padding: 8px 14px; color: #b8c9e3; cursor: pointer; font-size: 13px; font-weight: 600; list-style: none; }
+.dlas-admin-workspace .admin-research-nav summary { display: flex; min-height: 44px; align-items: center; justify-content: space-between; padding: 8px 14px; color: #b7d4c4; cursor: pointer; font-size: 13px; font-weight: 600; list-style: none; }
 .dlas-admin-workspace .admin-research-nav summary::-webkit-details-marker { display: none; }
 .dlas-admin-workspace .admin-research-nav[open] summary svg { transform: rotate(180deg); }
 .dlas-admin-workspace .sidebar-framework { padding: 12px 14px; }
@@ -22,86 +22,86 @@
 .dlas-admin-workspace .admin-stack { display: grid; min-width: 0; gap: 22px; }
 .dlas-admin-workspace .admin-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .dlas-admin-workspace .admin-page-heading > div:first-child { min-width: 0; }
-.dlas-admin-workspace .admin-eyebrow { margin-bottom: 7px; color: #3262a9; font-size: 10px; font-weight: 750; text-transform: uppercase; letter-spacing: .12em; }
+.dlas-admin-workspace .admin-eyebrow { margin-bottom: 7px; color: #005a32; font-size: 10px; font-weight: 750; text-transform: uppercase; letter-spacing: .12em; }
 .dlas-admin-workspace .admin-page-heading h1 { font-size: clamp(26px, 2.3vw, 34px); line-height: 1.2; font-weight: 750; letter-spacing: -.035em; overflow-wrap: anywhere; }
 .dlas-admin-workspace .admin-page-heading > div > p:last-child { color: var(--admin-muted); font-size: 14px; margin-top: 8px; line-height: 1.6; }
 .dlas-admin-workspace .admin-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; flex-shrink: 0; }
-.dlas-admin-workspace .admin-button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; padding: 10px 15px; border: 1px solid transparent; border-radius: 10px; background: #2563eb; color: white; font-size: 13px; font-weight: 650; line-height: 1.5; text-align: center; }
-.dlas-admin-workspace .admin-button:hover { background: #1d4ed8; }
+.dlas-admin-workspace .admin-button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; padding: 10px 15px; border: 1px solid transparent; border-radius: 10px; background: #006b3c; color: white; font-size: 13px; font-weight: 650; line-height: 1.5; text-align: center; }
+.dlas-admin-workspace .admin-button:hover { background: #005a32; }
 .dlas-admin-workspace .admin-button:disabled { opacity: .55; cursor: not-allowed; }
-.dlas-admin-workspace .admin-button-secondary { background: white; border-color: #d6e0ed; color: #264b81; }
-.dlas-admin-workspace .admin-button-secondary:hover { background: #eff6ff; }
-.dlas-admin-workspace .admin-text-link { display: inline-flex; min-height: 44px; align-items: center; gap: 6px; color: #2458b3; font-size: 13px; font-weight: 650; }
+.dlas-admin-workspace .admin-button-secondary { background: white; border-color: #cfe0d6; color: #004a2a; }
+.dlas-admin-workspace .admin-button-secondary:hover { background: #eef7f1; }
+.dlas-admin-workspace .admin-text-link { display: inline-flex; min-height: 44px; align-items: center; gap: 6px; color: #005a32; font-size: 13px; font-weight: 650; }
 .dlas-admin-workspace .admin-text-link:hover { text-decoration: underline; }
 .dlas-admin-workspace .admin-full-width { width: 100%; }
-.dlas-admin-workspace .admin-tab-bar { display: flex; justify-content: space-between; align-items: center; gap: 16px; border-bottom: 1px solid #dbe4f0; }
+.dlas-admin-workspace .admin-tab-bar { display: flex; justify-content: space-between; align-items: center; gap: 16px; border-bottom: 1px solid #dce7e0; }
 .dlas-admin-workspace .admin-tabs { display: flex; min-width: 0; gap: 24px; }
-.dlas-admin-workspace .admin-tabs button { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; border-bottom: 3px solid transparent; font-size: 13px; font-weight: 600; color: #62738c; white-space: nowrap; }
-.dlas-admin-workspace .admin-tabs button[aria-selected=true] { border-color: #2563eb; color: #1d4ed8; }
+.dlas-admin-workspace .admin-tabs button { display: inline-flex; align-items: center; gap: 8px; min-height: 48px; border-bottom: 3px solid transparent; font-size: 13px; font-weight: 600; color: #52685c; white-space: nowrap; }
+.dlas-admin-workspace .admin-tabs button[aria-selected=true] { border-color: #006b3c; color: #005a32; }
 .dlas-admin-workspace .admin-status-dot { width: 7px; height: 7px; border-radius: 50%; background: #b45309; flex-shrink: 0; }
 .dlas-admin-workspace .admin-updated { color: #64748b; font-size: 11px; white-space: nowrap; }
-.dlas-admin-workspace .admin-tab-panel:focus-visible { outline: 2px solid #2563eb; outline-offset: 5px; border-radius: 12px; }
+.dlas-admin-workspace .admin-tab-panel:focus-visible { outline: 2px solid #006b3c; outline-offset: 5px; border-radius: 12px; }
 .dlas-admin-workspace .admin-metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
-.dlas-admin-workspace .admin-metric { min-width: 0; padding: 18px; background: white; border: 1px solid var(--admin-line); border-radius: 14px; box-shadow: 0 2px 3px #19355203; }
+.dlas-admin-workspace .admin-metric { min-width: 0; padding: 18px; background: white; border: 1px solid var(--admin-line); border-radius: 14px; box-shadow: 0 2px 3px #00281706; }
 .dlas-admin-workspace .admin-metric > div { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
-.dlas-admin-workspace .admin-metric > div > p { font-size: 12px; color: #50617a; line-height: 1.6; font-weight: 600; }
-.dlas-admin-workspace .admin-metric > strong { display: block; margin: 7px 0 4px; color: #182b49; font-size: 30px; font-weight: 750; letter-spacing: -.035em; line-height: 1.2; }
-.dlas-admin-workspace .admin-metric > p { color: #65758c; font-size: 11px; line-height: 1.6; }
-.dlas-admin-workspace .admin-metric-icon { display: grid; width: 33px; height: 33px; place-items: center; flex-shrink: 0; border-radius: 10px; background: #edf4ff; color: #2563eb; }
+.dlas-admin-workspace .admin-metric > div > p { font-size: 12px; color: #52685c; line-height: 1.6; font-weight: 600; }
+.dlas-admin-workspace .admin-metric > strong { display: block; margin: 7px 0 4px; color: #132a1e; font-size: 30px; font-weight: 750; letter-spacing: -.035em; line-height: 1.2; }
+.dlas-admin-workspace .admin-metric > p { color: #52685c; font-size: 11px; line-height: 1.6; }
+.dlas-admin-workspace .admin-metric-icon { display: grid; width: 33px; height: 33px; place-items: center; flex-shrink: 0; border-radius: 10px; background: #eef7f1; color: #006b3c; }
 .dlas-admin-workspace .admin-tone-violet { background: #f2edff; color: #7950c5; }
 .dlas-admin-workspace .admin-tone-teal { background: #e6f7f1; color: #08765c; }
 .dlas-admin-workspace .admin-tone-amber { background: #fff5df; color: #9b570b; }
-.dlas-admin-workspace .admin-panel { min-width: 0; padding: 24px; border: 1px solid var(--admin-line); border-radius: 16px; background: white; box-shadow: 0 3px 12px #19355203; }
+.dlas-admin-workspace .admin-panel { min-width: 0; padding: 24px; border: 1px solid var(--admin-line); border-radius: 16px; background: white; box-shadow: 0 3px 12px #00281706; }
 .dlas-admin-workspace .admin-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
-.dlas-admin-workspace .admin-panel-heading h2 { color: #1e304d; font-size: 17px; font-weight: 700; letter-spacing: -.02em; line-height: 1.4; }
+.dlas-admin-workspace .admin-panel-heading h2 { color: #132a1e; font-size: 17px; font-weight: 700; letter-spacing: -.02em; line-height: 1.4; }
 .dlas-admin-workspace .admin-panel-heading > div > p:last-child:not(.admin-eyebrow) { color: var(--admin-muted); font-size: 12px; margin-top: 5px; line-height: 1.65; }
 .dlas-admin-workspace .admin-overview-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 20px; }
 .dlas-admin-workspace .admin-category-bars { display: grid; gap: 16px; }
-.dlas-admin-workspace .admin-category-bars > div > div { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; font-size: 12px; color: #465d7e; }
-.dlas-admin-workspace .admin-category-bars strong { margin-left: auto; color: #273f63; font-weight: 650; }
+.dlas-admin-workspace .admin-category-bars > div > div { display: flex; align-items: center; gap: 9px; margin-bottom: 6px; font-size: 12px; color: #3c5849; }
+.dlas-admin-workspace .admin-category-bars strong { margin-left: auto; color: #1d3c2d; font-weight: 650; }
 .dlas-admin-workspace .admin-category-number { font-size: 10px; color: #7889a2; font-variant-numeric: tabular-nums; }
-.dlas-admin-workspace .admin-category-bars meter { display: block; width: 100%; height: 7px; border-radius: 5px; background: #edf3fc; overflow: hidden; }
-.dlas-admin-workspace .admin-category-bars meter::-webkit-meter-bar { border: 0; background: #edf3fc; }
-.dlas-admin-workspace .admin-category-bars meter::-webkit-meter-optimum-value { background: #477de4; }
-.dlas-admin-workspace .admin-category-bars meter::-moz-meter-bar { background: #477de4; }
+.dlas-admin-workspace .admin-category-bars meter { display: block; width: 100%; height: 7px; border-radius: 5px; background: #e6f0ea; overflow: hidden; }
+.dlas-admin-workspace .admin-category-bars meter::-webkit-meter-bar { border: 0; background: #e6f0ea; }
+.dlas-admin-workspace .admin-category-bars meter::-webkit-meter-optimum-value { background: #006b3c; }
+.dlas-admin-workspace .admin-category-bars meter::-moz-meter-bar { background: #006b3c; }
 .dlas-admin-workspace .admin-distribution { display: grid; justify-items: center; gap: 22px; margin-bottom: 22px; }
 .dlas-admin-workspace .admin-donut { display: grid; width: 158px; aspect-ratio: 1; place-items: center; border-radius: 50%; }
 .dlas-admin-workspace .admin-donut > div { display: grid; width: 126px; height: 126px; align-content: center; justify-items: center; border-radius: 50%; background: white; }
 .dlas-admin-workspace .admin-donut strong { font-size: 34px; line-height: 1.2; font-weight: 750; letter-spacing: -.03em; }
 .dlas-admin-workspace .admin-donut span { font-size: 11px; color: #64748b; margin-top: 6px; }
 .dlas-admin-workspace .admin-distribution ul { display: grid; width: 100%; gap: 11px; }
-.dlas-admin-workspace .admin-distribution li { display: flex; align-items: center; gap: 9px; color: #50617b; font-size: 12px; }
+.dlas-admin-workspace .admin-distribution li { display: flex; align-items: center; gap: 9px; color: #52685c; font-size: 12px; }
 .dlas-admin-workspace .admin-distribution li i { width: 8px; height: 8px; border-radius: 50%; }
-.dlas-admin-workspace .admin-distribution li strong { margin-left: auto; font-weight: 650; color: #253b5e; }
+.dlas-admin-workspace .admin-distribution li strong { margin-left: auto; font-weight: 650; color: #132a1e; }
 .dlas-admin-workspace .admin-activity-list { display: grid; }
-.dlas-admin-workspace .admin-activity-list li { display: flex; align-items: center; gap: 11px; padding: 13px 0; border-bottom: 1px solid #edf1f7; }
+.dlas-admin-workspace .admin-activity-list li { display: flex; align-items: center; gap: 11px; padding: 13px 0; border-bottom: 1px solid #e8f0eb; }
 .dlas-admin-workspace .admin-activity-list li:first-child { padding-top: 0; }
 .dlas-admin-workspace .admin-activity-list li:last-child { border-bottom: 0; padding-bottom: 0; }
 .dlas-admin-workspace .admin-activity-list li > div { min-width: 0; }
-.dlas-admin-workspace .admin-activity-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: #3c6ab5; background: #f0f5fd; flex-shrink: 0; }
+.dlas-admin-workspace .admin-activity-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; color: #005a32; background: #eef7f1; flex-shrink: 0; }
 .dlas-admin-workspace .admin-activity-list strong { font-size: 13px; font-weight: 650; overflow-wrap: anywhere; }
 .dlas-admin-workspace .admin-activity-list p { color: var(--admin-muted); font-size: 12px; margin-top: 3px; overflow-wrap: anywhere; }
 .dlas-admin-workspace .admin-activity-list time { margin-left: auto; color: #64748b; font-size: 11px; flex-shrink: 0; }
 .dlas-admin-workspace .admin-shortcuts { display: grid; gap: 10px; }
-.dlas-admin-workspace .admin-shortcuts a { display: flex; align-items: center; gap: 12px; padding: 14px 12px; border: 1px solid #e7edf5; border-radius: 12px; }
-.dlas-admin-workspace .admin-shortcuts a:hover { background: #f4f8ff; border-color: #bad1f5; }
-.dlas-admin-workspace .admin-shortcuts a > span { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 10px; background: #edf4ff; color: #3469c3; flex-shrink: 0; }
+.dlas-admin-workspace .admin-shortcuts a { display: flex; align-items: center; gap: 12px; padding: 14px 12px; border: 1px solid #dce7e0; border-radius: 12px; }
+.dlas-admin-workspace .admin-shortcuts a:hover { background: #eef7f1; border-color: #b3dac2; }
+.dlas-admin-workspace .admin-shortcuts a > span { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 10px; background: #eef7f1; color: #005a32; flex-shrink: 0; }
 .dlas-admin-workspace .admin-shortcuts a > div { flex: 1; min-width: 0; }
 .dlas-admin-workspace .admin-shortcuts strong { font-size: 13px; font-weight: 650; }
 .dlas-admin-workspace .admin-shortcuts p { margin-top: 3px; font-size: 11px; color: var(--admin-muted); }
-.dlas-admin-workspace .admin-shortcuts a > svg { color: #758aab; flex-shrink: 0; }
-.dlas-admin-workspace .admin-empty { display: grid; justify-items: center; gap: 9px; padding: 35px 16px; border: 1px dashed #dce5f1; border-radius: 12px; background: #fafcff; text-align: center; }
-.dlas-admin-workspace .admin-empty > svg { color: #7b95b8; }
+.dlas-admin-workspace .admin-shortcuts a > svg { color: #5d7d6c; flex-shrink: 0; }
+.dlas-admin-workspace .admin-empty { display: grid; justify-items: center; gap: 9px; padding: 35px 16px; border: 1px dashed #dce7e0; border-radius: 12px; background: #f7fbf8; text-align: center; }
+.dlas-admin-workspace .admin-empty > svg { color: #579a70; }
 .dlas-admin-workspace .admin-empty h3 { font-size: 15px; font-weight: 650; }
 .dlas-admin-workspace .admin-empty p { max-width: 360px; font-size: 13px; line-height: 1.7; color: var(--admin-muted); }
-.dlas-admin-workspace .admin-notice { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 18px; border: 1px solid #d7e5fb; border-radius: 12px; background: #eff6ff; color: #31527e; font-size: 13px; line-height: 1.7; }
+.dlas-admin-workspace .admin-notice { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 15px 18px; border: 1px solid #c9e2d3; border-radius: 12px; background: #eef7f1; color: #18422c; font-size: 13px; line-height: 1.7; }
 .dlas-admin-workspace .admin-notice-warning { color: #7c4b12; border-color: #f4ddb7; background: #fff9ec; }
 .dlas-admin-workspace .admin-notice-error { color: #9f2544; border-color: #fecdd3; background: #fff1f2; }
 .dlas-admin-workspace .admin-footnote { font-size: 12px; line-height: 1.7; color: #64748b; }
-.dlas-admin-workspace .admin-tag { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 7px; background: #edf4ff; color: #3461a4; font-size: 11px; font-weight: 600; }
+.dlas-admin-workspace .admin-tag { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 7px; background: #eef7f1; color: #005a32; font-size: 11px; font-weight: 600; }
 .dlas-admin-workspace .admin-tag-ready { color: #087058; background: #eaf8f1; }
 .dlas-admin-workspace .admin-tag-pending { color: #8e540c; background: #fff4dc; }
-.dlas-admin-workspace .admin-readiness-list li { display: flex; align-items: flex-start; gap: 13px; padding: 18px 0; border-bottom: 1px solid #edf1f7; }
+.dlas-admin-workspace .admin-readiness-list li { display: flex; align-items: flex-start; gap: 13px; padding: 18px 0; border-bottom: 1px solid #e8f0eb; }
 .dlas-admin-workspace .admin-readiness-list li:first-child { padding-top: 0; }
 .dlas-admin-workspace .admin-readiness-list li:last-child { border: 0; padding-bottom: 0; }
 .dlas-admin-workspace .admin-readiness-list li > svg { flex-shrink: 0; margin-top: 2px; }
@@ -110,7 +110,7 @@
 .dlas-admin-workspace .admin-readiness-list p { margin-top: 5px; color: var(--admin-muted); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
 .dlas-admin-workspace .admin-check-ready { color: #0c8a68; }
 .dlas-admin-workspace .admin-check-pending { color: #b26d13; }
-.dlas-admin-workspace .admin-skeleton > span, .dlas-admin-workspace .admin-skeleton > strong { display: block; height: 14px; border-radius: 5px; background: #edf2f9; }
+.dlas-admin-workspace .admin-skeleton > span, .dlas-admin-workspace .admin-skeleton > strong { display: block; height: 14px; border-radius: 5px; background: #e8f0eb; }
 .dlas-admin-workspace .admin-skeleton > strong { height: 34px; width: 60%; margin: 18px 0 12px; }
 .dlas-admin-workspace .admin-directory-heading { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; gap: 12px; border-bottom: 1px solid var(--admin-line); }
 .dlas-admin-workspace .admin-directory-heading h2 { font-size: 16px; font-weight: 700; }
@@ -144,14 +144,14 @@
 .dlas-admin-workspace .admin-pagination button { min-height: 44px; }
 .dlas-admin-workspace .admin-bank-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: center; font-size: 13px; color: var(--admin-muted); }
 .dlas-admin-workspace .admin-bank-toolbar label { display: inline-flex; min-height: 44px; gap: 9px; align-items: center; cursor: pointer; }
-.dlas-admin-workspace .admin-bank-toolbar input { width: 17px; height: 17px; accent-color: #2563eb; }
+.dlas-admin-workspace .admin-bank-toolbar input { width: 17px; height: 17px; accent-color: #006b3c; }
 .dlas-admin-workspace .kq-filter-row { padding: 18px; border: 1px solid var(--admin-line); border-radius: 14px; background: white; align-items: flex-end; }
 .dlas-admin-workspace .kq-card { border-radius: 16px; }
 .dlas-admin-workspace .kq-badge { font-size: 11px; }
 .dlas-admin-workspace .kq-question-row { padding: 22px; border-radius: 14px; }
 .dlas-admin-workspace .kq-question-row > div:first-child { min-width: 0; }
 .dlas-admin-workspace .kq-question-row p { font-size: 14px; }
-.dlas-admin-workspace .kq-question-row .kq-note { font-size: 13px; padding: 10px 12px; background: #f1f6ff; border-radius: 9px; }
+.dlas-admin-workspace .kq-question-row .kq-note { font-size: 13px; padding: 10px 12px; background: #eef7f1; border-radius: 9px; }
 .dlas-admin-workspace .kq-table { font-size: 13px; }
 .dlas-admin-workspace .kq-table th { font-size: 11px; }
 .dlas-admin-workspace .kq-button { font-size: 13px; }
@@ -214,7 +214,7 @@
   .dlas-admin-workspace .admin-user-mobile-list p { font-size: 13px; line-height: 1.6; color: var(--admin-muted); overflow-wrap: anywhere; }
   .dlas-admin-workspace .admin-user-mobile-list dl { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 12px; }
   .dlas-admin-workspace .admin-user-mobile-list dt { color: #64748b; margin-bottom: 3px; }
-  .dlas-admin-workspace .admin-user-mobile-list dd { color: #293f60; }
+  .dlas-admin-workspace .admin-user-mobile-list dd { color: #132a1e; }
   .dlas-admin-workspace .admin-user-mobile-list footer { display: flex; gap: 8px; }
   .dlas-admin-workspace .admin-user-mobile-list footer button { flex: 1; }
   .dlas-admin-workspace .admin-user-mobile-list .admin-deactivate { color: #a62a40; }

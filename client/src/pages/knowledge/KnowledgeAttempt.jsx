@@ -32,6 +32,7 @@ function KnowledgeAttempt({ attemptId }) {
   const [submitting, setSubmitting] = useState(false), [retainedDraft, setRetainedDraft] = useState(null);
   const latest = useRef(null), writes = useRef(Promise.resolve()), upload = useRef(null), active = useRef(true);
   const automaticSubmit = useRef(false), questionHeading = useRef(null), moveFocus = useRef(false);
+  const telemetrySent = useRef({});
   const canAnswer = user.role === 'respondent';
   useEffect(() => {
     const media = window.matchMedia(expandedQuestionMapQuery);
@@ -172,6 +173,57 @@ function KnowledgeAttempt({ attemptId }) {
     }
   }, [expired, online, canAnswer, data?.attempt.status, submit]);
 
+  const monitoring = Boolean(canAnswer && data && !data.results && !expired && !freeDemoReadOnly);
+  const logIntegrity = useCallback((eventType, detail = '') => {
+    if (!monitoring || !navigator.onLine) return;
+    const timestamp = Date.now();
+    if (timestamp - (telemetrySent.current[eventType] || 0) < 3000) return;
+    telemetrySent.current[eventType] = timestamp;
+    void api.post(`/knowledge/attempts/${attemptId}/integrity`, { event_type: eventType, detail }).catch(() => {});
+  }, [attemptId, monitoring]);
+
+  useEffect(() => {
+    if (!monitoring) return undefined;
+    const onHidden = () => { if (document.hidden) logIntegrity('page_hidden', 'tab_hidden'); };
+    const onBlur = () => logIntegrity('window_blur', 'window_blur');
+    const onCopy = (event) => {
+      if (event.target instanceof Element && event.target.closest('input, textarea')) return;
+      if (event.target instanceof Element && event.target.closest('.kq-take')) {
+        event.preventDefault();
+        logIntegrity('copy_attempt', event.type);
+        toast('Copying assessment questions is disabled during an active attempt.', { id: 'kq-copy-block' });
+      }
+    };
+    const onContext = (event) => {
+      if (event.target instanceof Element && event.target.closest('input, textarea')) return;
+      if (event.target instanceof Element && event.target.closest('.kq-question-card')) {
+        event.preventDefault();
+        logIntegrity('context_menu', 'question_card');
+      }
+    };
+    const onPaste = (event) => {
+      if (event.target instanceof Element && event.target.closest('.kq-take')) {
+        event.preventDefault();
+        logIntegrity('paste', 'clipboard_paste');
+        toast('Pasting answers is disabled during an active attempt.', { id: 'kq-paste-block' });
+      }
+    };
+    document.addEventListener('visibilitychange', onHidden);
+    window.addEventListener('blur', onBlur);
+    document.addEventListener('copy', onCopy);
+    document.addEventListener('cut', onCopy);
+    document.addEventListener('contextmenu', onContext);
+    document.addEventListener('paste', onPaste);
+    return () => {
+      document.removeEventListener('visibilitychange', onHidden);
+      window.removeEventListener('blur', onBlur);
+      document.removeEventListener('copy', onCopy);
+      document.removeEventListener('cut', onCopy);
+      document.removeEventListener('contextmenu', onContext);
+      document.removeEventListener('paste', onPaste);
+    };
+  }, [monitoring, logIntegrity]);
+
   const answer = (value) => {
     if (!latest.current || expired || submitting) return;
     const next = { ...latest.current.answers, [data.snapshot.questions[index].id]: value };
@@ -213,15 +265,27 @@ function KnowledgeAttempt({ attemptId }) {
       </div><p className="kq-note">Achievement certificates require {data.snapshot.pass_percentage}%. {data.attempt.certificate_earned ? 'The requirement was met.' : 'The requirement was not met on this attempt.'} Percentage levels apply to knowledge quizzes only.</p>
       {retainedDraft && <section className="kq-card"><h2>Unsynced recovery copy retained</h2><p className="kq-note">Some local responses did not reach the server before completion or the deadline. They are not included in this score. You can keep a copy for follow-up with your instructor.</p><div className="kq-actions"><button className="kq-button kq-button-secondary" onClick={() => downloadQuizRecovery(retainedDraft)}>Download local recovery copy</button><button className="kq-button kq-button-danger" onClick={async () => { if (window.confirm('Discard the unsynced local copy? This cannot be undone.')) { await clearQuizRecovery(user.id, attemptId); setRetainedDraft(null); } }}>Discard local copy</button></div></section>}
       <section className="kq-card"><h2>Strengths and areas to develop</h2><div className="kq-bars" style={{ marginTop: 20 }}>{data.results.categories.map((category) => <div key={category.id}><div><span>{category.name}</span><strong>{category.percentage}%</strong></div><meter min={0} max={100} value={category.percentage} aria-label={`${category.name}: ${category.percentage}%`} />{canAnswer && category.percentage < 70 && <Link className="kq-note" to={`/respondent/materials?category=${category.id}`}>Explore learning materials for this area →</Link>}</div>)}</div></section>
-      <section className="kq-list"><h2>Answer review</h2>{data.results.questions.map((item, number) => <article className="kq-card kq-review-item" data-correct={item.correct} key={item.id}><div className="kq-section-title"><span className={`kq-badge ${item.correct ? 'kq-badge-success' : 'kq-badge-warning'}`}>{item.correct ? 'Correct' : 'Incorrect'} · {item.earned}/{item.points} points</span><span className="kq-note">{item.category_name}</span></div><h3>{number + 1}. {item.prompt}</h3><p className="kq-note">Your answer: <strong>{item.options.find((option) => option.id === item.answer)?.text || item.answer || 'Unanswered'}</strong></p><p className="kq-note">Accepted answer: {item.answers.map((key) => item.options.find((option) => option.id === key)?.text || key).join(' / ')}</p>{item.explanation && <p className="kq-note">{item.explanation}</p>}</article>)}</section>
+      {!canAnswer && data.integrity && <section className="kq-card">
+        <div className="kq-section-title"><h2>Academic integrity signals</h2><span className={`kq-badge ${data.integrity.total > 0 ? 'kq-badge-warning' : 'kq-badge-success'}`}>{data.integrity.total} total flag{data.integrity.total === 1 ? '' : 's'}</span></div>
+        <p className="kq-note">{data.integrity.total > 0 ? 'Recorded client and session signals during this attempt for instructor follow-up.' : 'No integrity flags were recorded during this attempt.'}</p>
+        <div className="kq-integrity-grid">
+          <div><span>Tab switches</span><strong>{data.integrity.page_hidden || 0}</strong></div>
+          <div><span>Window focus lost</span><strong>{data.integrity.window_blur || 0}</strong></div>
+          <div><span>Copy attempts</span><strong>{data.integrity.copy_attempt || 0}</strong></div>
+          <div><span>Paste attempts</span><strong>{data.integrity.paste || 0}</strong></div>
+          <div><span>Right-click menus</span><strong>{data.integrity.context_menu || 0}</strong></div>
+          <div><span>Extra sign-in sessions</span><strong>{data.integrity.new_session || 0}</strong></div>
+        </div>
+      </section>}
+      <section className="kq-list"><h2>Answer review</h2>{data.results.review_locked && <p role="status" className="kq-note">Detailed answer keys, item correctness, and explanations are withheld until all permitted attempts are used and this assessment closes.</p>}{data.results.questions.map((item, number) => <article className="kq-card kq-review-item" data-correct={data.results.review_locked ? undefined : item.correct} key={item.id}><div className="kq-section-title">{data.results.review_locked ? <span className="kq-badge">{item.points} point{item.points === 1 ? '' : 's'}</span> : <span className={`kq-badge ${item.correct ? 'kq-badge-success' : 'kq-badge-warning'}`}>{item.correct ? 'Correct' : 'Incorrect'} · {item.earned}/{item.points} points</span>}<span className="kq-note">{item.category_name}</span></div><h3>{number + 1}. {item.prompt}</h3><p className="kq-note">Your answer: <strong>{item.options.find((option) => option.id === item.answer)?.text || item.answer || 'Unanswered'}</strong></p>{!data.results.review_locked && Array.isArray(item.answers) && <p className="kq-note">Accepted answer: {item.answers.map((key) => item.options.find((option) => option.id === key)?.text || key).join(' / ')}</p>}{!data.results.review_locked && item.explanation && <p className="kq-note">{item.explanation}</p>}</article>)}</section>
     </> : <div className="kq-page kq-take">
       {conflict && <section className="kq-card" role="alert"><h2>Answers changed in another tab or device</h2><p className="kq-note">Your local recovery copy is preserved. Choose which copy to keep before synchronization can continue.</p><div className="kq-actions"><button className="kq-button kq-button-secondary" onClick={() => downloadQuizRecovery({ ...latest.current, userId: user.id, attemptId })}>Download local copy</button><button className="kq-button" disabled={!online} onClick={() => resolveConflict(true)}>Keep this device’s answers</button><button className="kq-button kq-button-secondary" disabled={!online} onClick={() => resolveConflict(false)}>Use server answers</button></div></section>}
       {!online && <p role="status" className="kq-check"><WifiOff size={18} aria-hidden="true" />You are offline. Keep using this device and browser; reconnect before submission.</p>}
-      <section className="kq-card kq-attempt-status"><div className="kq-section-title"><div><p className="kq-eyebrow">Assessment progress</p><strong>{answered} of {questions.length} answered</strong></div><span className="kq-timer" aria-label="Time remaining">{remaining === null ? 'Untimed' : `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`}</span></div><div className="kq-progress" role="progressbar" aria-label="Assessment progress" aria-valuemin={0} aria-valuemax={questions.length} aria-valuenow={answered}><div style={{ width: `${answered / questions.length * 100}%` }} /></div><p className="kq-note" role="status">{syncStatus}</p>{storageError && <p className="kq-note" role="alert">Local recovery is unavailable: {storageError} Keep this tab open and maintain a connection so responses can be saved to the server.</p>}</section>
+      <section className="kq-card kq-attempt-status"><div className="kq-section-title"><div><p className="kq-eyebrow">Assessment progress</p><strong>{answered} of {questions.length} answered</strong></div><span className="kq-timer" aria-label="Time remaining">{remaining === null ? 'Untimed' : `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`}</span></div><div className="kq-progress" role="progressbar" aria-label="Assessment progress" aria-valuemin={0} aria-valuemax={questions.length} aria-valuenow={answered}><div style={{ width: `${answered / questions.length * 100}%` }} /></div><p className="kq-note" role="status">{syncStatus}</p>{canAnswer && !expired && <p className="kq-note">Independent work monitoring is active: tab switches, copy/paste attempts, and extra sign-in sessions are logged for instructor review.</p>}{storageError && <p className="kq-note" role="alert">Local recovery is unavailable: {storageError} Keep this tab open and maintain a connection so responses can be saved to the server.</p>}</section>
       <div className="kq-question-map"><button type="button" className="kq-question-map-toggle" aria-expanded={questionMapOpen} aria-controls="quiz-question-map" onClick={() => setQuestionMapOpen(value => !value)}><span>{review ? 'Question list' : `Question ${index + 1} of ${questions.length}`}</span><span>{questionMapOpen ? 'Hide list' : 'Show list'}<ChevronDown size={16} aria-hidden="true" /></span></button>
       <nav id="quiz-question-map" hidden={!questionMapOpen} className="kq-question-navigation" aria-label="Assessment questions">{questions.map((item, number) => <button key={item.id} type="button" data-answered={Boolean(String(answers[item.id] ?? '').trim())} aria-current={!review && index === number ? 'step' : undefined} aria-label={`Question ${number + 1}${String(answers[item.id] ?? '').trim() ? ', answered' : ', unanswered'}`} onClick={() => selectQuestion(number)}>{number + 1}</button>)}</nav></div>
       {review ? <section className="kq-card"><h2 ref={questionHeading} tabIndex={-1}>Review your answers</h2><p className="kq-note">{questions.length - answered} unanswered. You can return to any question before submitting.</p><div className="kq-list" style={{ marginTop: 18 }}>{questions.map((item, number) => <button className="kq-question-row" key={item.id} onClick={() => selectQuestion(number)}><span><strong>{number + 1}. {item.prompt}</strong><p>{item.options.find((option) => option.id === answers[item.id])?.text || answers[item.id] || 'Unanswered'}</p></span><ArrowRight size={17} aria-hidden="true" /></button>)}</div><div className="kq-actions" style={{ marginTop: 20 }}><button className="kq-button" disabled={!online || submitting || (answered !== questions.length && !expired) || freeDemoReadOnly} onClick={() => submit(expired)}>{submitting ? 'Submitting…' : 'Submit assessment'}</button><button className="kq-button kq-button-secondary" onClick={() => selectQuestion(index)}>Continue answering</button></div></section>
-        : <section className="kq-card kq-question-card"><div className="kq-section-title"><span className="kq-badge">{question.category_name}</span><span className="kq-note">{question.points} point{question.points === 1 ? '' : 's'} · {question.type.replaceAll('_', ' ')}</span></div><h2 ref={questionHeading} tabIndex={-1}>{index + 1}. {question.prompt}</h2><fieldset disabled={expired || submitting || !canAnswer || freeDemoReadOnly} className="kq-options"><legend className="sr-only">Your answer to question {index + 1}</legend>{question.type === 'identification' ? <Field label="Your answer"><input type="text" maxLength={500} value={answers[question.id] || ''} onChange={(event) => answer(event.target.value)} autoComplete="off" /></Field> : question.options.map((option) => <label key={option.id}><input type="radio" name={`question-${question.id}`} value={option.id} checked={answers[question.id] === option.id} onChange={() => answer(option.id)} /><span>{option.text}</span></label>)}</fieldset><div className="kq-actions kq-question-actions" style={{ justifyContent: 'space-between', marginTop: 26 }}><button className="kq-button kq-button-secondary" disabled={index === 0} onClick={() => selectQuestion(index - 1)}><ArrowLeft size={15} aria-hidden="true" />Previous</button>{index < questions.length - 1 ? <button className="kq-button" onClick={() => selectQuestion(index + 1)}>Next<ArrowRight size={15} aria-hidden="true" /></button> : <button className="kq-button" onClick={() => { moveFocus.current = true; setReview(true); }}><CheckCircle2 size={16} aria-hidden="true" />Review answers</button>}</div></section>}
+        : <section className={canAnswer ? 'kq-card kq-question-card kq-proctored' : 'kq-card kq-question-card'}><div className="kq-section-title"><span className="kq-badge">{question.category_name}</span><span className="kq-note">{question.points} point{question.points === 1 ? '' : 's'} · {question.type.replaceAll('_', ' ')}</span></div><h2 ref={questionHeading} tabIndex={-1}>{index + 1}. {question.prompt}</h2><fieldset disabled={expired || submitting || !canAnswer || freeDemoReadOnly} className="kq-options"><legend className="sr-only">Your answer to question {index + 1}</legend>{question.type === 'identification' ? <Field label="Your answer"><input type="text" maxLength={500} value={answers[question.id] || ''} onChange={(event) => answer(event.target.value)} autoComplete="off" /></Field> : question.options.map((option) => <label key={option.id}><input type="radio" name={`question-${question.id}`} value={option.id} checked={answers[question.id] === option.id} onChange={() => answer(option.id)} /><span>{option.text}</span></label>)}</fieldset><div className="kq-actions kq-question-actions" style={{ justifyContent: 'space-between', marginTop: 26 }}><button className="kq-button kq-button-secondary" disabled={index === 0} onClick={() => selectQuestion(index - 1)}><ArrowLeft size={15} aria-hidden="true" />Previous</button>{index < questions.length - 1 ? <button className="kq-button" onClick={() => selectQuestion(index + 1)}>Next<ArrowRight size={15} aria-hidden="true" /></button> : <button className="kq-button" onClick={() => { moveFocus.current = true; setReview(true); }}><CheckCircle2 size={16} aria-hidden="true" />Review answers</button>}</div></section>}
       {!review && <button className="kq-button kq-button-secondary" onClick={() => { moveFocus.current = true; setReview(true); }}>Review all answers</button>}
       {pending && online && <button className="kq-button kq-button-secondary" onClick={() => void sync()}>Retry synchronization</button>}
       {expired && !online && <Empty>Time has ended. Reconnect to finalize the answers received by the server before the deadline.</Empty>}

@@ -30,7 +30,7 @@ export function KnowledgeStats({ summary, student = false }) {
   return <section className="kq-stats" aria-label="Knowledge assessment summary">{values.map(([label, value]) => <article key={label} className="kq-card"><p>{label}</p><strong>{value ?? 0}</strong></article>)}</section>;
 }
 export function KnowledgeCharts({ data }) {
-  const colors = ['#2563eb', '#0e7490', '#7c3aed', '#d97706', '#e11d48'];
+  const colors = ['#006b3c', '#0e7490', '#7c3aed', '#d97706', '#e11d48'];
   const total = data.distribution.reduce((sum, item) => sum + item.count, 0);
   const stops = data.distribution.map((item, index) => {
     const begin = total ? data.distribution.slice(0, index).reduce((sum, entry) => sum + entry.count, 0) / total * 100 : 0;

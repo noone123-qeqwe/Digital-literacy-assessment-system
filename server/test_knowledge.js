@@ -80,21 +80,35 @@ async function run() {
     check(started.status === 200 && started.data.data.snapshot.questions.length === 3, 'an assigned student starts a snapshotted timed assessment');
     const attemptId = started.data.data.attempt.id;
     check(started.data.data.snapshot.questions.every((question) => !('answers' in question) && !('explanation' in question)) && !('snapshot_json' in started.data.data.attempt), 'active attempt responses never expose answer keys or raw snapshots');
+    const q0 = started.data.data.snapshot.questions.find((q) => q.id === ids[0]);
+    const q0CorrectId = q0.options.find((option) => option.text === 'Encrypted offline backup').id;
+    const q0WrongId = q0.options.find((option) => option.text === 'No saved copy').id;
+    check(!/^[0-5]$/.test(q0CorrectId) && !/^[0-5]$/.test(q0WrongId), 'multiple-choice option IDs are randomized per attempt rather than sequential indexes');
     const resume = await request(`/quizzes/${quizId}/start`, { actor: maria, method: 'POST', body: {} });
     check(resume.data.data.attempt.id === attemptId && JSON.stringify(resume.data.data.snapshot) === JSON.stringify(started.data.data.snapshot), 'reopening an interrupted quiz resumes the same ordered snapshot');
     check((await request(`/attempts/${attemptId}`, { actor: juan })).status === 403 && (await request(`/attempts/${attemptId}`, { actor: teacher })).status === 403, 'attempt ownership is enforced for students and unrelated teachers');
-    const invalidBatch = await request(`/attempts/${attemptId}/answers`, { actor: maria, method: 'PUT', body: { responses: [{ question_id: ids[0], answer: '0' }, { question_id: 999999, answer: '0' }] } });
+    check((await request(`/attempts/${attemptId}/integrity`, { actor: maria, method: 'POST', body: { event_type: 'page_hidden', detail: 'tab_hidden' } })).status === 200
+      && (await request(`/attempts/${attemptId}/integrity`, { actor: maria, method: 'POST', body: { event_type: 'copy_attempt', detail: 'copy' } })).status === 200
+      && (await request(`/attempts/${attemptId}/integrity`, { actor: maria, method: 'POST', body: { event_type: 'bogus_event' } })).status === 400, 'integrity endpoint logs supported proctoring signals and rejects unknown types');
+    const mariaSecondSession = session(db.prepare("SELECT id FROM users WHERE email='maria.santos@example.com'").get());
+    check((await request(`/attempts/${attemptId}`, { actor: mariaSecondSession })).status === 200, 'second session read triggers extra-session integrity tracking');
+    const invalidBatch = await request(`/attempts/${attemptId}/answers`, { actor: maria, method: 'PUT', body: { responses: [{ question_id: ids[0], answer: q0CorrectId }, { question_id: 999999, answer: '0' }] } });
     check(invalidBatch.status === 400 && db.prepare('SELECT COUNT(*) count FROM quiz_responses WHERE attempt_id=?').get(attemptId).count === 0, 'a batch with a foreign question writes no partial answers');
-    const answers = { responses: [{ question_id: ids[0], answer: '0' }, { question_id: ids[1], answer: 'false' }, { question_id: ids[2], answer: '  central   PROCESSING unit ' }] };
+    const answers = { responses: [{ question_id: ids[0], answer: q0CorrectId }, { question_id: ids[1], answer: 'false' }, { question_id: ids[2], answer: '  central   PROCESSING unit ' }] };
     check((await request(`/attempts/${attemptId}/submit`, { actor: maria, method: 'POST' })).status === 400, 'unanswered quizzes cannot be submitted before the deadline');
     await request(`/attempts/${attemptId}/answers`, { actor: maria, method: 'PUT', body: answers });
     await request(`/attempts/${attemptId}/answers`, { actor: maria, method: 'PUT', body: answers });
     check(db.prepare('SELECT COUNT(*) count FROM quiz_responses WHERE attempt_id=?').get(attemptId).count === 3, 'replayed answer uploads are idempotent');
-    const stale = await request(`/attempts/${attemptId}/answers`, { actor: maria, method: 'PUT', body: { expected_revision: 0, responses: [{ question_id: ids[0], answer: '1' }] } });
-    check(stale.status === 409 && db.prepare('SELECT answer FROM quiz_responses WHERE attempt_id=? AND question_id=?').get(attemptId, ids[0]).answer === '0', 'stale tab uploads cannot silently overwrite newer answers');
+    const stale = await request(`/attempts/${attemptId}/answers`, { actor: maria, method: 'PUT', body: { expected_revision: 0, responses: [{ question_id: ids[0], answer: q0WrongId }] } });
+    check(stale.status === 409 && db.prepare('SELECT answer FROM quiz_responses WHERE attempt_id=? AND question_id=?').get(attemptId, ids[0]).answer === q0CorrectId, 'stale tab uploads cannot silently overwrite newer answers');
     await request(`/questions/${ids[0]}`, { actor: admin, method: 'PUT', body: { ...kinds[0], correct_answer: '1', prompt: 'Updated question after assessment creation.' } });
     const completed = await request(`/attempts/${attemptId}/submit`, { actor: maria, method: 'POST' });
     check(completed.status === 200 && completed.data.data.results.percentage === 100 && completed.data.data.results.level === 'Advanced', 'weighted points and normalized identification produce the expected percentage');
+    check(completed.data.data.results.review_locked === true && completed.data.data.answer_key_released === false
+      && completed.data.data.results.questions.every((item) => !('answers' in item) && !('explanation' in item) && !('correct' in item))
+      && !('integrity' in completed.data.data), 'student result review withholds answer keys, explanations, and integrity telemetry while attempts remain');
+    const adminAttemptView = await request(`/attempts/${attemptId}`, { actor: admin });
+    check(adminAttemptView.data.data.answer_key_released === true && adminAttemptView.data.data.integrity.page_hidden === 1 && adminAttemptView.data.data.integrity.copy_attempt === 1 && adminAttemptView.data.data.integrity.new_session === 1, 'administrators can inspect full answer review and recorded integrity signals');
     check(completed.data.data.results.questions[0].prompt !== 'Updated question after assessment creation.' || completed.data.data.results.questions.find((item) => item.id === ids[0]).prompt === kinds[0].prompt, 'bank edits leave assessment wording and answer snapshots unchanged');
     check(completed.data.data.results.certificateEarned && completed.data.data.attempt.certificate_earned === 1, 'meeting the configured threshold earns an achievement certificate');
     check((await request(`/attempts/${attemptId}/submit`, { actor: maria, method: 'POST' })).status === 200 && db.prepare('SELECT COUNT(*) count FROM quiz_category_results WHERE attempt_id=?').get(attemptId).count === 2, 'repeat submission keeps one result per category');
@@ -102,15 +116,27 @@ async function run() {
     for (const format of ['pdf', 'excel', 'certificate']) {
       const exported = await request(`/attempts/${attemptId}/export/${format}`, { actor: maria });
       check(exported.status === 200 && exported.data.length > 1000 && (format === 'excel' ? exported.data.subarray(0, 2).toString() === 'PK' : exported.data.subarray(0, 4).toString() === '%PDF'), `own ${format} export generates a valid file`);
-      if (format === 'excel') { const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(exported.data); check(workbook.worksheets[0].getRow(1).getCell(2).value === 'Maria Santos', 'Excel result includes the authenticated participant’s name'); }
+      if (format === 'excel') {
+        const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(exported.data);
+        check(workbook.worksheets[0].getRow(1).getCell(2).value === 'Maria Santos', 'Excel result includes the authenticated participant’s name');
+        const headerRow = workbook.worksheets[0].getRow(6).values;
+        check(!headerRow.includes('Accepted answer'), 'student Excel export withholds accepted answers before key release');
+      }
       if (process.env.DLAS_KEEP_QUIZ_ARTIFACTS === 'true') fs.writeFileSync(path.join(os.tmpdir(), `dlas-knowledge-sample.${format === 'excel' ? 'xlsx' : format === 'certificate' ? 'certificate.pdf' : 'pdf'}`), exported.data);
     }
     check((await request(`/attempts/${attemptId}/export/certificate`, { actor: juan })).status === 403, 'certificate downloads enforce ownership');
     const second = await request(`/quizzes/${quizId}/start`, { actor: maria, method: 'POST', body: { accepted_instructions: true } });
     const secondId = second.data.data.attempt.id;
-    await request(`/attempts/${secondId}/answers`, { actor: maria, method: 'PUT', body: { responses: [{ question_id: ids[0], answer: '1' }, { question_id: ids[1], answer: 'true' }, { question_id: ids[2], answer: 'wrong' }] } });
+    const secondQ0 = second.data.data.snapshot.questions.find((q) => q.id === ids[0]);
+    const secondQ0WrongId = secondQ0.options.find((option) => option.text === 'No saved copy').id;
+    check(secondQ0WrongId !== q0WrongId, 'each new attempt assigns fresh opaque option IDs');
+    await request(`/attempts/${secondId}/answers`, { actor: maria, method: 'PUT', body: { responses: [{ question_id: ids[0], answer: secondQ0WrongId }, { question_id: ids[1], answer: 'true' }, { question_id: ids[2], answer: 'wrong' }] } });
     const secondResult = await request(`/attempts/${secondId}/submit`, { actor: maria, method: 'POST' });
     check(secondResult.data.data.results.percentage === 0 && secondResult.data.data.results.level === 'Needs Improvement', 'incorrect answers earn zero and the correct lower proficiency');
+    check(secondResult.data.data.answer_key_released === false, 'answer key remains withheld while the quiz is still open for classmates');
+    await request(`/quizzes/${quizId}/status`, { actor: admin, method: 'PUT', body: { status: 'archived' } });
+    const afterClose = await request(`/attempts/${secondId}`, { actor: maria });
+    check(afterClose.data.data.answer_key_released === true && afterClose.data.data.results.questions.every((item) => Array.isArray(item.answers)), 'answer keys unlock after all attempts are used and the assessment closes');
     check((await request(`/attempts/${secondId}/export/certificate`, { actor: maria })).status === 409, 'students below the threshold cannot generate achievement certificates');
     check((await request(`/quizzes/${quizId}/start`, { actor: maria, method: 'POST', body: { accepted_instructions: true } })).status === 409, 'configured attempt limit is enforced');
     const overview = await request('/overview', { actor: maria });
@@ -133,12 +159,20 @@ async function run() {
     check((await request(`/quizzes/${future.data.data.id}/start`, { actor: maria, method: 'POST', body: { accepted_instructions: true } })).status === 409, 'future schedules cannot be bypassed');
     check((await request(`/quizzes/${quizId}`, { actor: admin, method: 'DELETE' })).status === 409, 'assessments with results require archival rather than deletion');
     const materials = await request('/materials', { actor: maria });
-    check(materials.data.data.length === 8 && materials.data.data.every((material) => material.content.length > 100), 'all eight categories include usable starter learning guides');
+    check(materials.data.data.length === 8 && materials.data.data.every((material) => material.content.length > 3000 && material.image_url.startsWith('/learning/images/') && material.video_url.startsWith('/learning/videos/')), 'all eight categories include detailed learning guides with images and videos');
+    const publicDir = path.resolve(__dirname, '..', 'client', 'public');
+    check(materials.data.data.every((material) => {
+      const captionRel = material.video_url.replace(/^\/learning\/videos\/(.+)\.mp4$/, '/learning/captions/$1.vtt');
+      return fs.existsSync(path.join(publicDir, material.image_url))
+        && fs.existsSync(path.join(publicDir, material.video_url))
+        && fs.existsSync(path.join(publicDir, captionRel));
+    }), 'all starter guide images, videos, and caption files exist on disk');
     const materialId = materials.data.data[0].id;
     await request(`/materials/${materialId}/completion`, { actor: maria, method: 'PUT', body: { completed: true } });
     await request(`/materials/${materialId}/completion`, { actor: maria, method: 'PUT', body: { completed: true } });
     check(db.prepare('SELECT COUNT(*) count FROM quiz_material_completions WHERE material_id=? AND user_id=?').get(materialId, maria.id).count === 1, 'learning completion retries are idempotent');
     const material = materials.data.data[0];
+    check((await request(`/materials/${materialId}`, { actor: admin, method: 'PUT', body: { ...material, image_url: 'https://untrusted.example/photo.png', is_published: true } })).status === 400, 'external arbitrary image URLs are rejected to match Content Security Policy');
     await request(`/materials/${materialId}`, { actor: admin, method: 'PUT', body: { ...material, title: 'Revised guide', is_published: true } });
     check(db.prepare('SELECT COUNT(*) count FROM quiz_material_completions WHERE material_id=?').get(materialId).count === 0, 'revised learning content resets the old completion record');
     const addedCategory = await request('/categories', { actor: admin, method: 'POST', body: { name: 'Custom curriculum', description: 'New topic' } });

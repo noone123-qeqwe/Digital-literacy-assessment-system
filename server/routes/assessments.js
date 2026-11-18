@@ -218,10 +218,16 @@ router.get('/:id', authenticate, (req, res) => {
 
     assessment.questions = questions;
 
-    // If respondent, also get their attempt status
+    // If respondent, avoid exposing unreleased questions before the opening window or raw snapshots.
     if (req.user.role === 'respondent') {
+      delete assessment.instrument_snapshot;
+      const notOpenedYet = assessment.start_date && Date.parse(assessment.start_date) > Date.now();
+      if (assessment.status !== 'active' || notOpenedYet) {
+        assessment.questions = [];
+      }
       const attempt = db.prepare(`
         SELECT * FROM assessment_attempts WHERE assessment_id = ? AND user_id = ?
+        ORDER BY started_at DESC, id DESC LIMIT 1
       `).get(assessmentId, req.user.id);
       assessment.my_attempt = attempt || null;
     }
