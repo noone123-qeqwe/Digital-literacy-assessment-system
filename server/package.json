@@ -15,7 +15,7 @@
     "dev": "node --watch server.js",
     "seed": "node db/seed.js",
     "bootstrap-admin": "node scripts/bootstrap-admin.js",
-    "test": "npm run test:roles && node test_system.js && node test_knowledge.js && node test_quiz_completion.js && node test_curriculum.js && npm run test:assessment-pack && npm run test:bookmarks && npm run test:cloud && npm run test:email && npm run test:ping && node --test scripts/start-production.test.js utils/serveClient.test.js && node test_mfa_policy.js",
+    "test": "npm run test:roles && npm run test:security && node test_system.js && node test_knowledge.js && node test_quiz_completion.js && node test_curriculum.js && npm run test:assessment-pack && npm run test:bookmarks && npm run test:cloud && npm run test:email && npm run test:ping && node --test scripts/start-production.test.js utils/serveClient.test.js && node test_mfa_policy.js",
     "test:ping": "node --test scripts/ping-site.test.js utils/websitePing.test.js",
     "test:bookmarks": "node test_bookmarks.js",
     "publish:foundations": "node scripts/publish-foundations.js",
@@ -26,7 +26,9 @@
     "test:libsql": "node scripts/test-libsql.js",
     "verify-backup": "node db/verify-backup.js",
     "ping-site": "node scripts/ping-site.js",
-    "test:roles": "node test_roles.js"
+    "test:roles": "node test_roles.js",
+    "test:security": "node security/scenarios.js",
+    "test:security:regression": "node security/run-in-process.js test_knowledge.js && node security/run-in-process.js test_quiz_completion.js && node security/run-in-process.js test_curriculum.js && node security/run-in-process.js test_bookmarks.js && node security/run-in-process.js test_mfa_policy.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

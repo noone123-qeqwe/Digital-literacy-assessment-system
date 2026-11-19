@@ -9,7 +9,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 const { defaults: characterDefaults, validateCharacterSettings } = require('../utils/dashboardCharacter');
 const { rateLimit } = require('../middleware/rateLimit');
 const {
-  issueSession, revokeSession, revokeUserSessions, clearSessionCookies,
+  issueSession, revokeSession, revokeUserSessions, invalidatePendingAuthentication, clearSessionCookies,
   encryptSecret, decryptSecret, generateTotpSecret, verifyTotp, safeEqual,
   canonicalEmail, findCanonicalEmailConflict,
   generateEmailOtp, hashCode, normalizeBackupCode, generateBackupCodes,
@@ -151,24 +151,22 @@ router.post('/login', loginLimit, loginAccountLimit, [
 
   const { email, password } = req.body;
   try {
-  const user = db.prepare(
+  const userByEmail = db.prepare(
     "SELECT u.*, COALESCE(mfa_policy.setting_value, '0') AS mfa_optional FROM users u"
     + " LEFT JOIN system_settings mfa_policy ON mfa_policy.setting_key = 'mfa_optional_user:' || u.id"
     + ' WHERE u.email = ?'
-  ).get(email);
-
-  if (!user) {
-    await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
+  );
+  const initialUser = userByEmail.get(email);
+  const isMatch = await bcrypt.compare(password, initialUser?.password || DUMMY_PASSWORD_HASH);
+  // A reset or administrator update may finish during the asynchronous password check.
+  const user = initialUser ? userByEmail.get(email) : null;
+  if (!isMatch || !user || user.password !== initialUser.password) {
     return res.status(401).json({ success: false, message: 'Invalid email or password.' });
   }
 
+  // Reveal account-state guidance only after the supplied credentials are verified.
   if (!['admin', 'respondent'].includes(user.role) || user.status !== 'active') {
     return res.status(403).json({ success: false, message: 'Account is deactivated. Contact administrator.' });
-  }
-
-  const isMatch = await bcrypt.compare(password, user.password);
-  if (!isMatch) {
-    return res.status(401).json({ success: false, message: 'Invalid email or password.' });
   }
 
   if (!user.email_verified) {
@@ -372,11 +370,22 @@ router.post('/reset-password', tokenUseLimit, [
     const token = verifiedUserForToken(req.body.token, 'password_reset');
     if (!token) return res.status(400).json({ success: false, message: 'Reset link is invalid or expired.' });
     const passwordHash = await bcrypt.hash(req.body.new_password, 12);
-    db.transaction(() => {
-      db.prepare("UPDATE auth_tokens SET used_at = datetime('now') WHERE id = ?").run(token.token_id);
+    const reset = db.transaction(() => {
+      // Claim the token exactly once, rechecking expiry and account state after hashing.
+      const consumed = db.prepare(`
+        UPDATE auth_tokens SET used_at = datetime('now')
+        WHERE id = ? AND token_type = 'password_reset' AND used_at IS NULL
+          AND datetime(expires_at) > datetime('now')
+          AND EXISTS (SELECT 1 FROM users u WHERE u.id = auth_tokens.user_id
+            AND u.email = ? AND u.status = 'active' AND u.role IN ('admin', 'respondent'))
+      `).run(token.token_id, token.email);
+      if (Number(consumed.changes) !== 1) return false;
       db.prepare("UPDATE users SET password = ?, updated_at = datetime('now') WHERE id = ?").run(passwordHash, token.id);
-      db.prepare("UPDATE auth_sessions SET revoked_at = datetime('now') WHERE user_id = ? AND revoked_at IS NULL").run(token.id);
+      revokeUserSessions(token.id);
+      invalidatePendingAuthentication(token.id);
+      return true;
     })();
+    if (!reset) return res.status(400).json({ success: false, message: 'Reset link is invalid or expired.' });
     logActivity(token.id, 'PASSWORD_RESET', 'Password reset by email');
     return res.json({ success: true, message: 'Password reset. You can sign in with your new password.' });
   } catch (err) { return next(err); }
@@ -911,8 +920,15 @@ router.put('/me/password', authenticate, [
   }
 
   const hashedPassword = await bcrypt.hash(new_password, 12);
-  db.prepare("UPDATE users SET password = ?, updated_at = datetime('now') WHERE id = ?").run(hashedPassword, req.user.id);
-  revokeUserSessions(req.user.id, req.sessionId);
+  const changed = db.transaction(() => {
+    const update = db.prepare("UPDATE users SET password = ?, updated_at = datetime('now') WHERE id = ? AND password = ? AND status = 'active'")
+      .run(hashedPassword, req.user.id, user.password);
+    if (Number(update.changes) !== 1) return false;
+    revokeUserSessions(req.user.id, req.sessionId);
+    invalidatePendingAuthentication(req.user.id);
+    return true;
+  })();
+  if (!changed) return res.status(409).json({ success: false, message: 'Account credentials changed. Sign in again before changing your password.' });
 
   logActivity(req.user.id, 'PASSWORD_CHANGE', 'User changed their password');
 

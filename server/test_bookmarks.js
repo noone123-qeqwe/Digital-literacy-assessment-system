@@ -62,7 +62,7 @@ async function run() {
     check(!db.prepare('SELECT 1 FROM quiz_bookmarks WHERE user_id=? AND quiz_id=?').get(maria.id, quiz) && db.prepare('SELECT 1 FROM quiz_bookmarks WHERE user_id=? AND quiz_id=?').get(admin.id, quiz), 'removing a bookmark is idempotent and leaves other accounts unchanged');
     for (const route of ['/bookmarks/unknown/1', '/bookmarks/knowledge/0', '/bookmarks/knowledge/1x', '/bookmarks/research/9007199254740992']) check((await request(route, { actor: maria, method: 'PUT' })).status === 400, `invalid bookmark target is rejected: ${route}`);
     check((await request('/bookmarks/knowledge/999999', { actor: admin, method: 'PUT' })).status === 404, 'nonexistent assessments cannot be bookmarked');
-    check((await request(knowledgePath, { actor: teacher, method: 'PUT' })).status === 404, 'teachers cannot bookmark another teacher’s knowledge quiz');
+    check((await request(knowledgePath, { actor: teacher, method: 'PUT' })).status === 403, 'retired teachers cannot bookmark another account’s knowledge quiz');
     db.prepare('UPDATE knowledge_quizzes SET created_by=? WHERE id=?').run(teacher.id, quiz);
     check((await request(knowledgePath, { actor: teacher, method: 'PUT' })).status === 403, 'retired teachers cannot bookmark even their own quizzes');
     check((await request(researchPath, { actor: teacher, method: 'PUT' })).status === 403, 'retired teachers cannot bookmark previously assigned research assessments');

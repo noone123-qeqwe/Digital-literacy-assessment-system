@@ -6,7 +6,7 @@ const { body, query, validationResult } = require('express-validator');
 const { db, logActivity } = require('../db/database');
 const { authenticate, authorize } = require('../middleware/auth');
 const { sendSecurityEmail, clientUrl } = require('../utils/email');
-const { clearSessionCookies, findCanonicalEmailConflict } = require('../utils/authSecurity');
+const { clearSessionCookies, findCanonicalEmailConflict, invalidatePendingAuthentication } = require('../utils/authSecurity');
 const { canAccessAssessment } = require('../middleware/auth');
 
 // GET /api/users - List users with search, role filter, pagination
@@ -305,6 +305,7 @@ router.put('/:id', authenticate, authorize('admin'), [
       db.prepare(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`).run(...params);
       if (securitySensitiveChange) {
         db.prepare("UPDATE auth_sessions SET revoked_at = datetime('now') WHERE user_id = ? AND revoked_at IS NULL").run(targetUser.id);
+        invalidatePendingAuthentication(targetUser.id);
       }
       if (emailChanged) {
         verificationToken = crypto.randomBytes(32).toString('base64url');

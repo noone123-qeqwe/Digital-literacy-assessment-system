@@ -66,7 +66,7 @@ async function run() {
       const added = await request('/questions', { actor: admin, method: 'POST', body: question });
       check(added.status === 200, `${question.type} supports authored correct answers and points`); ids.push(added.data.data.id);
     }
-    check((await request('/questions', { actor: teacher, method: 'POST', body: kinds[0] })).status === 403, 'teachers cannot change the administrator question bank');
+    check((await request('/questions', { actor: teacher, method: 'POST', body: kinds[0] })).status === 401, 'teachers cannot change the administrator question bank');
     check((await request('/questions', { actor: admin, method: 'POST', body: { ...kinds[0], options: ['same', 'SAME'] } })).status === 400, 'duplicate answer choices are rejected');
     check((await request('/questions', { actor: admin, method: 'POST', body: { ...kinds[2], accepted_answers: [{}] } })).status === 400, 'identification keys reject non-text input');
     const config = { title: 'Knowledge API workflow check', question_ids: ids, assigned_user_ids: [maria.id], status: 'published', max_attempts: 2, pass_percentage: 80, randomize: true, time_limit_minutes: 15 };
@@ -86,7 +86,7 @@ async function run() {
     check(!/^[0-5]$/.test(q0CorrectId) && !/^[0-5]$/.test(q0WrongId), 'multiple-choice option IDs are randomized per attempt rather than sequential indexes');
     const resume = await request(`/quizzes/${quizId}/start`, { actor: maria, method: 'POST', body: {} });
     check(resume.data.data.attempt.id === attemptId && JSON.stringify(resume.data.data.snapshot) === JSON.stringify(started.data.data.snapshot), 'reopening an interrupted quiz resumes the same ordered snapshot');
-    check((await request(`/attempts/${attemptId}`, { actor: juan })).status === 403 && (await request(`/attempts/${attemptId}`, { actor: teacher })).status === 403, 'attempt ownership is enforced for students and unrelated teachers');
+    check((await request(`/attempts/${attemptId}`, { actor: juan })).status === 403 && (await request(`/attempts/${attemptId}`, { actor: teacher })).status === 401, 'attempt ownership is enforced for students and unrelated teachers');
     check((await request(`/attempts/${attemptId}/integrity`, { actor: maria, method: 'POST', body: { event_type: 'page_hidden', detail: 'tab_hidden' } })).status === 200
       && (await request(`/attempts/${attemptId}/integrity`, { actor: maria, method: 'POST', body: { event_type: 'copy_attempt', detail: 'copy' } })).status === 200
       && (await request(`/attempts/${attemptId}/integrity`, { actor: maria, method: 'POST', body: { event_type: 'bogus_event' } })).status === 400, 'integrity endpoint logs supported proctoring signals and rejects unknown types');
@@ -143,17 +143,17 @@ async function run() {
     const comparison = overview.data.data.comparisons.find((item) => item.quiz_id === quizId);
     check(comparison.first === 100 && comparison.latest === 0 && comparison.change === -100 && comparison.attempts === 2, 'progress compares the first and latest attempts of the same snapshot');
     check(overview.data.data.categories.every((item) => item.percentage === 0), 'category charts use latest results instead of double-counting retakes');
-    check((await request('/quizzes', { actor: teacher, method: 'POST', body: config })).status === 403, 'retired teacher accounts cannot create quizzes');
+    check((await request('/quizzes', { actor: teacher, method: 'POST', body: config })).status === 401, 'retired teacher accounts cannot create quizzes');
     const teacherQuiz = await request('/quizzes', { actor: admin, method: 'POST', body: { ...config, title: 'Teacher cohort', question_ids: [ids[1]], assigned_user_ids: [juan.id], time_limit_minutes: 1 } });
     check(teacherQuiz.status === 201, 'administrator can create assessments from the approved bank');
     const teacherOverview = await request('/overview', { actor: teacher });
-    check(teacherOverview.status === 403, 'retired teacher accounts cannot access analytics');
+    check(teacherOverview.status === 401, 'retired teacher accounts cannot access analytics');
     const timed = await request(`/quizzes/${teacherQuiz.data.data.id}/start`, { actor: juan, method: 'POST', body: { accepted_instructions: true } });
     const timedId = timed.data.data.attempt.id;
     db.prepare('UPDATE quiz_attempts SET deadline=? WHERE id=?').run(new Date(Date.now() - 1000).toISOString(), timedId);
     check((await request(`/attempts/${timedId}/answers`, { actor: juan, method: 'PUT', body: { responses: [{ question_id: ids[1], answer: 'false' }] } })).status === 410, 'server deadline rejects late answers');
     check((await request(`/attempts/${timedId}/submit`, { actor: juan, method: 'POST' })).data.data.results.percentage === 0, 'expired attempts can finalize unanswered questions at zero points');
-    check((await request(`/attempts/${timedId}`, { actor: teacher })).status === 403, 'retired teacher accounts cannot review assessment results');
+    check((await request(`/attempts/${timedId}`, { actor: teacher })).status === 401, 'retired teacher accounts cannot review assessment results');
     const unpublished = await request('/quizzes', { actor: admin, method: 'POST', body: { ...config, title: 'Draft validation', status: 'draft', max_attempts: 1 } });
     check((await request(`/quizzes/${unpublished.data.data.id}/start`, { actor: maria, method: 'POST', body: { accepted_instructions: true } })).status === 409, 'draft assessments cannot be started');
     const future = await request('/quizzes', { actor: admin, method: 'POST', body: { ...config, title: 'Future validation', start_date: new Date(Date.now() + 3600000).toISOString() } });
@@ -178,7 +178,7 @@ async function run() {
     check(db.prepare('SELECT COUNT(*) count FROM quiz_material_completions WHERE material_id=?').get(materialId).count === 0, 'revised learning content resets the old completion record');
     const addedCategory = await request('/categories', { actor: admin, method: 'POST', body: { name: 'Custom curriculum', description: 'New topic' } });
     check((await request(`/categories/${addedCategory.data.data.id}`, { actor: admin, method: 'DELETE' })).status === 200 && (await request(`/categories/${category.id}`, { actor: admin, method: 'DELETE' })).status === 409, 'empty categories can be deleted while referenced categories are protected');
-    for (const format of ['pdf', 'excel']) check((await request(`/reports/${format}`, { actor: admin })).status === 200 && (await request(`/reports/${format}`, { actor: teacher })).status === 403, `only administrators can export ${format} cohort reports`);
+    for (const format of ['pdf', 'excel']) check((await request(`/reports/${format}`, { actor: admin })).status === 200 && (await request(`/reports/${format}`, { actor: teacher })).status === 401, `only administrators can export ${format} cohort reports`);
     check((await request('/reports/pdf', { actor: maria })).status === 403, 'students cannot export staff cohort reports');
     check([59.99, 60, 69.99, 70, 79.99, 80, 89.99, 90, 100].map(levelFor).join('|') === 'Needs Improvement|Beginner|Beginner|Developing|Developing|Proficient|Proficient|Advanced|Advanced', 'all percentage proficiency boundaries match the specification');
     check((await request('/research-results', { actor: maria })).data.data.every((row) => row.user_id === maria.id), 'research history remains separate and ownership filtered');

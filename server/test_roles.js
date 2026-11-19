@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 const temporaryDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'dlas-roles-'));
 process.env.NODE_ENV = 'test';
 process.env.TURSO_DATABASE_URL = '';
@@ -41,10 +42,11 @@ async function route(router, method, routePath, req) {
 (async () => {
   try {
     initializeDatabase();
-    const insert = db.prepare("INSERT INTO users(email,password,first_name,last_name,role,status,email_verified,mfa_enabled) VALUES(?,'fixture-only','Role','Test',?,'active',1,1)");
-    const adminId = Number(insert.run('admin@roles.test', 'admin').lastInsertRowid);
-    const studentId = Number(insert.run('student@roles.test', 'respondent').lastInsertRowid);
-    const retiredId = Number(insert.run('retired@roles.test', 'assessor').lastInsertRowid);
+    const passwordHash = bcrypt.hashSync('ExamplePassword123!', 10);
+    const insert = db.prepare("INSERT INTO users(email,password,first_name,last_name,role,status,email_verified,mfa_enabled) VALUES(?,?,'Role','Test',?,'active',1,1)");
+    const adminId = Number(insert.run('admin@roles.test', passwordHash, 'admin').lastInsertRowid);
+    const studentId = Number(insert.run('student@roles.test', passwordHash, 'respondent').lastInsertRowid);
+    const retiredId = Number(insert.run('retired@roles.test', passwordHash, 'assessor').lastInsertRowid);
     const adminSession = session(adminId), studentSession = session(studentId), retiredSession = session(retiredId);
     const req = (cookie, method = 'GET', body = {}) => ({
       method, body, params: {}, query: {}, headers: { cookie },

@@ -122,6 +122,13 @@ function revokeUserSessions(userId, exceptId = null) {
   `).run(userId, exceptId, exceptId);
 }
 
+// Run within the transaction that changes credentials or account access.
+function invalidatePendingAuthentication(userId) {
+  db.prepare('DELETE FROM mfa_challenges WHERE user_id = ?').run(userId);
+  db.prepare("UPDATE auth_tokens SET used_at = datetime('now') WHERE user_id = ? AND token_type = 'password_reset' AND used_at IS NULL").run(userId);
+  db.prepare("UPDATE mfa_recovery_tokens SET used_at = datetime('now') WHERE user_id = ? AND used_at IS NULL").run(userId);
+}
+
 function clearSessionCookies(res) {
   res.clearCookie(SESSION_COOKIE, cookieOptions(true));
   res.clearCookie(CSRF_COOKIE, cookieOptions(false));
@@ -255,6 +262,7 @@ module.exports = {
   issueSession,
   revokeSession,
   revokeUserSessions,
+  invalidatePendingAuthentication,
   clearSessionCookies,
   encryptSecret,
   decryptSecret,
