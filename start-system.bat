@@ -19,7 +19,7 @@ echo - Frontend UI: http://localhost:5173
 echo - Backend API: http://localhost:3000
 echo.
 echo Demo Accounts:
-echo - Teacher: teacher@dlas.edu.ph      / Teacher@123 (or provision admin via bootstrap)
+echo - Admin: admin@dlas.edu.ph          / Admin@123 (local demo only)
 echo - Student: maria.santos@example.com / User@123
 echo ================================================================
 

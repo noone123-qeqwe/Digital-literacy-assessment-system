@@ -25,18 +25,6 @@ router.get('/', authenticate, (req, res) => {
         LEFT JOIN users u ON a.created_by = u.id
         ORDER BY a.created_at DESC
       `;
-    } else if (user.role === 'assessor') {
-      query = `
-        SELECT a.*, u.first_name || ' ' || u.last_name as creator_name,
-               (SELECT COUNT(*) FROM assessment_questions aq WHERE aq.assessment_id = a.id) as question_count,
-               (SELECT COUNT(DISTINCT user_id) FROM assessment_assignments aa WHERE aa.assessment_id = a.id) as assigned_count,
-               (SELECT COUNT(*) FROM assessment_attempts at WHERE at.assessment_id = a.id AND at.status = 'completed') as completed_count
-        FROM assessments a
-        LEFT JOIN users u ON a.created_by = u.id
-        WHERE a.created_by = ? OR a.id IN (SELECT assessment_id FROM assessment_assignments WHERE assigned_by = ?)
-        ORDER BY a.created_at DESC
-      `;
-      params = [user.id, user.id];
     } else {
       // Respondent - only assigned assessments
       query = `
@@ -66,8 +54,8 @@ router.get('/', authenticate, (req, res) => {
   }
 });
 
-// POST /api/assessments - Create assessment (Admin / Assessor)
-router.post('/', authenticate, authorize('admin', 'assessor'), [
+// POST /api/assessments - Create assessment (Admin only)
+router.post('/', authenticate, authorize('admin'), [
   body('title').trim().isLength({ min: 1, max: 200 }).withMessage('Assessment title is required and must be at most 200 characters'),
   body('description').optional({ nullable: true }).isString().isLength({ max: 2000 }).trim(),
   body('time_limit_minutes').optional().isInt({ min: 1 }),
@@ -239,7 +227,7 @@ router.get('/:id', authenticate, (req, res) => {
 });
 
 // PUT /api/assessments/:id - Update assessment
-router.put('/:id', authenticate, authorize('admin', 'assessor'), [
+router.put('/:id', authenticate, authorize('admin'), [
   body('title').optional().trim().isLength({ min: 1, max: 200 }),
   body('description').optional({ nullable: true }).isString().isLength({ max: 2000 }).trim(),
   body('time_limit_minutes').optional({ nullable: true }).isInt({ min: 1 }),
@@ -319,7 +307,7 @@ router.delete('/:id', authenticate, authorize('admin'), (req, res) => {
 });
 
 // POST /api/assessments/:id/assign - Assign assessment to users
-router.post('/:id/assign', authenticate, authorize('admin', 'assessor'), [
+router.post('/:id/assign', authenticate, authorize('admin'), [
   body('user_ids').isArray({ min: 1 }).withMessage('Must provide user IDs to assign'),
 ], (req, res) => {
   const errors = validationResult(req);
@@ -367,7 +355,7 @@ router.post('/:id/assign', authenticate, authorize('admin', 'assessor'), [
   });
 });
 
-router.post('/:id/remind', authenticate, authorize('admin', 'assessor'), reminderLimit, async (req, res, next) => {
+router.post('/:id/remind', authenticate, authorize('admin'), reminderLimit, async (req, res, next) => {
   if (!mailConfigurationReady()) return res.status(503).json({ success: false, message: 'Configure email delivery before sending reminders.' });
   const assessment = db.prepare('SELECT id, title, end_date FROM assessments WHERE id = ?').get(req.params.id);
   if (!assessment) return res.status(404).json({ success: false, message: 'Assessment not found.' });
@@ -406,7 +394,7 @@ router.post('/:id/remind', authenticate, authorize('admin', 'assessor'), reminde
 });
 
 // GET /api/assessments/:id/results - All results for assessment
-router.get('/:id/results', authenticate, authorize('admin', 'assessor'), (req, res) => {
+router.get('/:id/results', authenticate, authorize('admin'), (req, res) => {
   try {
     const assessment = db.prepare('SELECT id, title, time_limit_minutes FROM assessments WHERE id = ?').get(req.params.id);
     if (!assessment) {

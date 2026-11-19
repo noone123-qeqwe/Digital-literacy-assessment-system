@@ -88,6 +88,11 @@ function requireCsrf(req, res) {
 }
 
 function issueSession(res, user, req, { mfaVerified = false } = {}) {
+  if (!user || !['admin', 'respondent'].includes(user.role) || user.status !== 'active') {
+    const error = new Error('Account is not permitted to sign in. Contact administrator.');
+    error.status = 403;
+    throw error;
+  }
   const id = crypto.randomUUID();
   const maxAge = durationMs(SESSION_DURATION);
   const expiresAt = new Date(Date.now() + maxAge).toISOString();

@@ -456,7 +456,7 @@ router.put('/:id/desired-skills', authenticate, authorize('respondent'), [
 
 // POST /api/attempts/:id/reopen - Let the assessment owner restart an expired timer
 // while retaining the respondent's autosaved answers.
-router.post('/:id/reopen', authenticate, authorize('admin', 'assessor'), (req, res) => {
+router.post('/:id/reopen', authenticate, authorize('admin'), (req, res) => {
   const attemptId = Number.parseInt(req.params.id, 10);
   if (!Number.isInteger(attemptId) || attemptId <= 0) {
     return res.status(400).json({ success: false, message: 'Invalid attempt ID' });

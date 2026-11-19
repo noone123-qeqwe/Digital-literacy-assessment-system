@@ -82,6 +82,8 @@
 .kq-guide-thumb { width: 112px; aspect-ratio: 16 / 9; flex-shrink: 0; border-radius: 10px; border: 1px solid #d5e4db; object-fit: cover; background: #eef7f1; }
 details[open] .kq-guide-thumb { display: none; }
 .kq-guide-toggle { flex-shrink: 0; font-size: 12px; font-weight: 650; color: #006b3c; white-space: nowrap; }
+.kq-guide-close-label, details[open] > summary .kq-guide-open-label { display: none; }
+details[open] > summary .kq-guide-close-label { display: inline; }
 .kq-guide-body { margin-top: 18px; padding-top: 18px; border-top: 1px solid #e2e8f0; display: grid; gap: 20px; }
 .kq-media-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
 .kq-media-grid--two { grid-template-columns: repeat(2, minmax(0, 1fr)); }

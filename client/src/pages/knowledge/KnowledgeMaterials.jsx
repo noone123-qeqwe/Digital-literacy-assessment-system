@@ -325,7 +325,7 @@ export default function KnowledgeMaterials() {
                       loading="lazy"
                     />
                   )}
-                  <span className="kq-guide-toggle">Toggle guide</span>
+                  <span className="kq-guide-toggle"><span className="kq-guide-open-label">Read guide</span><span className="kq-guide-close-label">Close guide</span></span>
                 </summary>
 
                 <div className="kq-guide-body">

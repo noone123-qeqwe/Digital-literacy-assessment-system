@@ -156,8 +156,8 @@ export default function CertificatesCollection() {
   const currentPage = Math.min(page, pages);
   const visible = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-  const base = student ? '/respondent' : user?.role === 'admin' ? '/admin' : '/assessor';
-  const researchPath = student ? '/respondent/assessments' : user?.role === 'admin' ? '/admin/reports' : '/assessor/assessments';
+  const base = student ? '/respondent' : '/admin';
+  const researchPath = student ? '/respondent/assessments' : '/admin/reports';
 
   const openPreview = (item) => {
     if (!item?.unlocked || !item.attempt_id) return;

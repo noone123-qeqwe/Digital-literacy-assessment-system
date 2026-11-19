@@ -1,7 +1,6 @@
 import React, { useId } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, RefreshCw } from 'lucide-react';
-import { useAuth } from '../../contexts/useAuth';
 import { useKnowledgeData, displayDate } from './knowledgeClient';
 import './Knowledge.css';
 
@@ -49,10 +48,9 @@ export function KnowledgeCharts({ data }) {
 }
 
 export function KnowledgePulse({ student = false }) {
-  const { user } = useAuth();
   const state = useKnowledgeData(['/knowledge/overview']);
   const overview = state.data[0];
-  const base = student ? '/respondent' : user.role === 'assessor' ? '/assessor' : '/admin';
+  const base = student ? '/respondent' : '/admin';
   return <section className={`kq-page kq-dashboard-pulse ${student ? 'kq-student-pulse' : ''}`}>
     {student ? <div className="kq-student-summary-heading"><h2>Your assessments</h2><Link to={`${base}/knowledge`}>View all<ArrowRight aria-hidden="true" size={16} /></Link></div> : <div className="kq-hero"><div><p className="kq-eyebrow">Your digital learning hub</p><h2>Welcome to the Digital Literacy Assessment System!</h2><p>Assess your knowledge, discover strengths, and build the skills you need.</p></div><Link className="kq-button" to={`${base}/knowledge`}>Manage assessments<ArrowRight aria-hidden="true" size={17} /></Link></div>}
     {overview && <KnowledgeStats summary={overview.summary} student={student} />}

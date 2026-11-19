@@ -245,7 +245,6 @@ export const AuthProvider = ({ children }) => {
         beginMfaSetup,
         completeMfaSetup,
         isAdmin: user?.role === 'admin',
-        isAssessor: user?.role === 'assessor',
         isRespondent: user?.role === 'respondent',
       }}
     >

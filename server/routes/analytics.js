@@ -75,7 +75,7 @@ function cronbachAlpha(itemRows, questionIds) {
 }
 
 // GET /api/analytics/dashboard - Metrics over the caller's visible cohort
-router.get('/dashboard', authenticate, authorize('admin', 'assessor'), (req, res) => {
+router.get('/dashboard', authenticate, authorize('admin'), (req, res) => {
   try {
     const assessmentId = getAssessmentFilter(req, res);
     if (assessmentId === false) return;
@@ -232,7 +232,7 @@ router.get('/dashboard', authenticate, authorize('admin', 'assessor'), (req, res
 });
 
 // GET /api/analytics/demographics - Profile summaries for the caller's cohort
-router.get('/demographics', authenticate, authorize('admin', 'assessor'), (req, res) => {
+router.get('/demographics', authenticate, authorize('admin'), (req, res) => {
   try {
     const assessmentId = getAssessmentFilter(req, res);
     if (assessmentId === false) return;
@@ -302,7 +302,7 @@ router.get('/demographics', authenticate, authorize('admin', 'assessor'), (req, 
 });
 
 // GET /api/analytics/inferential - Thesis profile-group comparisons
-router.get('/inferential', authenticate, authorize('admin', 'assessor'), (req, res) => {
+router.get('/inferential', authenticate, authorize('admin'), (req, res) => {
   try {
     const assessmentId = getAssessmentFilter(req, res);
     if (assessmentId === false) return;
@@ -357,7 +357,7 @@ router.get('/inferential', authenticate, authorize('admin', 'assessor'), (req, r
   }
 });
 
-router.get('/reliability', authenticate, authorize('admin', 'assessor'), (req, res) => {
+router.get('/reliability', authenticate, authorize('admin'), (req, res) => {
   const assessmentId = getAssessmentFilter(req, res);
   if (assessmentId === false) return;
   if (assessmentId === null) return res.status(400).json({ success: false, message: 'Select one assessment to calculate questionnaire reliability.' });
@@ -387,7 +387,7 @@ router.get('/reliability', authenticate, authorize('admin', 'assessor'), (req, r
 });
 
 // GET /api/analytics/desired-skills - De-identified Part III responses
-router.get('/desired-skills', authenticate, authorize('admin', 'assessor'), (req, res) => {
+router.get('/desired-skills', authenticate, authorize('admin'), (req, res) => {
   try {
     const assessmentId = getAssessmentFilter(req, res);
     if (assessmentId === false) return;
@@ -456,7 +456,7 @@ router.put('/desired-skills/:attemptId/review', authenticate, authorize('admin')
 });
 
 // GET /api/analytics/competence-matrix - Item response distribution by visible cohort
-router.get('/competence-matrix', authenticate, authorize('admin', 'assessor'), (req, res) => {
+router.get('/competence-matrix', authenticate, authorize('admin'), (req, res) => {
   try {
     const assessmentId = getAssessmentFilter(req, res);
     if (assessmentId === false) return;

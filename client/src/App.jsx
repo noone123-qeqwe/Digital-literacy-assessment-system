@@ -19,7 +19,6 @@ const AssessmentsManagement = lazyWithRetry(() => import('./pages/admin/Assessme
 const UsersManagement = lazyWithRetry(() => import('./pages/admin/UsersManagement'));
 const QuestionsBank = lazyWithRetry(() => import('./pages/admin/QuestionsBank'));
 const ReportsAnalytics = lazyWithRetry(() => import('./pages/admin/ReportsAnalytics'));
-const AssessorDashboard = lazyWithRetry(() => import('./pages/assessor/AssessorDashboard'));
 const RespondentDashboard = lazyWithRetry(() => import('./pages/respondent/RespondentDashboard'));
 const RespondentAssessments = lazyWithRetry(() => import('./pages/respondent/RespondentAssessments'));
 const TakeAssessment = lazyWithRetry(() => import('./pages/respondent/TakeAssessment'));
@@ -58,7 +57,6 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     // Redirect to user's appropriate default page
     if (user.role === 'admin') return <Navigate to="/admin/dashboard" replace />;
-    if (user.role === 'assessor') return <Navigate to="/assessor/dashboard" replace />;
     return <Navigate to="/respondent/dashboard" replace />;
   }
 
@@ -79,7 +77,6 @@ const RoleRedirect = () => {
 
   if (!user) return <Navigate to="/login" replace />;
   if (user.role === 'admin') return <Navigate to="/admin/dashboard" replace />;
-  if (user.role === 'assessor') return <Navigate to="/assessor/dashboard" replace />;
   return <Navigate to="/respondent/dashboard" replace />;
 };
 
@@ -127,7 +124,7 @@ function App() {
               </ProtectedRoute>
             }
           >
-            {['admin', 'assessor', 'respondent'].map((role) => <React.Fragment key={role}>
+            {['admin', 'respondent'].map((role) => <React.Fragment key={role}>
               <Route path={`/${role}/knowledge`} element={<ProtectedRoute allowedRoles={[role]}><KnowledgeAssessments /></ProtectedRoute>} />
               {['results', 'progress', 'certificates', ...(role === 'respondent' ? [] : ['analytics'])].map((section) => <Route key={section} path={`/${role}/${section}`} element={<ProtectedRoute allowedRoles={[role]}><KnowledgeRecords key={`${role}-${section}`} mode={section === 'analytics' ? 'reports' : section} /></ProtectedRoute>} />)}
             </React.Fragment>)}
@@ -135,7 +132,7 @@ function App() {
             <Route path="/admin/knowledge/questions" element={<ProtectedRoute allowedRoles={['admin']}><KnowledgeBank /></ProtectedRoute>} />
             <Route path="/admin/materials" element={<ProtectedRoute allowedRoles={['admin']}><KnowledgeMaterials /></ProtectedRoute>} />
             <Route path="/respondent/materials" element={<ProtectedRoute allowedRoles={['respondent']}><KnowledgeMaterials /></ProtectedRoute>} />
-            <Route path="/respondent/knowledge/attempts/:attemptId" element={<ProtectedRoute allowedRoles={['respondent', 'admin', 'assessor']}><KnowledgeAttempt /></ProtectedRoute>} />
+            <Route path="/respondent/knowledge/attempts/:attemptId" element={<ProtectedRoute allowedRoles={['respondent', 'admin']}><KnowledgeAttempt /></ProtectedRoute>} />
             {/* Admin Routes */}
             <Route
               path="/admin/dashboard"
@@ -148,7 +145,7 @@ function App() {
             <Route
               path="/admin/assessments"
               element={
-                <ProtectedRoute allowedRoles={['admin', 'assessor']}>
+                <ProtectedRoute allowedRoles={['admin']}>
                   <AssessmentsManagement />
                 </ProtectedRoute>
               }
@@ -172,30 +169,12 @@ function App() {
             <Route
               path="/admin/reports"
               element={
-                <ProtectedRoute allowedRoles={['admin', 'assessor']}>
+                <ProtectedRoute allowedRoles={['admin']}>
                   <ReportsAnalytics />
                 </ProtectedRoute>
               }
             />
             <Route path="/admin/learning" element={<ProtectedRoute allowedRoles={['admin']}><LearningHub /></ProtectedRoute>} />
-
-            {/* Assessor Routes */}
-            <Route
-              path="/assessor/dashboard"
-              element={
-                <ProtectedRoute allowedRoles={['assessor', 'admin']}>
-                  <AssessorDashboard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/assessor/assessments"
-              element={
-                <ProtectedRoute allowedRoles={['assessor', 'admin']}>
-                  <AssessmentsManagement />
-                </ProtectedRoute>
-              }
-            />
 
             {/* Respondent Routes */}
             <Route
@@ -225,7 +204,7 @@ function App() {
             <Route
               path="/respondent/assessments/:attemptId/results"
               element={
-                <ProtectedRoute allowedRoles={['respondent', 'assessor', 'admin']}>
+                <ProtectedRoute allowedRoles={['respondent', 'admin']}>
                   <AssessmentResults />
                 </ProtectedRoute>
               }
@@ -233,7 +212,7 @@ function App() {
             <Route
               path="/respondent/profile"
               element={
-                <ProtectedRoute allowedRoles={['respondent', 'admin', 'assessor']}>
+                <ProtectedRoute allowedRoles={['respondent', 'admin']}>
                   <RespondentProfile />
                 </ProtectedRoute>
               }
@@ -243,7 +222,7 @@ function App() {
             <Route
               path="/security"
               element={
-                <ProtectedRoute allowedRoles={['respondent', 'assessor', 'admin']}>
+                <ProtectedRoute allowedRoles={['respondent', 'admin']}>
                   <SecuritySettings />
                 </ProtectedRoute>
               }

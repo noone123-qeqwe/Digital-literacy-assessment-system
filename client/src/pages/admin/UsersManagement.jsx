@@ -19,12 +19,11 @@ import {
 import toast from 'react-hot-toast';
 
 const getRoleLabel = (role) => (
-  role === 'assessor' ? 'Teacher / Assessor' : role === 'respondent' ? 'Student' : 'Administrator'
+  role === 'admin' ? 'Administrator' : role === 'respondent' ? 'Student' : 'Retired role (disabled)'
 );
 
 const getRoleBadgeClass = (role) => {
   if (role === 'admin') return 'bg-purple-100 text-purple-800 border border-purple-200/70';
-  if (role === 'assessor') return 'bg-green-100 text-green-800 border border-green-200/70';
   return 'bg-emerald-100 text-emerald-800 border border-emerald-200/70';
 };
 
@@ -256,7 +255,7 @@ export const UsersManagement = () => {
       <PageHeader
         eyebrow="Administration"
         title="User management"
-        description="Manage administrator, teacher/assessor, and student accounts."
+        description="Manage administrator and student accounts."
         action={(
           <button
             type="button"
@@ -331,7 +330,6 @@ export const UsersManagement = () => {
           >
             <option value="">All Roles</option>
             <option value="respondent">Students</option>
-            <option value="assessor">Teachers / Assessors</option>
             <option value="admin">Administrators</option>
           </select>
           <label className="sr-only" htmlFor="user-status-filter">Account status</label>
@@ -563,12 +561,8 @@ export const UsersManagement = () => {
               className="mt-1 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:bg-white focus:outline-none focus:ring-2 focus:ring-green-500 font-semibold"
             >
               <option value="respondent">Respondent (BSCS Freshmen)</option>
-              <option value="assessor">Teacher / Assessor (Faculty Evaluator)</option>
               <option value="admin">Administrator (System / CCS Head)</option>
             </select>
-            {formData.role === 'assessor' && (
-              <p className="mt-2 text-xs leading-5 text-slate-500">Teachers / assessors can create and assign assessments and review only their own or assigned cohorts. They cannot manage accounts or the question bank.</p>
-            )}
           </div>
 
           <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
@@ -619,7 +613,8 @@ export const UsersManagement = () => {
             <div>
               <label htmlFor="edit-role" className="block text-xs font-bold uppercase text-slate-700">Role</label>
               <select id="edit-role" value={editingUser.role} onChange={(e) => setEditingUser({ ...editingUser, role: e.target.value })} className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
-                <option value="respondent">Respondent</option><option value="assessor">Teacher / Assessor</option><option value="admin">Administrator</option>
+                {!['admin', 'respondent'].includes(editingUser.role) && <option value={editingUser.role} disabled>Retired role — choose a new role</option>}
+              <option value="respondent">Student</option><option value="admin">Administrator</option>
               </select>
             </div>
             <div>

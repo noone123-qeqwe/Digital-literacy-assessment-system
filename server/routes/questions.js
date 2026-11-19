@@ -5,7 +5,7 @@ const { db, logActivity } = require('../db/database');
 const { authenticate, authorize } = require('../middleware/auth');
 
 // GET /api/questions/areas - Get all competence areas
-router.get('/areas', authenticate, authorize('admin', 'assessor'), (req, res) => {
+router.get('/areas', authenticate, authorize('admin'), (req, res) => {
   try {
     const areas = db.prepare(`
       SELECT ca.*, COUNT(q.id) as question_count
@@ -22,7 +22,7 @@ router.get('/areas', authenticate, authorize('admin', 'assessor'), (req, res) =>
 });
 
 // GET /api/questions - List all questions grouped or flat
-router.get('/', authenticate, authorize('admin', 'assessor'), (req, res) => {
+router.get('/', authenticate, authorize('admin'), (req, res) => {
   try {
     const areaId = req.query.area_id;
     const isActiveOnly = req.query.active_only === 'true';

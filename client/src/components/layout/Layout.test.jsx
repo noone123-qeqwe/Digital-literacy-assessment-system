@@ -10,7 +10,6 @@ vi.mock('../../contexts/useAuth', () => ({
     profilePictureUrl: '',
     logout: vi.fn(),
     isAdmin: false,
-    isAssessor: false,
   }),
 }));
 

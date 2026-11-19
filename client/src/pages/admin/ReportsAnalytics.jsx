@@ -197,7 +197,7 @@ export const ReportsAnalytics = () => {
         action={(
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center">
           <Link
-            to={isAdmin ? '/admin/analytics' : '/assessor/analytics'}
+            to={'/admin/analytics'}
             className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-700 shadow-2xs transition-colors hover:border-green-200 hover:bg-green-50 hover:text-green-700 sm:w-auto"
           >
             <span>Knowledge reports</span>

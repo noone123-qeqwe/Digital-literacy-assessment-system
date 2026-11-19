@@ -38,7 +38,7 @@ function check(condition, name) { assert.ok(condition, name); passed++; console.
   };
   const login = (email, extra = {}) => request('/auth/login', { method: 'POST', body: { email, password, ...extra } });
   try {
-    check(isMfaRequired({ role: 'admin', mfa_enabled: 0 }) && isMfaRequired({ role: 'assessor', mfa_enabled: 0 }), 'staff MFA remains required by default');
+    check(isMfaRequired({ role: 'admin', mfa_enabled: 0 }), 'administrator MFA remains required by default');
     check(isMfaRequired({ role: 'admin', mfa_enabled: 1, mfa_optional: '1' }), 'enrolled MFA is still checked for an optional account');
     check(isMfaRequired({ role: 'admin', mfa_enabled: 0, mfa_optional: 'true' }), 'invalid policy values fail closed');
     const unverified = await login('optional-admin@example.test');
@@ -48,7 +48,7 @@ function check(condition, name) { assert.ok(condition, name); passed++; console.
     const other = await login('required-admin@example.test', { mfa_optional: '1' });
     check(other.body.mfaRequired && !other.hasSession, 'request-body flags cannot disable MFA for another administrator');
     const teacher = await login('required-teacher@example.test');
-    check(teacher.body.mfaRequired && !teacher.hasSession, 'the test-admin exception leaves teacher MFA required');
+    check(teacher.status === 403 && !teacher.hasSession, 'retired teacher accounts cannot sign in');
     const accepted = await login('optional-admin@example.test');
     check(accepted.status === 200 && accepted.hasSession && accepted.body.data.user.role === 'admin' && !accepted.body.mfaRequired, 'the explicitly configured administrator receives a normal session without challenge');
     const factorState = db.prepare('SELECT mfa_enabled,mfa_secret FROM users WHERE id=?').get(optional);

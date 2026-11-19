@@ -13,14 +13,14 @@ export default function StudentHelp() {
   const [studyInfo, setStudyInfo] = useState(null);
   useEffect(() => { api.get('/system/study-information').then((response) => setStudyInfo(response.data?.data?.studyInfo || null)).catch(() => {}); }, []);
   return <div className="mx-auto max-w-5xl space-y-6 pb-8">
-    <PageHeader eyebrow="Student support" title="Help and getting started" description="What to expect, how your progress is saved, and where to ask for help." action={<Link to="/respondent/assessments" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-green-700">My assessments <ArrowRight aria-hidden="true" className="h-4 w-4" /></Link>} />
+    <PageHeader eyebrow="Student support" title="Help and getting started" description="What to expect, how your progress is saved, and where to ask for help." action={<Link to="/respondent/knowledge" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-xs transition-colors hover:bg-green-700">Take assessment <ArrowRight aria-hidden="true" className="h-4 w-4" /></Link>} />
     <div className="grid gap-4 md:grid-cols-2">
       <HelpCard title="Your first assessment" Icon={BookOpenCheck}>
         <ol className="list-inside list-decimal space-y-2">
           <li>Verify the email address linked to your account and sign in.</li>
-          <li>Open <Link to="/respondent/assessments" className="font-semibold text-green-800 underline">My assessments</Link> and choose an assigned assessment.</li>
-          <li>Review the study information, consent choices, and profile fields before you begin.</li>
-          <li>Answer each item honestly. Your assessment uses the published four-point scale.</li>
+          <li>Open <Link to="/respondent/knowledge" className="font-semibold text-green-800 underline">Take Assessment</Link> and choose an available quiz.</li>
+          <li>Read the instructions and time limit before you begin. Research questionnaires are listed separately in the menu and may require consent and profile information.</li>
+          <li>Choose the best answer for knowledge quizzes. For research questionnaires, answer honestly using the scale shown on the screen.</li>
           <li>Review your answers and submit to see your results and learning recommendations.</li>
         </ol>
       </HelpCard>
@@ -30,7 +30,7 @@ export default function StudentHelp() {
         <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-900">If your assessment has a timer, it keeps running while the device is off. Your saved answers remain available, but contact your instructor if the time limit expires and you need the attempt reopened.</p>
       </HelpCard>
       <HelpCard title="Understanding your results" Icon={CircleHelp}>
-        <p>Your overall and competence-area scores summarize self-reported answers. Use your lower-scoring areas to choose learning resources; the results do not measure every real-world digital skill or replace instructor guidance.</p>
+        <p>Knowledge quiz results show your scored answers. Research questionnaire results summarize your self-reported skills using a separate scoring method. Use your lower-scoring areas to choose learning resources; the results do not measure every real-world digital skill or replace instructor guidance.</p>
         <p className="mt-3"><Link to="/respondent/learning" className="font-semibold text-green-800 underline">Open your learning path</Link> to find recommended resources and track your progress.</p>
       </HelpCard>
       <HelpCard title="Research questions or account help" Icon={Mail}>

@@ -40,7 +40,7 @@ export default function KnowledgeAssessments() {
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30000); return () => window.clearInterval(timer); }, []);
   const filtered = quizzes.filter((quiz) => (!showBookmarks || bookmarks.saved.includes(quiz.id)) && `${quiz.title} ${quiz.description}`.toLowerCase().includes(search.toLowerCase()));
   const bank = questions.filter((question) => !category || question.category_id === Number(category));
-  const base = user?.role === 'admin' ? '/admin' : user?.role === 'assessor' ? '/assessor' : '/respondent';
+  const base = user?.role === 'admin' ? '/admin' : '/respondent';
   const create = async (event) => {
     event.preventDefault();
     const payload = { ...form, time_limit_minutes: form.time_limit_minutes ? Number(form.time_limit_minutes) : null,
@@ -63,7 +63,7 @@ export default function KnowledgeAssessments() {
   };
   return <KnowledgePage {...state} className={student ? 'student-assessment-browser' : ''} title={student ? 'Take an assessment' : 'Assessment management'} description={student ? 'Choose an assessment, read the instructions, and continue where you left off.' : 'Scored knowledge assessments use correct answers, points, and percentage proficiency levels. Research questionnaires have a separate workflow.'}
     action={student ? <ResearchLink to="/respondent/assessments" /> : <button className="kq-button" disabled={freeDemoReadOnly || !questions.length} onClick={() => { setForm(blankForm); setFormOpen(true); }}><Plus size={17} aria-hidden="true" />Create assessment</button>}>
-    {!student && <div className="kq-actions"><ResearchLink to={user.role === 'admin' ? '/admin/assessments' : '/assessor/assessments'}>Manage research assessments</ResearchLink>{user.role === 'admin' && <Link className="kq-button kq-button-secondary" to="/admin/knowledge/questions">Open scored question bank</Link>}</div>}
+    {!student && <div className="kq-actions"><ResearchLink to={'/admin/assessments'}>Manage research assessments</ResearchLink>{user.role === 'admin' && <Link className="kq-button kq-button-secondary" to="/admin/knowledge/questions">Open scored question bank</Link>}</div>}
     {freeDemoReadOnly && <p className="kq-note">This demonstration is read-only. You can view assessments; starting attempts and editing are disabled.</p>}
     <Field label="Search assessments"><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by title or description…" /></Field>
     <BookmarkFilter bookmarks={bookmarks} records={quizzes} selected={showBookmarks} setSelected={setShowBookmarks} />

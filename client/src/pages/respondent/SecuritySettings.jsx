@@ -37,7 +37,7 @@ export const SecuritySettings = () => {
   const [showBackupPrompt, setShowBackupPrompt] = useState(false);
   const [backupBusy, setBackupBusy] = useState(false);
 
-  const isStaff = user?.role === 'admin' || user?.role === 'assessor';
+  const isStaff = user?.role === 'admin';
 
   const refreshSessions = useCallback(async () => {
     try {

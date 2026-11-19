@@ -12,9 +12,6 @@ const kinds = {
 // Match the assessment lists: saving a link never grants access to its content.
 function visibility(kind, user) {
   if (user.role === 'admin') return { sql: '1=1', params: [] };
-  if (user.role === 'assessor') return kind === 'knowledge'
-    ? { sql: 'a.created_by=?', params: [user.id] }
-    : { sql: '(a.created_by=? OR EXISTS(SELECT 1 FROM assessment_assignments aa WHERE aa.assessment_id=a.id AND aa.assigned_by=?))', params: [user.id, user.id] };
   return kind === 'knowledge'
     ? { sql: `EXISTS(SELECT 1 FROM quiz_assignments aa WHERE aa.quiz_id=a.id AND aa.user_id=?) AND
       (a.status='published' OR EXISTS(SELECT 1 FROM quiz_attempts ip WHERE ip.quiz_id=a.id AND ip.user_id=? AND ip.status='in_progress'))`, params: [user.id, user.id] }

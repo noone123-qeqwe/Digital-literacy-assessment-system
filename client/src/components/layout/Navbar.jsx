@@ -12,11 +12,6 @@ const routeTitles = [
   ['/admin/progress', 'Progress tracking'],
   ['/admin/certificates', 'Certificates'],
   ['/admin/materials', 'Learning materials'],
-  ['/assessor/knowledge', 'Knowledge assessments'],
-  ['/assessor/results', 'Assessment results'],
-  ['/assessor/analytics', 'Reports and analytics'],
-  ['/assessor/progress', 'Progress tracking'],
-  ['/assessor/certificates', 'Certificates'],
   ['/respondent/knowledge/attempts', 'Knowledge assessment'],
   ['/respondent/knowledge', 'Take assessment'],
   ['/respondent/results', 'My results'],
@@ -30,8 +25,6 @@ const routeTitles = [
   ['/admin/questions', 'Question bank'],
   ['/admin/reports', 'Research & analytics'],
   ['/admin/learning', 'Learning resources'],
-  ['/assessor/dashboard', 'Dashboard'],
-  ['/assessor/assessments', 'Assigned assessments'],
   ['/respondent/dashboard', 'My dashboard'],
   ['/respondent/assessments/', 'Assessment details'],
   ['/respondent/assessments', 'My assessments'],
@@ -65,10 +58,10 @@ export const Navbar = ({ setIsSidebarOpen, isSidebarOpen, dashboardMode = false 
   const pageTitle = routeTitles.find(([path]) => location.pathname.startsWith(path))?.[1] || 'Assessment';
   const dashboardLongDate = dashboardDate.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const dashboardShortDate = dashboardDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
-  const roleLabel = user?.role === 'respondent' ? 'Student' : user?.role === 'assessor' ? 'Teacher / Assessor' : 'Administrator';
+  const roleLabel = user?.role === 'respondent' ? 'Student' : 'Administrator';
   const isStudent = user?.role === 'respondent';
   const takingAssessment = /^\/respondent\/(assessments\/\d+\/take|knowledge\/attempts\/\d+)\/?$/.test(location.pathname);
-  const profileLink = user?.role === 'admin' || user?.role === 'assessor' || (isStudent && !takingAssessment);
+  const profileLink = user?.role === 'admin' || (isStudent && !takingAssessment);
   const ProfileWrapper = profileLink ? Link : 'div';
 
   return (

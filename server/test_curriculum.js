@@ -73,7 +73,7 @@ async function run() {
     check(result.status === 200 && result.data.data.results.percentage === 81.25 && result.data.data.attempt.certificate_earned === 1 && result.data.data.results.categories.length === 8 && result.data.data.results.categories.every(c => c.possible === 4), '26 of 32 points earns a certificate with eight category results');
     const progress = await request('/knowledge/overview', student); const pair = progress.data.data.programComparisons[0];
     check(pair.baseline === 78.13 && pair.followup === 81.25 && pair.categories.length === 8 && pair.baseline_attempt_id !== pair.followup_attempt_id, 'progress pairs the baseline and follow-up without conflating them with retakes');
-    check((await request('/knowledge/overview?user_id=' + student.id, pending)).data.data.programComparisons.length === 0 && (await request('/knowledge/overview', teacher)).data.data.programComparisons.length === 0, 'program progress respects student ownership and assessor cohort boundaries');
+    check((await request('/knowledge/overview?user_id=' + student.id, pending)).data.data.programComparisons.length === 0 && (await request('/knowledge/overview', teacher)).status === 403, 'program progress respects student ownership and rejects retired roles');
     check((await request(`/knowledge/quizzes/${baselineId}/start`, student, 'POST', { accepted_instructions: true })).status === 409, 'the published one-attempt baseline limit is enforced');
     await request(`/knowledge/quizzes/${followupId}/status`, admin, 'PUT', { status: 'draft' });
     publishFoundationCurriculum(db, course, admin.id);

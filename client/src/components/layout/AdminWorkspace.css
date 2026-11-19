@@ -1,4 +1,4 @@
-/* Administrator-only presentation: student and assessor workspaces keep their layouts. */
+/* Administrator-only presentation: student workspaces keep their layouts. */
 .dlas-admin-workspace { --admin-ink: #132a1e; --admin-muted: #52685c; --admin-line: #dce7e0; color: var(--admin-ink); }
 .dlas-admin-workspace .dlas-workspace-main { max-width: 1650px; padding: 28px 32px 36px; }
 .dlas-admin-workspace .workspace-navbar { min-height: 80px; padding: 16px 32px; background: #ffffffed; }

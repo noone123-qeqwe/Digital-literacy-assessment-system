@@ -19,7 +19,7 @@ import {
 import { useAuth } from '../../contexts/useAuth';
 
 export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
-  const { logout, isAdmin, isAssessor } = useAuth();
+  const { logout, isAdmin } = useAuth();
   const location = useLocation();
   const sidebarRef = useRef(null);
   const [isDesktop, setIsDesktop] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
@@ -78,18 +78,6 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
     { name: 'Settings', path: '/security', icon: ShieldCheck },
   ];
 
-  const assessorNav = [
-    { name: 'Dashboard', path: '/assessor/dashboard', icon: LayoutDashboard },
-    { name: 'Assigned Assessments', path: '/assessor/assessments', icon: ClipboardList },
-    { name: 'Knowledge Assessments', path: '/assessor/knowledge', icon: Layers3 },
-    { name: 'Assessment Results', path: '/assessor/results', icon: ListChecks },
-    { name: 'Reports and Analytics', path: '/assessor/analytics', icon: BarChart3 },
-    { name: 'Research Reports', path: '/admin/reports', icon: FileSpreadsheet },
-    { name: 'Progress Tracking', path: '/assessor/progress', icon: TrendingUp },
-    { name: 'Certificates', path: '/assessor/certificates', icon: Award },
-    { name: 'Security', path: '/security', icon: ShieldCheck },
-  ];
-
   const respondentNav = [
     { name: 'Student Dashboard', path: '/respondent/dashboard', icon: LayoutDashboard },
     { name: 'Take Assessment', path: '/respondent/knowledge', icon: ClipboardList },
@@ -103,7 +91,7 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
     { name: 'Security', path: '/security', icon: ShieldCheck },
   ];
 
-  const navItems = isAdmin ? adminNav : isAssessor ? assessorNav : respondentNav;
+  const navItems = isAdmin ? adminNav : respondentNav;
   const adminGroups = [
     ['Workspace', [0, 1]],
     ['Assessment studio', [4, 2, 3, 7]],
@@ -169,7 +157,7 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
           </div>}
           {isAdmin ? <>{adminGroups.map(([label, indices]) => <section className="admin-nav-group" key={label} aria-label={label}><h2 className="admin-nav-heading">{label}</h2>{indices.map((index) => renderAdminLink(adminNav[index]))}</section>)}<details className="admin-research-nav" open={researchNav.some((item) => location.pathname.startsWith(item.path)) || undefined}><summary>Research tools <ChevronDown size={16} aria-hidden="true" /></summary>{researchNav.map(renderAdminLink)}</details></> : navItems.map((item) => {
             const Icon = item.icon;
-            const isActive = location.pathname === item.path || (item.path !== '/admin/knowledge' && item.path !== '/assessor/knowledge' && location.pathname.startsWith(`${item.path}/`));
+            const isActive = location.pathname === item.path || (item.path !== '/admin/knowledge' && location.pathname.startsWith(`${item.path}/`));
 
             return (
               <NavLink

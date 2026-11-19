@@ -38,7 +38,7 @@ const result = (res, data, message, status = 200) => res.status(status).json({ s
 function quizFor(user, quizId) {
   const quiz = db.prepare('SELECT * FROM knowledge_quizzes WHERE id=?').get(id(quizId));
   if (!quiz) throw fail('Assessment not found.', 404);
-  const permitted = user.role === 'admin' || (user.role === 'assessor' && quiz.created_by === user.id)
+  const permitted = user.role === 'admin'
     || (user.role === 'respondent' && db.prepare('SELECT 1 FROM quiz_assignments WHERE quiz_id=? AND user_id=?').get(quiz.id, user.id));
   if (!permitted) throw fail('You do not have access to this assessment.', 403);
   return quiz;
@@ -47,7 +47,7 @@ function attemptFor(user, attemptId) {
   const attempt = db.prepare(`SELECT a.*, u.first_name, u.last_name, q.created_by, q.max_attempts quiz_max_attempts, q.end_date quiz_end_date, q.status quiz_status
     FROM quiz_attempts a JOIN users u ON u.id=a.user_id JOIN knowledge_quizzes q ON q.id=a.quiz_id WHERE a.id=?`).get(id(attemptId));
   if (!attempt) throw fail('Attempt not found.', 404);
-  if (!(user.role === 'admin' || (user.role === 'assessor' && attempt.created_by === user.id) || (user.role === 'respondent' && attempt.user_id === user.id))) throw fail('You cannot access this student’s attempt.', 403);
+  if (!(user.role === 'admin' || (user.role === 'respondent' && attempt.user_id === user.id))) throw fail('You cannot access this student’s attempt.', 403);
   return attempt;
 }
 // Students only see accepted answers and explanations once they cannot use them to gain an advantage:
@@ -102,7 +102,7 @@ function categoryExists(categoryId) {
   if (!db.prepare('SELECT id FROM quiz_categories WHERE id=?').get(categoryId)) throw fail('Choose an existing category.');
 }
 function reportRows(user) {
-  const scope = user.role === 'admin' ? '1=1' : user.role === 'assessor' ? 'q.created_by=?' : 'a.user_id=?';
+  const scope = user.role === 'admin' ? '1=1' : 'a.user_id=?';
   const integrityColumn = user.role === 'respondent' ? ''
     : ",(SELECT COUNT(*) FROM quiz_integrity_events ie WHERE ie.attempt_id=a.id AND ie.event_type<>'attempt_started') integrity_flags";
   return db.prepare(`SELECT a.id,a.quiz_id,a.user_id,a.percentage,a.level,a.certificate_earned,a.started_at,a.completed_at,
@@ -113,7 +113,7 @@ function reportRows(user) {
     WHERE a.status='completed' AND ${scope} ORDER BY a.completed_at DESC,a.id DESC`).all(...(user.role === 'admin' ? [] : [user.id]));
 }
 
-router.get('/students', authorize('admin', 'assessor'), handler((req, res) => {
+router.get('/students', authorize('admin'), handler((req, res) => {
   const search = typeof req.query.search === 'string' ? req.query.search.slice(0, 100) : '';
   const page = Math.max(1, Math.min(10000, Number.parseInt(req.query.page, 10) || 1));
   const pattern = `%${search}%`;
@@ -460,7 +460,7 @@ router.delete('/categories/:id', authorize('admin'), handler((req, res) => {
   return result(res, null, 'Category deleted.');
 }));
 
-router.get('/questions', authorize('admin', 'assessor'), handler((_req, res) => result(res,
+router.get('/questions', authorize('admin'), handler((_req, res) => result(res,
   db.prepare(`SELECT q.*,c.name category_name FROM quiz_questions q JOIN quiz_categories c ON c.id=q.category_id WHERE q.is_active=1 ORDER BY q.id DESC`).all()
     .map(({ options_json, answers_json, ...question }) => ({ ...question, options: JSON.parse(options_json), answers: JSON.parse(answers_json) }))
 )));
@@ -490,8 +490,7 @@ router.delete('/questions/:id', authorize('admin'), handler((req, res) => {
 
 router.get('/quizzes', handler((req, res) => {
   if (req.user.role === 'respondent') enrollPublishedQuizzes(db, req.user.id);
-  const scope = req.user.role === 'admin' ? '1=1' : req.user.role === 'assessor' ? 'q.created_by=?'
-    : `EXISTS(SELECT 1 FROM quiz_assignments aa WHERE aa.quiz_id=q.id AND aa.user_id=?) AND (q.status='published' OR EXISTS(SELECT 1 FROM quiz_attempts ip WHERE ip.quiz_id=q.id AND ip.user_id=${Number(req.user.id)} AND ip.status='in_progress'))`;
+  const scope = req.user.role === 'admin' ? '1=1' : `EXISTS(SELECT 1 FROM quiz_assignments aa WHERE aa.quiz_id=q.id AND aa.user_id=?) AND (q.status='published' OR EXISTS(SELECT 1 FROM quiz_attempts ip WHERE ip.quiz_id=q.id AND ip.user_id=${Number(req.user.id)} AND ip.status='in_progress'))`;
   const rows = db.prepare(`SELECT q.id,q.title,q.description,q.instructions,q.status,q.time_limit_minutes,q.max_attempts,q.pass_percentage,q.start_date,q.end_date,q.created_at,
     q.program_code,q.stage,q.prerequisite_quiz_id,q.auto_assign_verified,
     (SELECT title FROM knowledge_quizzes required WHERE required.id=q.prerequisite_quiz_id) prerequisite_title,
@@ -515,7 +514,7 @@ router.get('/quizzes/:id', handler((req, res) => {
   return result(res, { ...safe, snapshot: req.user.role === 'respondent' ? undefined : JSON.parse(snapshot_json),
     assigned_user_ids: req.user.role === 'respondent' ? undefined : db.prepare('SELECT user_id FROM quiz_assignments WHERE quiz_id=?').all(quiz.id).map((row) => row.user_id) });
 }));
-router.post('/quizzes', authorize('admin', 'assessor'), handler((req, res) => {
+router.post('/quizzes', authorize('admin'), handler((req, res) => {
   const body = req.body;
   const title = text(body.title, 3, 160, 'Title');
   const description = text(body.description || '', 0, 2000, 'Description');
@@ -556,7 +555,7 @@ router.post('/quizzes', authorize('admin', 'assessor'), handler((req, res) => {
   logActivity(req.user.id, 'KNOWLEDGE_ASSESSMENT_CREATE', `Created knowledge assessment #${quizId}`);
   return result(res, { id: quizId }, 'Assessment created with an immutable question and scoring snapshot.', 201);
 }));
-router.put('/quizzes/:id/status', authorize('admin', 'assessor'), handler((req, res) => {
+router.put('/quizzes/:id/status', authorize('admin'), handler((req, res) => {
   const quiz = quizFor(req.user, req.params.id);
   if (!['draft', 'published', 'archived'].includes(req.body.status)) throw fail('Choose a valid publication status.');
   db.prepare('UPDATE knowledge_quizzes SET status=? WHERE id=?').run(req.body.status, quiz.id);
@@ -564,7 +563,7 @@ router.put('/quizzes/:id/status', authorize('admin', 'assessor'), handler((req, 
   logActivity(req.user.id, 'KNOWLEDGE_ASSESSMENT_STATUS', `Assessment #${quiz.id}: ${req.body.status}`);
   return result(res, null, 'Publication status updated. In-progress students retain their saved attempt.');
 }));
-router.post('/quizzes/:id/assign', authorize('admin', 'assessor'), handler((req, res) => {
+router.post('/quizzes/:id/assign', authorize('admin'), handler((req, res) => {
   const quiz = quizFor(req.user, req.params.id);
   if (!Array.isArray(req.body.user_ids) || req.body.user_ids.length > 5000) throw fail('Choose a valid student list.');
   const ids = [...new Set(req.body.user_ids.map(id))];
@@ -573,7 +572,7 @@ router.post('/quizzes/:id/assign', authorize('admin', 'assessor'), handler((req,
   logActivity(req.user.id, 'KNOWLEDGE_ASSIGN', `Assigned ${ids.length} students to #${quiz.id}`);
   return result(res, null, 'Students assigned.');
 }));
-router.delete('/quizzes/:id', authorize('admin', 'assessor'), handler((req, res) => {
+router.delete('/quizzes/:id', authorize('admin'), handler((req, res) => {
   const quiz = quizFor(req.user, req.params.id);
   if (db.prepare('SELECT id FROM quiz_attempts WHERE quiz_id=?').get(quiz.id)) throw fail('This assessment has attempts. Archive it to preserve student results.', 409);
   if (db.prepare('SELECT id FROM knowledge_quizzes WHERE prerequisite_quiz_id=?').get(quiz.id)) throw fail('Another assessment requires this baseline. Archive it instead of deleting it.', 409);
@@ -697,7 +696,7 @@ router.get('/overview', handler((req, res) => {
     histories.get(key).push(row);
   }
   const rows = [...latest.values()];
-  const scope = req.user.role === 'admin' ? '1=1' : req.user.role === 'assessor' ? 'q.created_by=?' : 'aa.user_id=?';
+  const scope = req.user.role === 'admin' ? '1=1' : 'aa.user_id=?';
   const params = req.user.role === 'admin' ? [] : [req.user.id];
   const pendingAssignments = db.prepare(`SELECT COUNT(*) count FROM quiz_assignments aa JOIN knowledge_quizzes q ON q.id=aa.quiz_id
     WHERE ${scope} AND (q.status='published' OR EXISTS(SELECT 1 FROM quiz_attempts ip WHERE ip.quiz_id=q.id AND ip.user_id=aa.user_id AND ip.status='in_progress'))
@@ -705,8 +704,7 @@ router.get('/overview', handler((req, res) => {
     AND NOT EXISTS(SELECT 1 FROM quiz_attempts ended WHERE ended.quiz_id=q.id AND ended.user_id=aa.user_id AND ended.status='in_progress' AND julianday(ended.deadline)<=julianday('now'))`).get(...params).count;
   const assignedQuizCount = db.prepare(`SELECT COUNT(DISTINCT aa.quiz_id) count FROM quiz_assignments aa JOIN knowledge_quizzes q ON q.id=aa.quiz_id
     WHERE ${scope} AND (q.status='published' OR EXISTS(SELECT 1 FROM quiz_attempts old WHERE old.quiz_id=q.id AND old.user_id=aa.user_id))`).get(...params).count;
-  const cohortStudents = req.user.role === 'assessor' ? db.prepare(`SELECT COUNT(DISTINCT aa.user_id) count FROM quiz_assignments aa JOIN knowledge_quizzes q ON q.id=aa.quiz_id WHERE q.created_by=?`).get(req.user.id).count : null;
-  const scoreScope = req.user.role === 'admin' ? '1=1' : req.user.role === 'assessor' ? 'q.created_by=?' : 'a.user_id=?';
+  const scoreScope = req.user.role === 'admin' ? '1=1' : 'a.user_id=?';
   const expiredCount = db.prepare(`SELECT COUNT(*) count FROM quiz_attempts a JOIN knowledge_quizzes q ON q.id=a.quiz_id
     WHERE ${scoreScope} AND (a.completion_reason='time_expired' OR (a.status='in_progress' AND julianday(a.deadline)<=julianday('now')))
     AND NOT EXISTS(SELECT 1 FROM quiz_attempts newer WHERE newer.user_id=a.user_id AND newer.quiz_id=a.quiz_id AND newer.id>a.id)`).get(...params).count;
@@ -728,9 +726,9 @@ router.get('/overview', handler((req, res) => {
   const activities = req.user.role === 'admin' ? db.prepare(`SELECT l.action,l.details,l.created_at,u.first_name,u.last_name FROM activity_log l JOIN users u ON u.id=l.user_id ORDER BY l.id DESC LIMIT 8`).all()
     : db.prepare('SELECT action,details,created_at FROM activity_log WHERE user_id=? ORDER BY id DESC LIMIT 8').all(req.user.id);
   return result(res, {
-    summary: { registeredStudents: req.user.role === 'admin' ? db.prepare("SELECT COUNT(*) count FROM users WHERE role='respondent'").get().count : cohortStudents ?? 1,
+    summary: { registeredStudents: req.user.role === 'admin' ? db.prepare("SELECT COUNT(*) count FROM users WHERE role='respondent'").get().count : 1,
       totalAssessments: req.user.role === 'admin' ? db.prepare("SELECT COUNT(*) count FROM knowledge_quizzes WHERE status<>'archived'").get().count
-        : req.user.role === 'assessor' ? db.prepare("SELECT COUNT(*) count FROM knowledge_quizzes WHERE created_by=? AND status<>'archived'").get(req.user.id).count : assignedQuizCount,
+        : assignedQuizCount,
       completed: rows.filter(row => row.completion_reason !== 'time_expired').length,
       expired: expiredCount,
       pending: pendingAssignments, average: average === null ? null : Math.round(average * 100) / 100,
@@ -800,7 +798,7 @@ router.put('/materials/:id/completion', authorize('respondent'), handler((req, r
 }));
 
 const safeCell = (value) => typeof value === 'string' && /^[=+@\-\t\r]/.test(value) ? `'${value}` : value;
-router.get('/reports/:format', authorize('admin', 'assessor'), handler(async (req, res) => {
+router.get('/reports/:format', authorize('admin'), handler(async (req, res) => {
   const rows = reportRows(req.user);
   if (!['pdf', 'excel'].includes(req.params.format)) throw fail('Choose PDF or Excel.');
   if (req.params.format === 'excel') {

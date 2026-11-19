@@ -1,6 +1,6 @@
 # Digital Literacy Assessment System
 
-DLAS is a role-based digital literacy platform with scored knowledge quizzes, the thesis's 30-item questionnaire, and a separate DigCompSAT self-reflection instrument. It supports student learning, profiles, recovery, results, progress comparisons, achievement certificates, and staff reports while preserving each assessment's scoring methodology.
+DLAS is a role-based digital literacy platform with scored knowledge quizzes, the thesis's 30-item questionnaire, and a separate DigCompSAT self-reflection instrument. It supports student learning, profiles, recovery, results, progress comparisons, achievement certificates, and administrator reports while preserving each assessment's scoring methodology.
 
 ## Stack
 
@@ -49,10 +49,16 @@ Copy `server/.env.example` to `server/.env` and set a unique random `JWT_SECRET`
 
 `PORT` defaults to `3000`. `JWT_EXPIRES_IN` defaults to `12h`. `DLAS_DB_PATH` defaults to `server/db/dlas.db`; it can point to a separate SQLite file for isolated development or deployment.
 
+## Account roles
+
+The system supports two roles: **Administrator** and **Student** (stored as `respondent`). Administrators manage accounts, assessments, assignments, materials, results, and reports. Students take assessments and view their own learning and results.
+
+The former Teacher / Assessor role is retired. Startup disables legacy assessor accounts, revokes their sessions and recovery links, and clears outstanding sign-in challenges. Existing assessments, assignments, and results are preserved and remain accessible to administrators. Administrators may explicitly assign a supported role before reactivating a retired account; no accounts are automatically promoted or enrolled as students.
+
 ## Account security
 
 - New respondent accounts and administrator-created accounts must verify their email before sign-in. Verification links expire and are stored only as hashes. Password reset links expire after 30 minutes and revoke existing sessions.
-- Administrator and teacher/assessor accounts must enroll in an authenticator app (TOTP) and enter a one-time code at sign-in. MFA recovery uses a separate, one-time email token and requires re-enrollment.
+- Administrator accounts must enroll in an authenticator app (TOTP) and enter a one-time code at sign-in. MFA recovery uses a separate, one-time email token and requires re-enrollment.
 - Access tokens are held in `HttpOnly`, `SameSite=Strict` cookies and are not written to browser storage. Mutating requests require a CSRF token. The **Security** page lists active sessions/devices and lets users revoke sessions and change their password.
 - Email tries configured providers in this order: **Brevo → Resend → Gmail/SMTP**. A rejection, connection failure, or missing acknowledgment advances to the next provider. Gmail uses `smtp.gmail.com:587` with required STARTTLS and a Google app password; legacy custom SMTP settings also work. Free Render requires at least one HTTPS API because it blocks SMTP port 587. API senders must be verified separately in each provider.
 - Administrators can see configured provider names and the last provider that accepted a message in the readiness checklist. This is reset on restart and does not prove inbox delivery. The email test reports the provider that accepted that test; keys, addresses, and tokens are excluded from status data.

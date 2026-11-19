@@ -620,29 +620,14 @@ async function run() {
       method: 'POST', token: adminToken,
       body: { first_name: 'Avery', last_name: 'Assessor', email: 'assessor@example.test', password: 'SecureAssessor123!', role: 'assessor' },
     });
-    db.prepare("UPDATE users SET email_verified = 1 WHERE email = 'assessor@example.test'").run();
-    const assessorMfa = await signInStaffWithEmailOtp(baseUrl, 'assessor@example.test', 'SecureAssessor123!');
-    const assessorToken = assessorMfa.confirmation?.session;
-    const assessorDirectory = await request(baseUrl, '/users?role=respondent&status=active', { token: assessorToken });
-    const assessorAssessment = await request(baseUrl, '/assessments', {
-      method: 'POST', token: assessorToken,
-      body: { title: 'Assessor Cohort', time_limit_minutes: 1, question_ids: [firstQuestion], assigned_user_ids: [secondRegistration.data.data.user.id], consent_required: false },
+    check(assessorCreate.status === 400, 'administrator cannot create the retired teacher role');
+    check((await request(baseUrl, `/users/${secondRegistration.data.data.user.id}`, { method: 'PUT', token: adminToken, body: { role: 'assessor' } })).status === 400, 'administrator cannot assign the retired teacher role');
+    const timedAssessment = await request(baseUrl, '/assessments', {
+      method: 'POST', token: adminToken,
+      body: { title: 'Administrator timed assessment', time_limit_minutes: 1, question_ids: [firstQuestion], assigned_user_ids: [secondRegistration.data.data.user.id], consent_required: false },
     });
-    const assessorDashboard = await request(baseUrl, '/analytics/dashboard', { token: assessorToken });
-    const assessorScopedDashboard = await request(baseUrl, `/analytics/dashboard?assessment_id=${assessorAssessment.data.data.id}`, { token: assessorToken });
-    const assessorForeignAnalytics = await request(baseUrl, '/analytics/dashboard?assessment_id=1', { token: assessorToken });
-    const assessorForeignResults = await request(baseUrl, '/assessments/1/results', { token: assessorToken });
-    const assessorForeignExport = await request(baseUrl, '/export/assessment/1/excel', { token: assessorToken });
-    check(assessorCreate.status === 201 && assessorMfa.confirmation?.status === 200 && assessorAssessment.status === 201, 'administrator can provision an assessor who enrolls MFA and manages a cohort');
-    const assessorDirectoryUser = assessorDirectory.data?.data?.users?.[0];
-    check(assessorDirectory.status === 200 && assessorDirectoryUser && !Object.hasOwn(assessorDirectoryUser, 'age') && !Object.hasOwn(assessorDirectoryUser, 'municipality') && !Object.hasOwn(assessorDirectoryUser, 'completed_assessments'), 'assessor directory omits respondent demographics and account history');
-    check(assessorDashboard.status === 200 && assessorDashboard.data.data.summary.totalAssessments === 1 && assessorDashboard.data.data.summary.totalParticipants === 1, 'assessor dashboard is limited to their own cohort');
-    check(assessorScopedDashboard.status === 200 && assessorScopedDashboard.data.data.summary.totalAssessments === 1 && assessorForeignAnalytics.status === 403, 'assessment analytics filters enforce assessor cohort access');
-    check(assessorForeignResults.status === 403 && assessorForeignExport.status === 403, 'assessor cannot inspect or export an unrelated cohort');
-
-    const timedAssessment = await request(baseUrl, `/assessments/${assessorAssessment.data.data.id}`, { token: assessorToken });
     const timedAttemptStart = await request(baseUrl, '/attempts', {
-      method: 'POST', token: secondStudentToken, body: { assessment_id: assessorAssessment.data.data.id },
+      method: 'POST', token: secondStudentToken, body: { assessment_id: timedAssessment.data.data.id },
     });
     const timedAttemptId = timedAttemptStart.data?.data?.attempt?.id;
     const timedQuestionId = timedAttemptStart.data?.data?.questions?.[0]?.id;
@@ -653,9 +638,9 @@ async function run() {
     const expiredSave = await request(baseUrl, `/attempts/${timedAttemptId}/respond`, {
       method: 'PUT', token: secondStudentToken, body: { question_id: timedQuestionId, rating: 2 },
     });
-    const reopen = await request(baseUrl, `/attempts/${timedAttemptId}/reopen`, { method: 'POST', token: assessorToken });
+    const reopen = await request(baseUrl, `/attempts/${timedAttemptId}/reopen`, { method: 'POST', token: adminToken });
     const resumedTimedAttempt = await request(baseUrl, `/attempts/${timedAttemptId}`, { token: secondStudentToken });
-    check(timedAssessment.status === 200 && timedAttemptId && expiredSave.status === 410, 'expired attempts stop accepting new responses but keep saved data');
+    check(timedAssessment.status === 201 && timedAttemptId && expiredSave.status === 410, 'expired attempts stop accepting new responses but keep saved data');
     check(reopen.status === 200 && resumedTimedAttempt.data.data.questions[0].saved_rating === 4, 'assessment owner can restart an expired timer without losing saved answers');
 
     const cohortExport = await request(baseUrl, `/export/assessment/${assessmentId}/excel`, { token: adminToken });
@@ -795,7 +780,7 @@ async function run() {
         last_name: 'Staff',
         email: 'verified.staff@example.test',
         password: 'VerifiedStaffPass123!',
-        role: 'assessor',
+        role: 'admin',
       },
     });
     const mfaStaffId = mfaStaffRes.data?.data?.id;

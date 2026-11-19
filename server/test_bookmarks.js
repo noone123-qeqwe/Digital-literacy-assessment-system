@@ -64,8 +64,8 @@ async function run() {
     check((await request('/bookmarks/knowledge/999999', { actor: admin, method: 'PUT' })).status === 404, 'nonexistent assessments cannot be bookmarked');
     check((await request(knowledgePath, { actor: teacher, method: 'PUT' })).status === 404, 'teachers cannot bookmark another teacher’s knowledge quiz');
     db.prepare('UPDATE knowledge_quizzes SET created_by=? WHERE id=?').run(teacher.id, quiz);
-    check((await request(knowledgePath, { actor: teacher, method: 'PUT' })).status === 200, 'teachers can bookmark their own knowledge quizzes');
-    check((await request(researchPath, { actor: teacher, method: 'PUT' })).status === 200, 'teachers can bookmark research assessments they assigned');
+    check((await request(knowledgePath, { actor: teacher, method: 'PUT' })).status === 403, 'retired teachers cannot bookmark even their own quizzes');
+    check((await request(researchPath, { actor: teacher, method: 'PUT' })).status === 403, 'retired teachers cannot bookmark previously assigned research assessments');
     await request(knowledgePath, { actor: maria, method: 'PUT' });
     db.prepare("UPDATE knowledge_quizzes SET status='draft' WHERE id=?").run(quiz);
     check(!(await request('/bookmarks', { actor: maria })).data.data.knowledge.includes(quiz) && (await request(knowledgePath, { actor: maria, method: 'PUT' })).status === 404, 'unpublished quizzes without an ongoing attempt are hidden from student bookmarks');
@@ -76,9 +76,12 @@ async function run() {
     db.prepare('DELETE FROM assessment_assignments WHERE assessment_id=?').run(research);
     const revoked = (await request('/bookmarks', { actor: maria })).data.data;
     check(!revoked.knowledge.includes(quiz) && !revoked.research.includes(research), 'revoked assignments disappear from saved lists');
-    check(!(await request('/bookmarks', { actor: teacher })).data.data.research.includes(research), 'revoked teacher access also hides the saved research assessment');
+    check((await request('/bookmarks', { actor: teacher })).status === 403, 'retired accounts cannot retrieve saved assessments');
     check((await request(knowledgePath, { actor: maria, method: 'DELETE' })).status === 200, 'a student can remove their own stale bookmark after access is withdrawn');
     initializeDatabase();
+    check(db.prepare('SELECT status FROM users WHERE id=?').get(teacher.id).status === 'inactive', 'startup disables legacy teacher accounts');
+    check(db.prepare('SELECT COUNT(*) count FROM auth_sessions WHERE user_id=? AND revoked_at IS NULL').get(teacher.id).count === 0, 'startup revokes legacy teacher sessions');
+    check(db.prepare('SELECT created_by FROM knowledge_quizzes WHERE id=?').get(quiz).created_by === teacher.id, 'retiring a role preserves assessment ownership and history');
     check(db.prepare('SELECT 1 FROM quiz_bookmarks WHERE user_id=? AND quiz_id=?').get(admin.id, quiz), 'schema initialization preserves saved bookmarks');
     await request(researchPath, { actor: admin, method: 'PUT' });
     db.prepare('DELETE FROM assessments WHERE id=?').run(research);

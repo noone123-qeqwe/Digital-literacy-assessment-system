@@ -163,6 +163,5 @@ export const downloadFile = (data, filename, type = 'application/pdf') => {
 
 export const dashboardPathForRole = (role) => {
   if (role === 'admin') return '/admin/dashboard';
-  if (role === 'assessor') return '/assessor/dashboard';
   return '/respondent/dashboard';
 };

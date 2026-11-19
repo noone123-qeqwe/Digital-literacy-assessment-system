@@ -58,13 +58,13 @@ function verifiedUserForToken(token, tokenType) {
   if (typeof token !== 'string' || token.length < 20 || token.length > 200) return null;
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
   return db.prepare(`
-    SELECT t.id AS token_id, u.id, u.email, u.first_name, u.last_name, u.role, u.mfa_enabled,
+    SELECT t.id AS token_id, u.id, u.email, u.first_name, u.last_name, u.role, u.status, u.mfa_enabled,
            COALESCE(mfa_policy.setting_value, '0') AS mfa_optional
     FROM auth_tokens t
     JOIN users u ON u.id = t.user_id
     LEFT JOIN system_settings mfa_policy ON mfa_policy.setting_key = 'mfa_optional_user:' || u.id
     WHERE t.token_hash = ? AND t.token_type = ? AND t.used_at IS NULL
-      AND datetime(t.expires_at) > datetime('now') AND u.status = 'active'
+      AND datetime(t.expires_at) > datetime('now') AND u.status = 'active' AND u.role IN ('admin', 'respondent')
   `).get(tokenHash, tokenType) || null;
 }
 
@@ -162,7 +162,7 @@ router.post('/login', loginLimit, loginAccountLimit, [
     return res.status(401).json({ success: false, message: 'Invalid email or password.' });
   }
 
-  if (user.status !== 'active') {
+  if (!['admin', 'respondent'].includes(user.role) || user.status !== 'active') {
     return res.status(403).json({ success: false, message: 'Account is deactivated. Contact administrator.' });
   }
 
@@ -334,7 +334,7 @@ router.post('/forgot-password', tokenRequestLimit, [body('email').isEmail().norm
 router.post('/mfa/recovery-request', tokenRequestLimit, [body('email').isEmail().normalizeEmail()], async (req, res, next) => {
   try {
     const user = db.prepare("SELECT id, email, role FROM users WHERE email = ? AND status = 'active'").get(req.body.email);
-    if (user && ['admin', 'assessor'].includes(user.role)) {
+    if (user && ['admin'].includes(user.role)) {
       const token = createMfaRecoveryToken(user.id);
       await sendSecurityEmail({
         to: user.email,
@@ -343,7 +343,7 @@ router.post('/mfa/recovery-request', tokenRequestLimit, [body('email').isEmail()
         actionUrl: clientUrl(`/recover-mfa?token=${encodeURIComponent(token)}`),
       });
     }
-    return res.json({ success: true, message: 'If that is an active administrator or teacher account, an MFA recovery link has been sent.' });
+    return res.json({ success: true, message: 'If that is an active administrator account, an MFA recovery link has been sent.' });
   } catch (err) { return next(err); }
 });
 
@@ -351,7 +351,7 @@ router.post('/mfa/recover', tokenUseLimit, [body('token').isString().isLength({ 
   const errors = validationResult(req);
   if (!errors.isEmpty()) return res.status(400).json({ success: false, message: 'MFA recovery link is invalid or expired.' });
   const token = verifiedMfaRecoveryToken(req.body.token);
-  if (!token || !['admin', 'assessor'].includes(token.role)) return res.status(400).json({ success: false, message: 'MFA recovery link is invalid or expired.' });
+  if (!token || !['admin'].includes(token.role)) return res.status(400).json({ success: false, message: 'MFA recovery link is invalid or expired.' });
   db.transaction(() => {
     db.prepare("UPDATE mfa_recovery_tokens SET used_at = datetime('now') WHERE id = ?").run(token.token_id);
     db.prepare("UPDATE users SET mfa_secret = NULL, mfa_enabled = 0, updated_at = datetime('now') WHERE id = ?").run(token.id);
@@ -499,7 +499,7 @@ router.post('/mfa/setup', mfaLimit, [body('setup_token').isString().isLength({ m
     return res.status(401).json({ success: false, message: 'Setup session expired. Sign in again.' });
   }
   const user = db.prepare("SELECT id, email, role, status, email_verified FROM users WHERE id = ?").get(decoded.id);
-  if (decoded.scope !== 'mfa_setup' || !user || user.status !== 'active' || !user.email_verified || !['admin', 'assessor'].includes(user.role)) {
+  if (decoded.scope !== 'mfa_setup' || !user || user.status !== 'active' || !user.email_verified || !['admin'].includes(user.role)) {
     return res.status(403).json({ success: false, message: 'MFA setup is not available for this account.' });
   }
   const secret = generateTotpSecret();
@@ -550,7 +550,7 @@ router.post('/mfa/setup/confirm', mfaLimit, [
 });
 
 // Optional authenticator (TOTP) add-on + backup scratch codes for signed-in staff
-router.post('/mfa/totp/setup', authenticate, authorize('admin', 'assessor'), mfaLimit, (req, res) => {
+router.post('/mfa/totp/setup', authenticate, authorize('admin'), mfaLimit, (req, res) => {
   const secret = generateTotpSecret();
   const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
   db.prepare("DELETE FROM mfa_challenges WHERE user_id = ? AND challenge_type = 'setup'").run(req.user.id);
@@ -567,7 +567,7 @@ router.post('/mfa/totp/setup', authenticate, authorize('admin', 'assessor'), mfa
   });
 });
 
-router.post('/mfa/totp/confirm', authenticate, authorize('admin', 'assessor'), mfaLimit, [
+router.post('/mfa/totp/confirm', authenticate, authorize('admin'), mfaLimit, [
   body('code').isString().isLength({ min: 6, max: 8 }),
 ], (req, res) => {
   const errors = validationResult(req);
@@ -606,7 +606,7 @@ router.post('/mfa/totp/confirm', authenticate, authorize('admin', 'assessor'), m
   });
 });
 
-router.delete('/mfa/totp', authenticate, authorize('admin', 'assessor'), [
+router.delete('/mfa/totp', authenticate, authorize('admin'), [
   body('current_password').notEmpty().withMessage('Current password is required'),
 ], async (req, res) => {
   const errors = validationResult(req);
@@ -626,7 +626,7 @@ router.delete('/mfa/totp', authenticate, authorize('admin', 'assessor'), [
   });
 });
 
-router.post('/mfa/backup-codes/regenerate', authenticate, authorize('admin', 'assessor'), [
+router.post('/mfa/backup-codes/regenerate', authenticate, authorize('admin'), [
   body('current_password').notEmpty().withMessage('Current password is required'),
 ], async (req, res) => {
   const errors = validationResult(req);
@@ -692,7 +692,7 @@ router.get('/me', authenticate, (req, res) => {
     data: {
       ...user,
       mfa_required: isMfaRequired(req.user),
-      backup_codes_remaining: ['admin', 'assessor'].includes(user.role) ? backupCodesRemainingCount(user.id) : 0,
+      backup_codes_remaining: ['admin'].includes(user.role) ? backupCodesRemainingCount(user.id) : 0,
       profile,
     },
   });

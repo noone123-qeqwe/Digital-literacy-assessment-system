@@ -579,6 +579,22 @@ function initializeDatabase() {
   }
   require('./knowledge').initializeKnowledge(db);
   require('./bookmarks').initializeBookmarks(db);
+
+  // Retire the removed staff role without rewriting ownership or deleting history.
+  // Idempotent on every startup, including databases restored from older backups.
+  db.transaction(() => {
+    db.exec(`
+      UPDATE users SET status = 'inactive', updated_at = datetime('now')
+        WHERE role = 'assessor' AND status <> 'inactive';
+      UPDATE auth_sessions SET revoked_at = datetime('now')
+        WHERE user_id IN (SELECT id FROM users WHERE role = 'assessor') AND revoked_at IS NULL;
+      UPDATE auth_tokens SET used_at = datetime('now')
+        WHERE user_id IN (SELECT id FROM users WHERE role = 'assessor') AND used_at IS NULL;
+      UPDATE mfa_recovery_tokens SET used_at = datetime('now')
+        WHERE user_id IN (SELECT id FROM users WHERE role = 'assessor') AND used_at IS NULL;
+      DELETE FROM mfa_challenges WHERE user_id IN (SELECT id FROM users WHERE role = 'assessor');
+    `);
+  })();
 }
 
 function logActivity(userId, action, details = null) {

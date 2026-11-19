@@ -10,7 +10,7 @@ const { clearSessionCookies, findCanonicalEmailConflict } = require('../utils/au
 const { canAccessAssessment } = require('../middleware/auth');
 
 // GET /api/users - List users with search, role filter, pagination
-router.get('/', authenticate, authorize('admin', 'assessor'), (req, res) => {
+router.get('/', authenticate, authorize('admin'), (req, res) => {
   try {
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, Number.parseInt(req.query.limit, 10) || 10));
@@ -42,29 +42,20 @@ router.get('/', authenticate, authorize('admin', 'assessor'), (req, res) => {
       whereClauses.push('u.status = ?');
       params.push(status);
     }
-    if (req.user.role === 'assessor') {
-      whereClauses.push("u.role = 'respondent'");
-    }
 
     const whereStr = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
     const countStmt = db.prepare(`SELECT COUNT(*) as total FROM users u ${whereStr}`);
     const total = countStmt.get(...params).total;
 
-    // Assessors need names and email addresses to assign students, but not
-    // demographic or account-history fields from the respondent profile.
-    const userColumns = req.user.role === 'assessor'
-      ? 'u.id, u.email, u.first_name, u.last_name, u.role, u.status'
-      : `u.id, u.email, u.first_name, u.last_name, u.institutional_id, u.role, u.status, u.created_at, u.updated_at,
+    const userColumns = `u.id, u.email, u.first_name, u.last_name, u.institutional_id, u.role, u.status, u.created_at, u.updated_at,
          p.age, p.sex, p.municipality, p.senior_high_school, p.shs_strand,
          (SELECT COUNT(*) FROM assessment_attempts a WHERE a.user_id = u.id AND a.status = 'completed') as completed_assessments`;
-    const profileJoin = req.user.role === 'assessor' ? '' : 'LEFT JOIN respondent_profiles p ON u.id = p.user_id';
+    const profileJoin = 'LEFT JOIN respondent_profiles p ON u.id = p.user_id';
     const orderByMap = {
       newest: 'u.created_at DESC, u.id DESC',
       name: 'LOWER(u.last_name) ASC, LOWER(u.first_name) ASC, u.id ASC',
-      submissions: req.user.role === 'assessor'
-        ? 'u.created_at DESC, u.id DESC'
-        : 'completed_assessments DESC, u.created_at DESC, u.id DESC',
+      submissions: 'completed_assessments DESC, u.created_at DESC, u.id DESC',
     };
     const listStmt = db.prepare(`
       SELECT ${userColumns}
@@ -102,7 +93,7 @@ router.post('/', authenticate, authorize('admin'), [
   body('first_name').trim().isLength({ min: 1, max: 100 }).withMessage('First name is required'),
   body('last_name').trim().isLength({ min: 1, max: 100 }).withMessage('Last name is required'),
   body('institutional_id').optional({ checkFalsy: true }).trim().isLength({ min: 2, max: 64 }).matches(/^[a-zA-Z0-9._/-]+$/),
-  body('role').isIn(['admin', 'assessor', 'respondent']).withMessage('Invalid role'),
+  body('role').isIn(['admin', 'respondent']).withMessage('Invalid role'),
   body('status').optional().isIn(['active', 'inactive', 'suspended']),
 ], async (req, res, next) => {
   const errors = validationResult(req);
@@ -160,7 +151,7 @@ router.post('/', authenticate, authorize('admin'), [
 
 // Import a roster by matching existing respondent accounts. This avoids creating
 // accounts with unknown passwords or assigning an unverified address.
-router.post('/import-roster', authenticate, authorize('admin', 'assessor'), [
+router.post('/import-roster', authenticate, authorize('admin'), [
   body('assessment_id').isInt({ min: 1 }),
   body('rows').isArray({ min: 1, max: 500 }),
 ], (req, res) => {
@@ -242,7 +233,7 @@ router.put('/:id', authenticate, authorize('admin'), [
   body('first_name').optional().trim().notEmpty(),
   body('last_name').optional().trim().notEmpty(),
   body('institutional_id').optional({ nullable: true }).trim().isLength({ max: 64 }).matches(/^[a-zA-Z0-9._/-]*$/),
-  body('role').optional().isIn(['admin', 'assessor', 'respondent']),
+  body('role').optional().isIn(['admin', 'respondent']),
   body('status').optional().isIn(['active', 'inactive', 'suspended']),
   body('password').optional().isLength({ min: 10, max: 128 }).withMessage('Password must be between 10 and 128 characters'),
 ], async (req, res, next) => {
@@ -256,6 +247,10 @@ router.put('/:id', authenticate, authorize('admin'), [
 
   if (!targetUser) {
     return res.status(404).json({ success: false, message: 'User not found' });
+  }
+
+  if (!['admin', 'respondent'].includes(role || targetUser.role) && status === 'active') {
+    return res.status(400).json({ success: false, message: 'Choose Admin or Student before reactivating a retired account.' });
   }
 
   if (targetUser.id === req.user.id && ((status && status !== 'active') || (role && role !== 'admin'))) {
@@ -361,7 +356,7 @@ router.delete('/:id', authenticate, authorize('admin'), (req, res) => {
 
 // GET /api/users/:id/results - Assessment results for user
 router.get('/:id/results', authenticate, (req, res) => {
-  // Allow user to view their own, or admin/assessor
+  // Allow students to view their own results, and administrators to view all results
   const targetId = Number.parseInt(req.params.id, 10);
   if (!Number.isInteger(targetId) || targetId <= 0) {
     return res.status(400).json({ success: false, message: 'Invalid user ID' });
@@ -370,26 +365,14 @@ router.get('/:id/results', authenticate, (req, res) => {
     return res.status(403).json({ success: false, message: 'Access denied' });
   }
 
-  const assessorScope = req.user.role === 'assessor'
-    ? `AND (asm.created_by = ? OR EXISTS (
-        SELECT 1 FROM assessment_assignments scope_aa
-        WHERE scope_aa.assessment_id = asm.id AND scope_aa.assigned_by = ?
-      ))`
-    : '';
-  const params = req.user.role === 'assessor' ? [targetId, req.user.id, req.user.id] : [targetId];
-  if (req.user.role === 'assessor' && !db.prepare(`
-    SELECT 1 FROM assessment_attempts at JOIN assessments asm ON asm.id = at.assessment_id
-    WHERE at.user_id = ? ${assessorScope} LIMIT 1
-  `).get(...params)) {
-    return res.status(403).json({ success: false, message: 'Access denied' });
-  }
+  const params = [targetId];
 
   const attempts = db.prepare(`
     SELECT a.id, a.assessment_id, asm.title as assessment_title, a.status,
            a.started_at, a.completed_at, a.overall_mean, a.overall_level
     FROM assessment_attempts a
     JOIN assessments asm ON a.assessment_id = asm.id
-    WHERE a.user_id = ? AND a.status = 'completed' ${assessorScope}
+    WHERE a.user_id = ? AND a.status = 'completed'
     ORDER BY a.completed_at DESC
   `).all(...params);
 

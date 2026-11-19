@@ -251,7 +251,7 @@ function KnowledgeAttempt({ attemptId }) {
       await persist(resolved); if (keepLocal) void sync(); else setSyncStatus('Server answers restored on this device');
     } catch { toast.error('Could not compare the saved answers. Reconnect and try again.'); }
   };
-  const back = user.role === 'admin' ? '/admin/results' : user.role === 'assessor' ? '/assessor/results' : '/respondent/knowledge';
+  const back = user.role === 'admin' ? '/admin/results' : '/respondent/knowledge';
   if (loading || error || !data) return <KnowledgePage title="Knowledge assessment" loading={loading} error={error} reload={() => window.location.reload()} />;
   const questions = data.snapshot.questions;
   const answered = questions.filter((question) => String(answers[question.id] ?? '').trim()).length;

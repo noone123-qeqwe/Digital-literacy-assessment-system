@@ -321,7 +321,7 @@ router.get('/results/:attemptId/excel', authenticate, async (req, res) => {
 });
 
 // GET /api/export/assessment/:id/excel - Full institutional cohort dataset
-router.get('/assessment/:id/excel', authenticate, authorize('admin', 'assessor'), async (req, res) => {
+router.get('/assessment/:id/excel', authenticate, authorize('admin'), async (req, res) => {
   try {
     const assessment = db.prepare('SELECT id, title, scoring_version, instrument_snapshot FROM assessments WHERE id = ?').get(req.params.id);
     if (!assessment) {

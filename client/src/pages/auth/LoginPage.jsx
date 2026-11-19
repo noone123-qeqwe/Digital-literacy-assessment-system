@@ -51,7 +51,6 @@ export const LoginPage = () => {
 
   const continueAfterLogin = (user) => {
     if (user.role === 'admin') navigate('/admin/dashboard');
-    else if (user.role === 'assessor') navigate('/assessor/dashboard');
     else navigate('/respondent/dashboard');
   };
 
@@ -202,10 +201,7 @@ export const LoginPage = () => {
             </div>
 
             <div className="login-field">
-              <div className="login-label-row">
-                <label htmlFor="login-password">Password</label>
-                <Link to="/forgot-password" className="login-inline-link">Forgot password?</Link>
-              </div>
+              <label htmlFor="login-password">Password</label>
               <div className="login-input-shell">
                 <Lock aria-hidden="true" size={18} />
                 <input
@@ -232,6 +228,9 @@ export const LoginPage = () => {
                     ? <EyeOff aria-hidden="true" className="h-5 w-5" strokeWidth={2.25} />
                     : <Eye aria-hidden="true" className="h-5 w-5" strokeWidth={2.25} />}
                 </button>
+              </div>
+              <div className="login-password-recovery">
+                <Link to="/forgot-password" className="login-inline-link">Forgot password?</Link>
               </div>
             </div>
 
@@ -370,7 +369,6 @@ export const LoginPage = () => {
 
         {authStep === 'credentials' && (
           <>
-            <div className="login-divider">New to DLAS?</div>
             <div className="text-center">
               <Link
                 to="/register"

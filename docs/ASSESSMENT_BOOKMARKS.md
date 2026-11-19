@@ -2,7 +2,7 @@
 
 Choose **Bookmark** on an assessment card, then choose **Bookmarked** above the assessment list to see saved assessments. Choose **Bookmarked** on the card again to remove it. Search and research status filters can be combined with the bookmark filter.
 
-Bookmarks are personal account preferences stored in the database. They survive refreshes and are available when the same account signs in on another device. Students, administrators and teachers can bookmark assessments available in their own knowledge and research assessment lists. A bookmark does not start an attempt, submit an answer, change a deadline or unlock an assessment.
+Bookmarks are personal account preferences stored in the database. They survive refreshes and are available when the same account signs in on another device. Students and administrators can bookmark assessments available in their own knowledge and research assessment lists. A bookmark does not start an attempt, submit an answer, change a deadline or unlock an assessment.
 
 ## Access and storage
 
