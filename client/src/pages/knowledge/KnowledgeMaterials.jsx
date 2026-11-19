@@ -405,6 +405,19 @@ export default function KnowledgeMaterials() {
           maxWidth="max-w-3xl"
         >
           <form className="kq-form" onSubmit={save}>
+            <details className="kq-editor-help" open={!editing}>
+              <summary>How to add a learning guide</summary>
+              <ol>
+                <li><strong>Choose a category and title.</strong> Select the skill this guide teaches and enter a clear title (3–160 characters).</li>
+                <li><strong>Write the learning guide.</strong> Enter 20–20,000 characters. Explain the topic, give step-by-step instructions, and include a short practice activity. Use the formatting example below to organize your content.</li>
+                <li><strong>Add optional learning resources.</strong> Select a built-in diagram and describe it in the caption / alt text. Choose a built-in video or paste an HTTPS YouTube or Vimeo link, then add a video title. You can also include an additional HTTPS resource link.</li>
+                <li><strong>Choose whether to publish.</strong> “Published for students” is checked by default. Uncheck it to save a draft that students cannot see.</li>
+                <li><strong>Save and review.</strong> Click “Save guide”, then expand the saved guide to check its text, diagram, video, and links. Use “Edit” to make changes.</li>
+              </ol>
+              <p><strong>Formatting example</strong> — type these symbols in the Learning guide field:</p>
+              <pre>{'## Learning overview\nLearn how to organize your files.\n\n## Steps\n1. Create a folder.\n2. Give it a clear name.\n\n## Quick reference\n- **Tip:** Use descriptive file names.\n- Press `Ctrl + S` to save.\n\n## Try it yourself\nCreate a folder and move a practice file into it.'}</pre>
+              <p><strong>When editing:</strong> Saving changes resets the guide’s completion records, so students will need to complete it again.</p>
+            </details>
             <div className="kq-form-row">
               <Field label="Category">
                 <select
