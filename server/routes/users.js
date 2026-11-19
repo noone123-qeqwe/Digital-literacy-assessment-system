@@ -4,7 +4,7 @@ const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const { body, query, validationResult } = require('express-validator');
 const { db, logActivity } = require('../db/database');
-const { authenticate, authorize } = require('../middleware/auth');
+const { authenticate, authorize, revalidateAuthentication } = require('../middleware/auth');
 const { sendSecurityEmail, clientUrl } = require('../utils/email');
 const { clearSessionCookies, findCanonicalEmailConflict, invalidatePendingAuthentication } = require('../utils/authSecurity');
 const { canAccessAssessment } = require('../middleware/auth');
@@ -299,6 +299,7 @@ router.put('/:id', authenticate, authorize('admin'), [
   }
 
   if (updates.length > 0) {
+    if (!revalidateAuthentication(req, res, 'admin')) return;
     updates.push("updated_at = datetime('now')");
     params.push(targetUser.id);
     db.transaction(() => {
@@ -349,6 +350,7 @@ router.delete('/:id', authenticate, authorize('admin'), (req, res) => {
   db.transaction(() => {
     db.prepare("UPDATE users SET status = 'inactive', updated_at = datetime('now') WHERE id = ?").run(userId);
     db.prepare("UPDATE auth_sessions SET revoked_at = datetime('now') WHERE user_id = ? AND revoked_at IS NULL").run(userId);
+    invalidatePendingAuthentication(userId);
     logActivity(req.user.id, 'USER_DEACTIVATE', `Deactivated user: ${user.email} (ID: ${userId})`);
   })();
 

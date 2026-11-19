@@ -66,4 +66,14 @@ function authorize(...roles) {
   };
 }
 
-module.exports = { authenticate, authorize, canAccessAssessment, canAccessAttempt };
+// Password hashing yields control. Recheck the live session and permissions before a write.
+function revalidateAuthentication(req, res, ...roles) {
+  let allowed = false;
+  authenticate(req, res, () => {
+    if (roles.length) authorize(...roles)(req, res, () => { allowed = true; });
+    else allowed = true;
+  });
+  return allowed;
+}
+
+module.exports = { authenticate, authorize, revalidateAuthentication, canAccessAssessment, canAccessAttempt };

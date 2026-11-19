@@ -20,7 +20,7 @@ initializeDatabase();
 const delivered = [];
 require('../utils/email').sendSecurityEmail = async message => { delivered.push(message); return { provider: 'isolated-test' }; };
 const { app } = require('../server');
-const { issueSession, hashCode } = require('../utils/authSecurity');
+const { issueSession, hashCode, encryptSecret, normalizeBackupCode } = require('../utils/authSecurity');
 const outcomes = [];
 async function check(name, category, action) {
   try { const evidence = await action(); outcomes.push({ name, category, passed: true, evidence }); console.log(`PASS ${name}`); }
@@ -47,6 +47,16 @@ function resetToken(userId) {
   db.prepare("INSERT INTO auth_tokens(user_id,token_hash,token_type,expires_at) VALUES(?,?,'password_reset',?)")
     .run(userId, hashCode(token), new Date(Date.now() + 3600000).toISOString());
   return token;
+}
+function mfaFixture(userId, attempts = 0) {
+  const challengeId = crypto.randomBytes(32).toString('base64url');
+  const expiresAt = new Date(Date.now() + 120000).toISOString();
+  const backupCode = 'A1B2-C3D4-E5F6';
+  db.prepare('UPDATE users SET mfa_enabled=1,mfa_secret=? WHERE id=?').run(encryptSecret('GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'), userId);
+  db.prepare("INSERT INTO mfa_challenges(id,user_id,challenge_type,otp_hash,expires_at,attempts) VALUES(?,?,'login',?,?,?)")
+    .run(challengeId, userId, hashCode('281674'), expiresAt, attempts);
+  db.prepare('INSERT INTO mfa_backup_codes(user_id,code_hash) VALUES(?,?)').run(userId, hashCode(normalizeBackupCode(backupCode)));
+  return { challengeId, expiresAt, backupCode };
 }
 function noKeys(value) {
   if (!value || typeof value !== 'object') return true;
@@ -207,6 +217,129 @@ function noKeys(value) {
       const active = await request('/auth/login', { method: 'POST', body: { email: alice.email, password: 'wrong' } });
       assert.equal(active.status, unknown.status);
       assert.equal(active.json.message, unknown.json.message);
+    });
+
+    for (const action of ['recover', 'disable']) {
+      await check(`Authenticator ${action} invalidates old backup codes, pending sign-ins and other sessions`, 'mfa-recovery', async () => {
+        db.exec('DELETE FROM rate_limit_buckets');
+        const target = account(`mfa-${action}@security.example.test`, 'admin');
+        const fixture = mfaFixture(target.id), current = session(target), previous = session(target);
+        let response;
+        if (action === 'recover') {
+          const token = crypto.randomBytes(32).toString('base64url');
+          db.prepare('INSERT INTO mfa_recovery_tokens(user_id,token_hash,expires_at) VALUES(?,?,?)').run(target.id, hashCode(token), fixture.expiresAt);
+          response = await request('/auth/mfa/recover', { method: 'POST', body: { token } });
+          assert.equal((await request('/auth/mfa/recover', { method: 'POST', body: { token } })).status, 400);
+        } else {
+          response = await request('/auth/mfa/totp', { actor: current, method: 'DELETE', body: { current_password: 'Isolated-fixture-password-2026' } });
+        }
+        assert.equal(response.status, 200);
+        const login = await request('/auth/login', { method: 'POST', body: { email: target.email, password: 'Isolated-fixture-password-2026' } });
+        assert.equal(login.status, 200); assert.equal(login.json.mfaRequired, true);
+        const stale = await request('/auth/mfa/verify', { method: 'POST', body: { challenge_id: login.json.challengeId, code: fixture.backupCode } });
+        assert.equal(stale.status, 401, `Old backup code still signs in after ${action}: HTTP ${stale.status}`);
+        assert.equal(db.prepare('SELECT COUNT(*) n FROM mfa_backup_codes WHERE user_id=?').get(target.id).n, 0);
+        assert.equal(db.prepare('SELECT COUNT(*) n FROM mfa_challenges WHERE id=?').get(fixture.challengeId).n, 0);
+        assert.equal((await request('/auth/me', { actor: previous })).status, 401);
+        assert.equal((await request('/auth/me', { actor: current })).status, action === 'recover' ? 401 : 200);
+      });
+    }
+    await check('Resending an OTP cannot revive a challenge locked after five failed attempts', 'mfa-brute-force', async () => {
+      db.exec('DELETE FROM rate_limit_buckets');
+      const target = account('mfa-locked@security.example.test', 'admin'), fixture = mfaFixture(target.id, 5);
+      const sentBefore = delivered.length;
+      const response = await request('/auth/mfa/resend-otp', { method: 'POST', body: { challenge_id: fixture.challengeId } });
+      assert.equal(response.status, 401);
+      assert.equal(delivered.length, sentBefore);
+      assert.equal((await request('/auth/mfa/verify', { method: 'POST', body: { challenge_id: fixture.challengeId, code: '281674' } })).status, 401);
+    });
+    await check('OTP resends preserve the failed-attempt count across replacement codes', 'mfa-brute-force', async () => {
+      db.exec('DELETE FROM rate_limit_buckets');
+      const target = account('mfa-attempts@security.example.test', 'admin'), fixture = mfaFixture(target.id, 4);
+      assert.equal((await request('/auth/mfa/resend-otp', { method: 'POST', body: { challenge_id: fixture.challengeId } })).status, 200);
+      assert.equal(db.prepare('SELECT attempts FROM mfa_challenges WHERE id=?').get(fixture.challengeId).attempts, 4);
+      assert.equal((await request('/auth/mfa/verify', { method: 'POST', body: { challenge_id: fixture.challengeId, code: 'WRONG-BACKUP' } })).status, 401);
+      assert.equal((await request('/auth/mfa/verify', { method: 'POST', body: { challenge_id: fixture.challengeId, code: delivered.at(-1).otpCode } })).status, 401);
+    });
+    await check('OTP resends keep the original expiry and accept only the newly delivered code', 'mfa-lifetime', async () => {
+      db.exec('DELETE FROM rate_limit_buckets');
+      const target = account('mfa-expiry@security.example.test', 'admin'), fixture = mfaFixture(target.id);
+      assert.equal((await request('/auth/mfa/resend-otp', { method: 'POST', body: { challenge_id: fixture.challengeId } })).status, 200);
+      assert.equal(db.prepare('SELECT expires_at FROM mfa_challenges WHERE id=?').get(fixture.challengeId).expires_at, fixture.expiresAt);
+      const replacement = delivered.at(-1).otpCode;
+      if (replacement !== '281674') assert.equal((await request('/auth/mfa/verify', { method: 'POST', body: { challenge_id: fixture.challengeId, code: '281674' } })).status, 401);
+      assert.equal((await request('/auth/mfa/verify', { method: 'POST', body: { challenge_id: fixture.challengeId, code: replacement } })).status, 200);
+    });
+    for (const action of ['disable', 'regenerate', 'password']) {
+      await check(`A revoked session cannot finish ${action} after its password check starts`, 'session-race', async () => {
+        db.exec('DELETE FROM rate_limit_buckets');
+        const target = account(`revoked-${action}@security.example.test`, 'admin');
+        mfaFixture(target.id);
+        const current = session(target), before = db.prepare('SELECT password,mfa_secret FROM users WHERE id=?').get(target.id);
+        const original = bcrypt.compare;
+        try {
+          bcrypt.compare = async (...args) => {
+            const matches = await original(...args);
+            db.prepare("UPDATE auth_sessions SET revoked_at=datetime('now') WHERE id=?").run(current.id);
+            return matches;
+          };
+          const response = action === 'password'
+            ? await request('/auth/me/password', { actor: current, method: 'PUT', body: { current_password: 'Isolated-fixture-password-2026', new_password: 'Revoked-request-password-2026' } })
+            : await request(action === 'disable' ? '/auth/mfa/totp' : '/auth/mfa/backup-codes/regenerate', { actor: current, method: action === 'disable' ? 'DELETE' : 'POST', body: { current_password: 'Isolated-fixture-password-2026' } });
+          assert.equal(response.status, 401);
+          assert.equal(response.json.data?.backup_codes, undefined);
+          assert.deepEqual(db.prepare('SELECT password,mfa_secret FROM users WHERE id=?').get(target.id), before);
+          assert.equal(db.prepare('SELECT COUNT(*) n FROM mfa_backup_codes WHERE user_id=?').get(target.id).n, 1);
+        } finally { bcrypt.compare = original; }
+      });
+    }
+    for (const action of ['disable', 'regenerate']) {
+      await check(`A password changed during verification cannot authorize ${action}`, 'credential-race', async () => {
+        db.exec('DELETE FROM rate_limit_buckets');
+        const target = account(`stale-${action}@security.example.test`, 'admin');
+        mfaFixture(target.id);
+        const current = session(target), secret = db.prepare('SELECT mfa_secret FROM users WHERE id=?').get(target.id).mfa_secret;
+        const original = bcrypt.compare;
+        try {
+          bcrypt.compare = async (...args) => {
+            const matches = await original(...args);
+            db.prepare('UPDATE users SET password=? WHERE id=?').run(bcrypt.hashSync('Concurrent-password-2026', 10), target.id);
+            return matches;
+          };
+          const response = await request(action === 'disable' ? '/auth/mfa/totp' : '/auth/mfa/backup-codes/regenerate', { actor: current, method: action === 'disable' ? 'DELETE' : 'POST', body: { current_password: 'Isolated-fixture-password-2026' } });
+          assert.equal(response.status, 409);
+          assert.equal(response.json.data?.backup_codes, undefined);
+          assert.equal(db.prepare('SELECT mfa_secret FROM users WHERE id=?').get(target.id).mfa_secret, secret);
+          assert.equal(db.prepare('SELECT COUNT(*) n FROM mfa_backup_codes WHERE user_id=?').get(target.id).n, 1);
+        } finally { bcrypt.compare = original; }
+      });
+    }
+    for (const change of ['revoked', 'demoted']) {
+      await check(`An administrator ${change} during hashing cannot finish another account's password update`, 'authorization-race', async () => {
+        db.exec('DELETE FROM rate_limit_buckets');
+        const actor = account(`admin-${change}@security.example.test`, 'admin'), current = session(actor);
+        const target = account(`admin-target-${change}@security.example.test`), original = bcrypt.hash;
+        try {
+          bcrypt.hash = async (...args) => {
+            const hashed = await original(...args);
+            if (change === 'revoked') db.prepare("UPDATE auth_sessions SET revoked_at=datetime('now') WHERE id=?").run(current.id);
+            else db.prepare("UPDATE users SET role='respondent' WHERE id=?").run(actor.id);
+            return hashed;
+          };
+          const response = await request(`/users/${target.id}`, { actor: current, method: 'PUT', body: { password: 'Unauthorized-change-2026' } });
+          assert.equal(response.status, change === 'revoked' ? 401 : 403);
+          assert.equal(db.prepare('SELECT password FROM users WHERE id=?').get(target.id).password, target.password);
+        } finally { bcrypt.hash = original; }
+      });
+    }
+    await check('Valid backup-code regeneration replaces old codes and keeps the signed-in account working', 'mfa-backup', async () => {
+      db.exec('DELETE FROM rate_limit_buckets');
+      const target = account('valid-regenerate@security.example.test', 'admin');
+      const fixture = mfaFixture(target.id), current = session(target);
+      const response = await request('/auth/mfa/backup-codes/regenerate', { actor: current, method: 'POST', body: { current_password: 'Isolated-fixture-password-2026' } });
+      assert.equal(response.status, 200); assert.equal(response.json.data.backup_codes.length, 8);
+      assert.equal(db.prepare('SELECT COUNT(*) n FROM mfa_backup_codes WHERE user_id=? AND code_hash=?').get(target.id, hashCode(normalizeBackupCode(fixture.backupCode))).n, 0);
+      assert.equal((await request('/auth/me', { actor: current })).status, 200);
     });
 
     const category = db.prepare('SELECT id FROM quiz_categories ORDER BY id LIMIT 1').get();

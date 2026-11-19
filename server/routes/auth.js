@@ -5,7 +5,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { body, validationResult } = require('express-validator');
 const { db, logActivity } = require('../db/database');
-const { authenticate, authorize } = require('../middleware/auth');
+const { authenticate, authorize, revalidateAuthentication } = require('../middleware/auth');
 const { defaults: characterDefaults, validateCharacterSettings } = require('../utils/dashboardCharacter');
 const { rateLimit } = require('../middleware/rateLimit');
 const {
@@ -106,14 +106,18 @@ function createEmailOtpChallenge(userId) {
   return { id, otpCode };
 }
 
-function saveBackupCodesForUser(userId) {
+function saveBackupCodesForUser(userId, expectedPassword = null) {
   const { plainCodes, hashedCodes } = generateBackupCodes(8);
-  db.transaction(() => {
+  return db.transaction(() => {
+    if (expectedPassword !== null) {
+      const current = db.prepare('SELECT password FROM users WHERE id = ?').get(userId);
+      if (!current || current.password !== expectedPassword) return null;
+    }
     db.prepare('DELETE FROM mfa_backup_codes WHERE user_id = ?').run(userId);
     const insert = db.prepare('INSERT INTO mfa_backup_codes (user_id, code_hash) VALUES (?, ?)');
     for (const digest of hashedCodes) insert.run(userId, digest);
+    return plainCodes;
   })();
-  return plainCodes;
 }
 
 function backupCodesRemainingCount(userId) {
@@ -353,8 +357,9 @@ router.post('/mfa/recover', tokenUseLimit, [body('token').isString().isLength({ 
   db.transaction(() => {
     db.prepare("UPDATE mfa_recovery_tokens SET used_at = datetime('now') WHERE id = ?").run(token.token_id);
     db.prepare("UPDATE users SET mfa_secret = NULL, mfa_enabled = 0, updated_at = datetime('now') WHERE id = ?").run(token.id);
-    db.prepare("UPDATE auth_sessions SET revoked_at = datetime('now') WHERE user_id = ? AND revoked_at IS NULL").run(token.id);
-    db.prepare('DELETE FROM mfa_challenges WHERE user_id = ?').run(token.id);
+    db.prepare('DELETE FROM mfa_backup_codes WHERE user_id = ?').run(token.id);
+    revokeUserSessions(token.id);
+    invalidatePendingAuthentication(token.id);
   })();
   logActivity(token.id, 'MFA_RECOVERED', 'MFA was reset by email recovery; re-enrollment is required');
   return res.json({ success: true, message: 'Authenticator access was reset. Sign in with your password to set up MFA again.' });
@@ -400,17 +405,17 @@ router.post('/mfa/resend-otp', tokenRequestLimit, [
   }
   try {
     const challenge = db.prepare(`
-      SELECT c.id, c.user_id, u.email, u.status
+      SELECT c.id, c.user_id, c.attempts, u.email, u.status, u.role, u.email_verified
       FROM mfa_challenges c JOIN users u ON u.id = c.user_id
       WHERE c.id = ? AND c.challenge_type = 'login' AND datetime(c.expires_at) > datetime('now')
     `).get(req.body.challenge_id);
-    if (!challenge || challenge.status !== 'active') {
+    if (!challenge || challenge.attempts >= 5 || challenge.status !== 'active' || challenge.role !== 'admin' || !challenge.email_verified) {
       return res.status(401).json({ success: false, message: 'The verification challenge expired. Sign in again.' });
     }
     const otpCode = generateEmailOtp();
-    const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
-    db.prepare('UPDATE mfa_challenges SET otp_hash = ?, attempts = 0, expires_at = ? WHERE id = ?')
-      .run(hashCode(otpCode), expiresAt, challenge.id);
+    // Resending replaces the email code without renewing the challenge's guess budget or lifetime.
+    db.prepare('UPDATE mfa_challenges SET otp_hash = ? WHERE id = ?')
+      .run(hashCode(otpCode), challenge.id);
     await sendSecurityEmail({
       to: challenge.email,
       subject: 'Your DLAS sign-in verification code',
@@ -617,45 +622,63 @@ router.post('/mfa/totp/confirm', authenticate, authorize('admin'), mfaLimit, [
 
 router.delete('/mfa/totp', authenticate, authorize('admin'), [
   body('current_password').notEmpty().withMessage('Current password is required'),
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, message: 'Enter your current password to disable the authenticator app.' });
-  }
-  const row = db.prepare('SELECT password FROM users WHERE id = ?').get(req.user.id);
-  if (!row || !await bcrypt.compare(req.body.current_password, row.password)) {
-    return res.status(400).json({ success: false, message: 'Current password is incorrect.' });
-  }
-  db.prepare("UPDATE users SET mfa_secret = NULL, mfa_enabled = 0, updated_at = datetime('now') WHERE id = ?").run(req.user.id);
-  logActivity(req.user.id, 'MFA_TOTP_DISABLED', 'Authenticator app disabled; email OTP remains active');
-  return res.json({
-    success: true,
-    message: 'Authenticator app removed. Email 6-digit verification remains active.',
-    data: { mfa_enabled: 0 },
-  });
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, message: 'Enter your current password to disable the authenticator app.' });
+    }
+    const row = db.prepare('SELECT password FROM users WHERE id = ?').get(req.user.id);
+    if (!row || !await bcrypt.compare(req.body.current_password, row.password)) {
+      return res.status(400).json({ success: false, message: 'Current password is incorrect.' });
+    }
+    if (!revalidateAuthentication(req, res, 'admin')) return;
+    const changed = db.transaction(() => {
+      const update = db.prepare("UPDATE users SET mfa_secret = NULL, mfa_enabled = 0, updated_at = datetime('now') WHERE id = ? AND password = ?")
+        .run(req.user.id, row.password);
+      if (Number(update.changes) !== 1) return false;
+      db.prepare('DELETE FROM mfa_backup_codes WHERE user_id = ?').run(req.user.id);
+      revokeUserSessions(req.user.id, req.sessionId);
+      invalidatePendingAuthentication(req.user.id);
+      return true;
+    })();
+    if (!changed) return res.status(409).json({ success: false, message: 'Account credentials changed. Sign in again before changing authenticator settings.' });
+    logActivity(req.user.id, 'MFA_TOTP_DISABLED', 'Authenticator app disabled; email OTP remains active');
+    return res.json({
+      success: true,
+      message: 'Authenticator app removed. Email 6-digit verification remains active.',
+      data: { mfa_enabled: 0 },
+    });
+  } catch (err) { return next(err); }
 });
 
 router.post('/mfa/backup-codes/regenerate', authenticate, authorize('admin'), [
   body('current_password').notEmpty().withMessage('Current password is required'),
-], async (req, res) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, message: 'Enter your current password to generate new backup scratch codes.' });
-  }
-  const row = db.prepare('SELECT password FROM users WHERE id = ?').get(req.user.id);
-  if (!row || !await bcrypt.compare(req.body.current_password, row.password)) {
-    return res.status(400).json({ success: false, message: 'Current password is incorrect.' });
-  }
-  const backupCodes = saveBackupCodesForUser(req.user.id);
-  logActivity(req.user.id, 'MFA_BACKUP_CODES_REGENERATED', 'Generated new single-use backup scratch codes');
-  return res.json({
-    success: true,
-    message: 'New backup scratch codes generated. Previous unused codes are now invalid.',
-    data: {
-      backup_codes: backupCodes,
-      backup_codes_remaining: backupCodes.length,
-    },
-  });
+], async (req, res, next) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, message: 'Enter your current password to generate new backup scratch codes.' });
+    }
+    const row = db.prepare('SELECT password FROM users WHERE id = ?').get(req.user.id);
+    if (!row || !await bcrypt.compare(req.body.current_password, row.password)) {
+      return res.status(400).json({ success: false, message: 'Current password is incorrect.' });
+    }
+    if (!revalidateAuthentication(req, res, 'admin')) return;
+    const backupCodes = saveBackupCodesForUser(req.user.id, row.password);
+    if (!backupCodes) {
+      return res.status(409).json({ success: false, message: 'Account credentials changed. Sign in again before generating backup codes.' });
+    }
+    logActivity(req.user.id, 'MFA_BACKUP_CODES_REGENERATED', 'Generated new single-use backup scratch codes');
+    return res.json({
+      success: true,
+      message: 'New backup scratch codes generated. Previous unused codes are now invalid.',
+      data: {
+        backup_codes: backupCodes,
+        backup_codes_remaining: backupCodes.length,
+      },
+    });
+  } catch (err) { return next(err); }
 });
 
 router.post('/logout', authenticate, (req, res) => {
@@ -907,32 +930,35 @@ router.put('/me/password', authenticate, [
   body('current_password').notEmpty().withMessage('Current password is required'),
   body('new_password').isLength({ min: 10, max: 128 }).withMessage('New password must be between 10 and 128 characters'),
 ], async (req, res, next) => {
-  const errors = validationResult(req);
-  if (!errors.isEmpty()) {
-    return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
-  }
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({ success: false, message: 'Validation failed', errors: errors.array() });
+    }
 
-  const { current_password, new_password } = req.body;
-  const user = db.prepare('SELECT password FROM users WHERE id = ?').get(req.user.id);
+    const { current_password, new_password } = req.body;
+    const user = db.prepare('SELECT password FROM users WHERE id = ?').get(req.user.id);
 
-  if (!await bcrypt.compare(current_password, user.password)) {
-    return res.status(400).json({ success: false, message: 'Current password is incorrect.' });
-  }
+    if (!user || !await bcrypt.compare(current_password, user.password)) {
+      return res.status(400).json({ success: false, message: 'Current password is incorrect.' });
+    }
 
-  const hashedPassword = await bcrypt.hash(new_password, 12);
-  const changed = db.transaction(() => {
-    const update = db.prepare("UPDATE users SET password = ?, updated_at = datetime('now') WHERE id = ? AND password = ? AND status = 'active'")
-      .run(hashedPassword, req.user.id, user.password);
-    if (Number(update.changes) !== 1) return false;
-    revokeUserSessions(req.user.id, req.sessionId);
-    invalidatePendingAuthentication(req.user.id);
-    return true;
-  })();
-  if (!changed) return res.status(409).json({ success: false, message: 'Account credentials changed. Sign in again before changing your password.' });
+    const hashedPassword = await bcrypt.hash(new_password, 12);
+    if (!revalidateAuthentication(req, res)) return;
+    const changed = db.transaction(() => {
+      const update = db.prepare("UPDATE users SET password = ?, updated_at = datetime('now') WHERE id = ? AND password = ? AND status = 'active'")
+        .run(hashedPassword, req.user.id, user.password);
+      if (Number(update.changes) !== 1) return false;
+      revokeUserSessions(req.user.id, req.sessionId);
+      invalidatePendingAuthentication(req.user.id);
+      return true;
+    })();
+    if (!changed) return res.status(409).json({ success: false, message: 'Account credentials changed. Sign in again before changing your password.' });
 
-  logActivity(req.user.id, 'PASSWORD_CHANGE', 'User changed their password');
+    logActivity(req.user.id, 'PASSWORD_CHANGE', 'User changed their password');
 
-  res.json({ success: true, message: 'Password changed successfully' });
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (err) { return next(err); }
 });
 
 module.exports = router;
