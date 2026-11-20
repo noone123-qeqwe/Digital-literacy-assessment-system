@@ -181,7 +181,7 @@ export const RespondentDashboard = () => {
       <div className={`dashboard-overview ${!hasResearch ? 'dashboard-overview--welcome-only' : ''}`}>
         <section className="dashboard-welcome dashboard-enter" aria-labelledby="student-welcome">
           <div className="dashboard-welcome-copy">
-            <p className="dashboard-eyebrow">Masbate Colleges · CCS</p>
+            <p className="dashboard-eyebrow">Masbate Colleges</p>
             <h1 id="student-welcome">Hello, {user?.first_name || 'student'}!</h1>
             <p>Keep building your digital confidence. Your next step starts here.</p>
             <Link className="dashboard-welcome-action" to={nextPath}>

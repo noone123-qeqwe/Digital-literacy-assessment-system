@@ -36,7 +36,7 @@ export default function AuthShell({ headline, description, wide = false, childre
             </div>
             <div>
               <p className="text-base font-bold tracking-tight text-white sm:text-lg">DLAS Portal</p>
-              <p className="mt-0.5 text-xs font-medium text-green-100/90 sm:text-sm">Masbate Colleges · CCS</p>
+              <p className="mt-0.5 text-xs font-medium text-green-100/90 sm:text-sm">Masbate Colleges</p>
             </div>
           </div>
 
