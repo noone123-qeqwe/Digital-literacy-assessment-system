@@ -89,9 +89,13 @@ async function run() {
     check((await request(`/attempts/${attemptId}`, { actor: juan })).status === 403 && (await request(`/attempts/${attemptId}`, { actor: teacher })).status === 401, 'attempt ownership is enforced for students and unrelated teachers');
     check((await request(`/attempts/${attemptId}/integrity`, { actor: maria, method: 'POST', body: { event_type: 'page_hidden', detail: 'tab_hidden' } })).status === 200
       && (await request(`/attempts/${attemptId}/integrity`, { actor: maria, method: 'POST', body: { event_type: 'copy_attempt', detail: 'copy' } })).status === 200
+      && (await request(`/attempts/${attemptId}/integrity`, { actor: maria, method: 'POST', body: { event_type: 'drop_attempt', detail: 'content_drop' } })).status === 200
       && (await request(`/attempts/${attemptId}/integrity`, { actor: maria, method: 'POST', body: { event_type: 'bogus_event' } })).status === 400, 'integrity endpoint logs supported proctoring signals and rejects unknown types');
     const mariaSecondSession = session(db.prepare("SELECT id FROM users WHERE email='maria.santos@example.com'").get());
-    check((await request(`/attempts/${attemptId}`, { actor: mariaSecondSession })).status === 200, 'second session read triggers extra-session integrity tracking');
+    const secondSessionResume = await request(`/quizzes/${quizId}/start`, { actor: mariaSecondSession, method: 'POST', body: {} });
+    check(secondSessionResume.status === 200 && secondSessionResume.data.data.attempt.id === attemptId
+      && secondSessionResume.data.data.attempt.deadline === started.data.data.attempt.deadline,
+      'resuming from a second session preserves the original attempt and deadline');
     const invalidBatch = await request(`/attempts/${attemptId}/answers`, { actor: maria, method: 'PUT', body: { responses: [{ question_id: ids[0], answer: q0CorrectId }, { question_id: 999999, answer: '0' }] } });
     check(invalidBatch.status === 400 && db.prepare('SELECT COUNT(*) count FROM quiz_responses WHERE attempt_id=?').get(attemptId).count === 0, 'a batch with a foreign question writes no partial answers');
     const answers = { responses: [{ question_id: ids[0], answer: q0CorrectId }, { question_id: ids[1], answer: 'false' }, { question_id: ids[2], answer: '  central   PROCESSING unit ' }] };
@@ -111,7 +115,9 @@ async function run() {
       && completed.data.data.results.questions.every((item) => !('answers' in item) && !('explanation' in item) && !('correct' in item))
       && !('integrity' in completed.data.data), 'student result review withholds answer keys, explanations, and integrity telemetry while attempts remain');
     const adminAttemptView = await request(`/attempts/${attemptId}`, { actor: admin });
-    check(adminAttemptView.data.data.answer_key_released === true && adminAttemptView.data.data.integrity.page_hidden === 1 && adminAttemptView.data.data.integrity.copy_attempt === 1 && adminAttemptView.data.data.integrity.new_session === 1, 'administrators can inspect full answer review and recorded integrity signals');
+    check(adminAttemptView.data.data.answer_key_released === true && adminAttemptView.data.data.integrity.page_hidden === 1
+      && adminAttemptView.data.data.integrity.copy_attempt === 1 && adminAttemptView.data.data.integrity.drop_attempt === 1
+      && adminAttemptView.data.data.integrity.new_session === 1, 'administrators can inspect full answer review and recorded integrity signals');
     check(completed.data.data.results.questions[0].prompt !== 'Updated question after assessment creation.' || completed.data.data.results.questions.find((item) => item.id === ids[0]).prompt === kinds[0].prompt, 'bank edits leave assessment wording and answer snapshots unchanged');
     check(completed.data.data.results.certificateEarned && completed.data.data.attempt.certificate_earned === 1, 'meeting the configured threshold earns an achievement certificate');
     check((await request(`/attempts/${attemptId}/submit`, { actor: maria, method: 'POST' })).status === 200 && db.prepare('SELECT COUNT(*) count FROM quiz_category_results WHERE attempt_id=?').get(attemptId).count === 2, 'repeat submission keeps one result per category');

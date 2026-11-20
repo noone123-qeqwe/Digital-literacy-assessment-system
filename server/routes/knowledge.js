@@ -61,7 +61,7 @@ function answerKeyReleased(user, attempt) {
   return !db.prepare(`SELECT 1 FROM quiz_attempts WHERE quiz_id=? AND status='in_progress'
     AND (deadline IS NULL OR julianday(deadline)>julianday('now')) LIMIT 1`).get(attempt.quiz_id);
 }
-const integrityTypes = ['page_hidden', 'window_blur', 'copy_attempt', 'paste', 'context_menu'];
+const integrityTypes = ['page_hidden', 'window_blur', 'copy_attempt', 'paste', 'drop_attempt', 'context_menu'];
 const maxIntegrityEvents = 400;
 const integrityLimit = rateLimit({
   id: 'quiz-integrity',

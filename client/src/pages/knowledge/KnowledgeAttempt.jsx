@@ -271,12 +271,20 @@ function KnowledgeAttempt({ attemptId }) {
         toast('Pasting answers is disabled during an active attempt.', { id: 'kq-paste-block' });
       }
     };
+    const onDrop = (event) => {
+      if (event.target instanceof Element && event.target.closest('.kq-take')) {
+        event.preventDefault();
+        logIntegrity('drop_attempt', 'content_drop');
+        toast('Dropping content is disabled during an active attempt.', { id: 'kq-drop-block' });
+      }
+    };
     document.addEventListener('visibilitychange', onHidden);
     window.addEventListener('blur', onBlur);
     document.addEventListener('copy', onCopy);
     document.addEventListener('cut', onCopy);
     document.addEventListener('contextmenu', onContext);
     document.addEventListener('paste', onPaste);
+    document.addEventListener('drop', onDrop);
     return () => {
       document.removeEventListener('visibilitychange', onHidden);
       window.removeEventListener('blur', onBlur);
@@ -284,6 +292,7 @@ function KnowledgeAttempt({ attemptId }) {
       document.removeEventListener('cut', onCopy);
       document.removeEventListener('contextmenu', onContext);
       document.removeEventListener('paste', onPaste);
+      document.removeEventListener('drop', onDrop);
     };
   }, [monitoring, logIntegrity]);
 
@@ -332,12 +341,13 @@ function KnowledgeAttempt({ attemptId }) {
       <section className="kq-card"><h2>Strengths and areas to develop</h2><div className="kq-bars" style={{ marginTop: 20 }}>{data.results.categories.map((category) => <div key={category.id}><div><span>{category.name}</span><strong>{category.percentage}%</strong></div><meter min={0} max={100} value={category.percentage} aria-label={`${category.name}: ${category.percentage}%`} />{canAnswer && category.percentage < 70 && <Link className="kq-note" to={`/respondent/materials?category=${category.id}`}>Explore learning materials for this area →</Link>}</div>)}</div></section>
       {!canAnswer && data.integrity && <section className="kq-card">
         <div className="kq-section-title"><h2>Academic integrity signals</h2><span className={`kq-badge ${data.integrity.total > 0 ? 'kq-badge-warning' : 'kq-badge-success'}`}>{data.integrity.total} total flag{data.integrity.total === 1 ? '' : 's'}</span></div>
-        <p className="kq-note">{data.integrity.total > 0 ? 'Recorded client and session signals during this attempt for instructor follow-up.' : 'No integrity flags were recorded during this attempt.'}</p>
+        <p className="kq-note">Review these signals in context before making an academic integrity decision.</p>
         <div className="kq-integrity-grid">
-          <div><span>Tab switches</span><strong>{data.integrity.page_hidden || 0}</strong></div>
+          <div><span>Page hidden</span><strong>{data.integrity.page_hidden || 0}</strong></div>
           <div><span>Window focus lost</span><strong>{data.integrity.window_blur || 0}</strong></div>
           <div><span>Copy attempts</span><strong>{data.integrity.copy_attempt || 0}</strong></div>
           <div><span>Paste attempts</span><strong>{data.integrity.paste || 0}</strong></div>
+          <div><span>Drop attempts</span><strong>{data.integrity.drop_attempt || 0}</strong></div>
           <div><span>Right-click menus</span><strong>{data.integrity.context_menu || 0}</strong></div>
           <div><span>Extra sign-in sessions</span><strong>{data.integrity.new_session || 0}</strong></div>
         </div>
@@ -346,7 +356,7 @@ function KnowledgeAttempt({ attemptId }) {
     </> : <div className="kq-page kq-take">
       {conflict && <section className="kq-card" role="alert"><h2>Answers changed in another tab or device</h2><p className="kq-note">Your local recovery copy is preserved. Choose which copy to keep before synchronization can continue.</p><div className="kq-actions"><button className="kq-button kq-button-secondary" onClick={() => downloadQuizRecovery({ ...latest.current, userId: user.id, attemptId })}>Download local copy</button><button className="kq-button" disabled={!online} onClick={() => resolveConflict(true)}>Keep this device’s answers</button><button className="kq-button kq-button-secondary" disabled={!online} onClick={() => resolveConflict(false)}>Use server answers</button></div></section>}
       {!online && <p role="status" className="kq-check"><WifiOff size={18} aria-hidden="true" />You are offline. Keep using this device and browser; reconnect before submission.</p>}
-      <section className="kq-card kq-attempt-status"><div className="kq-section-title"><div><p className="kq-eyebrow">Assessment progress</p><strong>{answered} of {questions.length} answered</strong></div><span className="kq-timer" aria-label="Time remaining">{remaining === null ? 'Untimed' : `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`}</span></div><div className="kq-progress" role="progressbar" aria-label="Assessment progress" aria-valuemin={0} aria-valuemax={questions.length} aria-valuenow={answered}><div style={{ width: `${answered / questions.length * 100}%` }} /></div><p className="kq-note" role="status">{syncStatus}</p>{canAnswer && !expired && <p className="kq-note">Independent work monitoring is active: tab switches, copy/paste attempts, and extra sign-in sessions are logged for instructor review.</p>}{storageError && <p className="kq-note" role="alert">Local recovery is unavailable: {storageError} Keep this tab open and maintain a connection so responses can be saved to the server.</p>}</section>
+      <section className="kq-card kq-attempt-status"><div className="kq-section-title"><div><p className="kq-eyebrow">Assessment progress</p><strong>{answered} of {questions.length} answered</strong></div><span className="kq-timer" aria-label="Time remaining">{remaining === null ? 'Untimed' : `${String(Math.floor(remaining / 60)).padStart(2, '0')}:${String(remaining % 60).padStart(2, '0')}`}</span></div><div className="kq-progress" role="progressbar" aria-label="Assessment progress" aria-valuemin={0} aria-valuemax={questions.length} aria-valuenow={answered}><div style={{ width: `${answered / questions.length * 100}%` }} /></div><p className="kq-note" role="status">{syncStatus}</p>{monitoring && <p className="kq-note">Independent work monitoring is active. The browser can report tab switches and blocked actions. Additional sign-ins are recorded for instructor review.</p>}{storageError && <p className="kq-note" role="alert">Local recovery is unavailable: {storageError} Keep this tab open and maintain a connection so responses can be saved to the server.</p>}</section>
       <div className="kq-question-map"><button type="button" className="kq-question-map-toggle" aria-expanded={questionMapOpen} aria-controls="quiz-question-map" onClick={() => setQuestionMapOpen(value => !value)}><span>{review ? 'Question list' : `Question ${index + 1} of ${questions.length}`}</span><span>{questionMapOpen ? 'Hide list' : 'Show list'}<ChevronDown size={16} aria-hidden="true" /></span></button>
       <nav id="quiz-question-map" hidden={!questionMapOpen} className="kq-question-navigation" aria-label="Assessment questions">{questions.map((item, number) => <button key={item.id} type="button" data-answered={Boolean(String(answers[item.id] ?? '').trim())} aria-current={!review && index === number ? 'step' : undefined} aria-label={`Question ${number + 1}${String(answers[item.id] ?? '').trim() ? ', answered' : ', unanswered'}`} onClick={() => selectQuestion(number)}>{number + 1}</button>)}</nav></div>
       {review ? <section className="kq-card"><h2 ref={questionHeading} tabIndex={-1}>Review your answers</h2><p className="kq-note">{questions.length - answered} unanswered. You can return to any question before submitting.</p><div className="kq-list" style={{ marginTop: 18 }}>{questions.map((item, number) => <button className="kq-question-row" key={item.id} onClick={() => selectQuestion(number)}><span><strong>{number + 1}. {item.prompt}</strong><p>{item.options.find((option) => option.id === answers[item.id])?.text || answers[item.id] || 'Unanswered'}</p></span><ArrowRight size={17} aria-hidden="true" /></button>)}</div><div className="kq-actions" style={{ marginTop: 20 }}><button className="kq-button" disabled={!online || submitting || (answered !== questions.length && !expired) || freeDemoReadOnly} onClick={() => submit(expired)}>{submitting ? 'Submitting…' : 'Submit assessment'}</button><button className="kq-button kq-button-secondary" onClick={() => selectQuestion(index)}>Continue answering</button></div></section>

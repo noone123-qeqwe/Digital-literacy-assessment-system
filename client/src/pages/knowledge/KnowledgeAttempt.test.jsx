@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { createEvent, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import api from '../../api/axios';
@@ -179,31 +179,64 @@ describe('saved assessment result reason', () => {
     expect(screen.queryByText(/Accepted answer:/)).not.toBeInTheDocument();
   });
 
-  it('monitors copy/paste events during an active quiz and shows integrity metrics to instructors', async () => {
+  it('blocks copying prompts, pasting or dropping content, and logs browser focus changes', async () => {
+    const attempt = answerFixture();
+    vi.spyOn(recovery, 'readQuizRecovery').mockResolvedValue(null);
+    vi.spyOn(recovery, 'writeQuizRecovery').mockResolvedValue();
+    vi.spyOn(api, 'get').mockResolvedValueOnce({ data: { data: attempt } });
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { data: { recorded: true } } });
+    const put = vi.spyOn(api, 'put');
+    openStudentAttempt();
+
+    const heading = await screen.findByRole('heading', { name: /choose a web browser/i });
+    expect(screen.getByText(/Independent work monitoring is active/)).toBeInTheDocument();
+    const copy = createEvent.copy(heading, { bubbles: true, cancelable: true });
+    const menu = createEvent.contextMenu(heading, { bubbles: true, cancelable: true });
+    fireEvent(heading, copy);
+    fireEvent(heading, menu);
+    expect(copy.defaultPrevented).toBe(true);
+    expect(menu.defaultPrevented).toBe(true);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    const answer = screen.getByRole('textbox', { name: 'Your answer' });
+    const paste = createEvent.paste(answer, { bubbles: true, cancelable: true });
+    const drop = createEvent.drop(answer, { bubbles: true, cancelable: true });
+    fireEvent(answer, paste);
+    fireEvent(answer, drop);
+    expect(paste.defaultPrevented).toBe(true);
+    expect(drop.defaultPrevented).toBe(true);
+    expect(answer).toHaveValue('');
+    expect(put).not.toHaveBeenCalled();
+
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);
+    const hidden = createEvent('visibilitychange', document, { cancelable: true });
+    const blur = createEvent.blur(window, { cancelable: true });
+    fireEvent(document, hidden);
+    fireEvent(window, blur);
+    expect(hidden.defaultPrevented).toBe(false);
+    expect(blur.defaultPrevented).toBe(false);
+    expect(screen.getByRole('textbox', { name: 'Your answer' })).toBeEnabled();
+    expect(post.mock.calls).toEqual([
+      ['/knowledge/attempts/23/integrity', { event_type: 'copy_attempt', detail: 'copy' }],
+      ['/knowledge/attempts/23/integrity', { event_type: 'context_menu', detail: 'question_card' }],
+      ['/knowledge/attempts/23/integrity', { event_type: 'paste', detail: 'clipboard_paste' }],
+      ['/knowledge/attempts/23/integrity', { event_type: 'drop_attempt', detail: 'content_drop' }],
+      ['/knowledge/attempts/23/integrity', { event_type: 'page_hidden', detail: 'tab_hidden' }],
+      ['/knowledge/attempts/23/integrity', { event_type: 'window_blur', detail: 'window_blur' }],
+    ]);
+  });
+
+  it('shows integrity metrics to instructors as signals for review', async () => {
     const question = { id: 11, category_id: 1, category_name: 'Computer Literacy', prompt: 'Active monitored prompt?', type: 'true_false',
       options: [{ id: 'true', text: 'True' }, { id: 'false', text: 'False' }], points: 1 };
     const snapshot = { title: 'Active exam', pass_percentage: 80, questions: [question] };
     vi.spyOn(recovery, 'readQuizRecovery').mockResolvedValue(null);
     vi.spyOn(recovery, 'writeQuizRecovery').mockResolvedValue();
     vi.spyOn(api, 'get').mockResolvedValueOnce({ data: { data: {
-      attempt: { id: 23, status: 'in_progress', answers_revision: 0, deadline: new Date(Date.now() + 60000).toISOString() },
-      responses: [], snapshot, server_now: new Date().toISOString(), results: null,
-    } } });
-    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { data: { recorded: true } } });
-    render(<AuthContext.Provider value={{ user: { id: 12, role: 'respondent', first_name: 'Test', last_name: 'Student' } }}>
-      <MemoryRouter initialEntries={['/respondent/knowledge/attempts/23']}><Routes>
-        <Route path="/respondent/knowledge/attempts/:attemptId" element={<KnowledgeAttempt />} />
-      </Routes></MemoryRouter>
-    </AuthContext.Provider>);
-    const heading = await screen.findByText(/Active monitored prompt/);
-    expect(screen.getByText(/Independent work monitoring is active/)).toBeInTheDocument();
-    fireEvent.copy(heading);
-    expect(post).toHaveBeenCalledWith('/knowledge/attempts/23/integrity', { event_type: 'copy_attempt', detail: 'copy' });
-
-    vi.spyOn(api, 'get').mockResolvedValueOnce({ data: { data: {
       attempt: { id: 23, status: 'completed', completion_reason: 'submitted', completed_at: '2030-01-01T12:00:00Z', certificate_earned: 0, first_name: 'Test', last_name: 'Student' },
       responses: [{ question_id: 11, answer: 'true' }], snapshot,
-      integrity: { page_hidden: 2, window_blur: 1, copy_attempt: 1, paste: 0, context_menu: 0, new_session: 1, total: 5 },
+      integrity: { page_hidden: 2, window_blur: 1, copy_attempt: 1, paste: 0, drop_attempt: 2, context_menu: 0, new_session: 1, total: 7 },
       results: { earned: 1, possible: 1, percentage: 100, level: 'Advanced', categories: [], questions: [{ ...question, answer: 'true', answers: ['true'], correct: true, earned: 1 }] },
     } } });
     render(<AuthContext.Provider value={{ user: { id: 1, role: 'admin', first_name: 'Admin', last_name: 'User' } }}>
@@ -212,6 +245,8 @@ describe('saved assessment result reason', () => {
       </Routes></MemoryRouter>
     </AuthContext.Provider>);
     expect(await screen.findByText('Academic integrity signals')).toBeInTheDocument();
-    expect(screen.getByText('5 total flags')).toBeInTheDocument();
+    expect(screen.getByText('7 total flags')).toBeInTheDocument();
+    expect(screen.getByText(/review these signals in context/i)).toBeInTheDocument();
+    expect(within(screen.getByText('Drop attempts').parentElement).getByText('2')).toBeInTheDocument();
   });
 });
