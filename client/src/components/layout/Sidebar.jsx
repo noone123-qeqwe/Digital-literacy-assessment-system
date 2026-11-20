@@ -69,7 +69,7 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
     { name: 'User Management', path: '/admin/users', icon: Users },
     { name: 'Assessment Categories', path: '/admin/categories', icon: Layers3 },
     { name: 'Question Bank', path: '/admin/knowledge/questions', icon: HelpCircle },
-    { name: 'Assessment Management', path: '/admin/knowledge', icon: ClipboardList },
+    { name: 'Assessment Manager', path: '/admin/knowledge', icon: ClipboardList },
     { name: 'Assessment Results', path: '/admin/results', icon: ListChecks },
     { name: 'Reports and Analytics', path: '/admin/analytics', icon: BarChart3 },
     { name: 'Learning Materials', path: '/admin/materials', icon: BookOpen },
@@ -94,7 +94,7 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
   const navItems = isAdmin ? adminNav : respondentNav;
   const adminGroups = [
     ['Workspace', [0, 1]],
-    ['Assessment studio', [4, 2, 3, 7]],
+    ['Knowledge assessments', [4, 2, 3, 7]],
     ['Outcomes', [5, 6, 8, 9]],
     ['Account', [10]],
   ];
@@ -138,7 +138,7 @@ export const Sidebar = ({ isOpen, setIsOpen, light = false }) => {
           </div>
           <div>
             <p className={`text-base font-bold leading-tight tracking-tight 2xl:text-lg ${light ? 'text-green-950' : 'text-white'}`}>DLAS Portal</p>
-            <p className={`text-[11px] font-medium 2xl:text-sm ${light ? 'text-slate-500' : 'text-green-100/80'}`}>Masbate Colleges · CCS</p>
+            <p className={`text-[11px] font-medium 2xl:text-sm ${light ? 'text-slate-500' : 'text-green-100/80'}`}>Masbate Colleges</p>
           </div>
           <button
             type="button"

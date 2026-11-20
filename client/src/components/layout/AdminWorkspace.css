@@ -240,3 +240,42 @@
   .dlas-admin-workspace .admin-user-filters > div { grid-template-columns: minmax(0, 1fr); }
   .dlas-admin-workspace .admin-user-filters > div > svg { display: none; }
 }
+
+/* A quieter, more consistent surface for the administrator workspace. */
+.dlas-admin-workspace {
+  --admin-ink: #172b20;
+  --admin-muted: #627267;
+  --admin-line: #e2e9e4;
+  background: #f6f8f6;
+}
+.dlas-admin-workspace .dlas-workspace-main { max-width: 1540px; }
+.dlas-admin-workspace .admin-nav-link.is-active { background: #075a36; box-shadow: inset 3px 0 #a8d5ba; }
+.dlas-admin-workspace .admin-panel,
+.dlas-admin-workspace .admin-metric { border-radius: 12px; box-shadow: none; }
+.dlas-admin-workspace .admin-panel { padding: 22px; }
+.dlas-admin-workspace .admin-roster-panel { box-shadow: none; }
+.dlas-admin-workspace .admin-button { box-shadow: none; transition: background-color .16s ease, border-color .16s ease, color .16s ease; }
+.dlas-admin-workspace .admin-tab-bar { min-width: 0; }
+.dlas-admin-workspace .admin-tabs { overflow-x: auto; overscroll-behavior-inline: contain; scrollbar-width: none; }
+.dlas-admin-workspace .admin-tabs::-webkit-scrollbar { display: none; }
+.dlas-admin-workspace .admin-tabs button { flex: 0 0 auto; }
+.dlas-admin-workspace .admin-users-page tbody tr { transition: background-color .14s ease; }
+.dlas-admin-workspace .admin-users-page tbody tr:hover { background: #f6faf7; }
+.dlas-admin-workspace :is(a, button, input, select, textarea, summary):focus-visible {
+  outline: 3px solid #16804d55;
+  outline-offset: 2px;
+}
+.dlas-admin-workspace :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  border-color: #d5e0d8;
+  border-radius: 9px;
+  color: var(--admin-ink);
+}
+.dlas-admin-workspace :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea):hover:not(:disabled) { border-color: #afc5b6; }
+.dlas-admin-workspace :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea):focus-visible {
+  border-color: #16804d;
+  outline-offset: 1px;
+}
+@media (max-width: 700px) {
+  .dlas-admin-workspace .admin-panel { padding: 19px; }
+  .dlas-admin-workspace .admin-tabs { justify-content: flex-start; }
+}

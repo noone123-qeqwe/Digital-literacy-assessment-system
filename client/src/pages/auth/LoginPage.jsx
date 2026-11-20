@@ -369,7 +369,8 @@ export const LoginPage = () => {
 
         {authStep === 'credentials' && (
           <>
-            <div className="text-center">
+            <div className="login-registration">
+              <p className="login-registration-label">New to DLAS?</p>
               <Link
                 to="/register"
                 className="login-create-account"
