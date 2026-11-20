@@ -136,6 +136,12 @@ function initializeKnowledge(db) {
       db.prepare('INSERT INTO schema_migrations(version) VALUES(16)').run();
     })();
   }
+  if (!db.prepare('SELECT 1 FROM schema_migrations WHERE version=17').get()) {
+    db.transaction(() => {
+      db.exec('ALTER TABLE quiz_attempts ADD COLUMN timer_lease_until TEXT');
+      db.prepare('INSERT INTO schema_migrations(version) VALUES(17)').run();
+    })();
+  }
 }
 
 module.exports = { initializeKnowledge };

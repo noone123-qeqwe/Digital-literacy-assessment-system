@@ -21,7 +21,7 @@ These are knowledge and decision questions about simulated situations. They do n
 
 Published assessments are assigned to active, verified student accounts and automatically become available to students verified later. Each permits one attempt, requires acceptance of the independent-work instructions, and randomizes questions and answer options. Resuming keeps the same randomized snapshot. Students can review responses before submitting.
 
-The timer continues during a disconnection. Browser recovery helps restore saved work, but answers must reach the server before the deadline to count. Instructions explain timing, scoring, recovery and certificate requirements before the attempt begins. Results include explanations and supporting references after completion. Active attempts omit answer keys and explanations.
+New timed attempts pause when the assessment server stops receiving connection checks. Questions and answer entry resume after reconnection. After a blackout, return to the same attempt to recover the remaining time. Up to 15 seconds may elapse after the last successful connection check. Any scheduled closing date still applies. Answers must reach the server before time runs out to count. Results include explanations and supporting references once detailed review is available.
 
 These topic quizzes have no baseline prerequisite and do not participate in the paired baseline/follow-up comparison. Existing research assessments, course snapshots and participant scores are preserved. Publication creates no accounts, attempts, responses or certificates.
 

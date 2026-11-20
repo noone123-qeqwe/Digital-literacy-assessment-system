@@ -61,7 +61,10 @@ export default function KnowledgeAssessments() {
   };
   const view = async (quiz) => { setAccepted(false); if (student) setPreview(quiz); else { const response = await run(() => api.get(`/knowledge/quizzes/${quiz.id}`)); if (response) setPreview(response.data.data); } };
   const begin = async () => {
-    const response = await run(() => api.post(`/knowledge/quizzes/${preview.id}/start`, { accepted_instructions: accepted }));
+    const response = await run(() => api.post(`/knowledge/quizzes/${preview.id}/start`, {
+      accepted_instructions: accepted,
+      timer_protocol: 'connection-lease',
+    }));
     if (response) navigate(`/respondent/knowledge/attempts/${response.data.data.attempt.id}`);
   };
   return <KnowledgePage {...state} className={student ? 'student-assessment-browser' : ''} title={student ? 'Take an assessment' : 'Assessment management'} description={student ? 'Choose an assessment, read the instructions, and continue where you left off.' : 'Scored knowledge assessments use correct answers, points, and percentage proficiency levels. Research questionnaires have a separate workflow.'}
@@ -71,12 +74,16 @@ export default function KnowledgeAssessments() {
     <Field label="Search assessments"><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by title or description…" /></Field>
     <BookmarkFilter bookmarks={bookmarks} records={quizzes} selected={showBookmarks} setSelected={setShowBookmarks} />
     <div className="kq-grid">{filtered.map((quiz) => {
-      const { ongoing, expired, exhausted, closed, future, locked, label } = knowledgeQuizState(quiz, now);
+      const { ongoing, expired, paused, pausable, exhausted, closed, future, locked, label } = knowledgeQuizState(quiz, now);
       return <article className="kq-card kq-assessment-card" key={quiz.id}>
         <div className="assessment-bookmark-heading"><div className="kq-actions"><span className="kq-badge">{student ? label : quiz.status}</span><span className="kq-badge">{quiz.question_count} questions</span>{quiz.stage && <span className="kq-badge">{quiz.stage === 'baseline' ? 'Baseline' : 'Follow-up'}</span>}</div><BookmarkButton assessment={quiz} bookmarks={bookmarks} /></div>
         <h2>{quiz.title}</h2><p>{quiz.description || 'Evaluate your digital literacy knowledge across selected categories.'}</p>
         {student && locked && <p className="kq-note">Complete {quiz.prerequisite_title || 'the baseline'} to unlock this assessment. No minimum baseline score is required.</p>}
-        {student && expired && <p className="kq-note">The timer continued while you were away. Your saved answers are kept; this attempt ended when time ran out.</p>}
+        {student && paused && <p className="kq-note">Reconnect and resume to continue with your saved answers and remaining time.</p>}
+        {student && ongoing && !expired && !pausable && quiz.time_limit_minutes && <p className="kq-note">This attempt has a fixed timer. It keeps running if you disconnect or close the browser.</p>}
+        {student && expired && <p className="kq-note">{pausable || !quiz.time_limit_minutes
+          ? 'Time has ended. Your saved answers are still available.'
+          : 'The timer continued while you were away. Your saved answers are kept; this attempt ended when time ran out.'}</p>}
         {student && (ongoing || expired) && Number.isInteger(quiz.latest_answered_count) && <p className="kq-note">{quiz.latest_answered_count} of {quiz.question_count} answers saved to the server.</p>}
         {!student && quiz.auto_assign_verified === 1 && <p className="kq-note">Automatically assigned to current and newly verified students while published.</p>}
         <div className="kq-note"><p><Clock3 size={13} className="inline" aria-hidden="true" /> {quiz.time_limit_minutes ? `${quiz.time_limit_minutes} minutes` : 'No time limit'} · Certificate at {quiz.pass_percentage}%</p><p>{student ? `${quiz.attempt_count}/${quiz.max_attempts} attempts used` : `${quiz.assigned_count} assigned · ${quiz.completed_count} submissions`}</p>{quiz.start_date && <p>Opens {displayDate(quiz.start_date)}</p>}{quiz.end_date && <p>Deadline {displayDate(quiz.end_date)}</p>}</div>
@@ -111,7 +118,9 @@ export default function KnowledgeAssessments() {
     <div className="kq-modal"><Modal isOpen={Boolean(preview)} onClose={() => setPreview(null)} title={preview?.title || 'Assessment instructions'}>
       {preview && <div className="kq-form"><p className="kq-guide">{preview.instructions || 'Read each question carefully and answer independently.'}</p><p className="kq-note">{preview.time_limit_minutes || 'No'} minute time limit · {preview.max_attempts} permitted attempt(s) · Certificate threshold {preview.pass_percentage}%.</p>
         {student ? <>
-          <p className="kq-note">Answers are linked to your account. A recovery copy is saved in this browser. Submission needs internet access. The timer keeps running if you leave this page, close the browser, or lose your connection. Return before the deadline to resume. When time expires, only answers already received by the server are scored.</p>
+          <p className="kq-note">Answers are linked to your account. A recovery copy is saved in this browser. You need internet access to submit. When time expires, only answers received by the server are scored.</p>
+          {preview.time_limit_minutes && <p className="kq-note">If the connection drops or your device shuts down, the attempt timer pauses after a short delay. Reconnect and resume to recover your saved answers and remaining time. Questions and answer entry are paused until you reconnect.</p>}
+          {preview.end_date && <p className="kq-note">The assessment closes at {displayDate(preview.end_date)}, even if your attempt timer is paused.</p>}
           <p className="kq-note">Available browser and sign-in signals are recorded for instructor review. Answer keys stay hidden until the assessment closes.</p>
           {preview.prerequisite_quiz_id && !preview.prerequisite_completed && <p className="kq-note" role="status">Finish every baseline question and submit before beginning this follow-up. An incomplete timed-out baseline does not unlock it; no minimum score is required.</p>}
           <label className="kq-check"><input type="checkbox" checked={accepted} onChange={(event) => setAccepted(event.target.checked)} />I have read the instructions and will answer independently using my own knowledge.</label>

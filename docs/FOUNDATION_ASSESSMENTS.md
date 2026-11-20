@@ -19,7 +19,7 @@ Version: `mc-digital-foundations-2026.1`, authored and reviewed for publication 
 
 Completing the baseline unlocks the follow-up regardless of the baseline score. A score below the certificate threshold still produces a saved result. The threshold is an educational achievement rule; it is not a claim of official institutional accreditation.
 
-Both forms require an affirmative independent-work confirmation. Questions and multiple-choice options are randomized per attempt; that snapshot is retained when resuming. Students can review answers before submission. The timer continues during disconnection; answers must reach the server before the deadline to be scored. Typed answers ignore capitalization and repeated whitespace and accept the recorded variants. The instructions explain these rules before the timer begins.
+Both forms require an affirmative independent-work confirmation. Questions and multiple-choice options are randomized per attempt, and that order is kept when a student resumes. Students can review answers before submission. New timed attempts pause during a connection loss or blackout, with up to 15 seconds of elapsed time after the last successful connection check. Questions and answer entry resume once the server confirms the remaining time. Any scheduled closing date still applies, and the server scores answers it received before time ran out. Typed answers ignore capitalization and repeated whitespace and accept the recorded variants.
 
 ## Category blueprint
 

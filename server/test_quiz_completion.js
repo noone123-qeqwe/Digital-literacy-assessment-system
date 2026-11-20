@@ -261,8 +261,9 @@ async function run() {
     });
     assert.equal(archive.status, 201);
     const archivePath = '/quizzes/' + archive.data.data.id;
-    const archiveFirst = await request(archivePath + '/start', normal, 'POST', { accepted_instructions: true });
-    const archiveSecond = await request(archivePath + '/start', interrupted, 'POST', { accepted_instructions: true });
+    const timedStart = { accepted_instructions: true, timer_protocol: 'connection-lease' };
+    const archiveFirst = await request(archivePath + '/start', normal, 'POST', timedStart);
+    const archiveSecond = await request(archivePath + '/start', interrupted, 'POST', timedStart);
     assert.equal(archiveFirst.status, 200);
     assert.equal(archiveSecond.status, 200);
     const firstPath = '/attempts/' + archiveFirst.data.data.attempt.id;
@@ -270,23 +271,108 @@ async function run() {
     const archiveAnswer = { expected_revision: 0, responses: [{ question_id: questionIds[2], answer: 'example' }] };
     assert.equal((await request(firstPath + '/answers', normal, 'PUT', archiveAnswer)).status, 200);
     assert.equal((await request(firstPath + '/submit', normal, 'POST', {})).status, 200);
+    const archiveLease = Date.now() - 90_000;
+    db.prepare('UPDATE quiz_attempts SET deadline=?,timer_lease_until=? WHERE id=?').run(
+      new Date(archiveLease + 40_000).toISOString(), new Date(archiveLease).toISOString(), archiveSecond.data.data.attempt.id
+    );
     assert.equal((await request(archivePath + '/status', admin, 'PUT', { status: 'archived' })).status, 200);
 
     const archivedReview = await request(firstPath, normal);
     check(archivedReview.data.data.answer_key_released === false
       && archivedReview.data.data.results.percentage === 100
       && (await request('/overview', normal)).data.data.history.some(row => row.id === archiveFirst.data.data.attempt.id),
-    'archiving preserves the saved result and keeps detailed review locked while another attempt is open');
+    'archiving preserves the saved result and keeps detailed review locked while another attempt is paused');
     const archivedResume = await request(archivePath + '/start', interrupted, 'POST', {});
     check(archivedResume.status === 200 && archivedResume.data.data.attempt.id === archiveSecond.data.data.attempt.id
-      && archivedResume.data.data.attempt.deadline === archiveSecond.data.data.attempt.deadline
+      && archivedResume.data.data.timer.remaining_ms <= 40_000 && archivedResume.data.data.timer.remaining_ms > 35_000
       && (await request(archivePath + '/start', unrelated, 'POST', { accepted_instructions: true })).status === 409,
-    'an archived assessment lets an existing attempt resume with its original deadline and closes new starts');
+    'an archived assessment lets a paused attempt resume with its remaining time and closes new starts');
     assert.equal((await request(secondPath + '/answers', interrupted, 'PUT', archiveAnswer)).status, 200);
     const archivedCompletion = await request(secondPath + '/submit', interrupted, 'POST', {});
     check(archivedCompletion.status === 200 && archivedCompletion.data.data.results.percentage === 100
       && (await request(firstPath, normal)).data.data.answer_key_released === true,
     'the last open attempt can finish and detailed review becomes available afterward');
+
+    const reconnecting = actor('completion-reconnecting@example.test');
+    const pausedQuiz = await request('/quizzes', admin, 'POST', {
+      ...configuration, title: 'Connection recovery fixture', assign_all: false, assigned_user_ids: [reconnecting.id],
+    });
+    assert.equal(pausedQuiz.status, 201);
+    const pausedQuizId = pausedQuiz.data.data.id;
+    const pausedStart = await request('/quizzes/' + pausedQuizId + '/start', reconnecting, 'POST', timedStart);
+    assert.equal(pausedStart.status, 200);
+    assert.ok(pausedStart.data.data.timer.lease_until);
+    const pausedAttemptId = pausedStart.data.data.attempt.id;
+    const pausedPath = '/attempts/' + pausedAttemptId;
+    const pausedSnapshot = JSON.parse(attemptRow(pausedAttemptId).snapshot_json);
+    const reconnectAnswers = pausedSnapshot.questions.map((question) => ({ question_id: question.id, answer: question.answers[0] }));
+    assert.equal((await request(pausedPath + '/answers', reconnecting, 'PUT', { expected_revision: 0, responses: reconnectAnswers.slice(0, 1) })).status, 200);
+    const lastLease = Date.now() - 90_000;
+    const leaseAt = new Date(lastLease).toISOString();
+    const projectedCutoff = new Date(lastLease + 40_000).toISOString();
+    db.prepare('UPDATE quiz_attempts SET deadline=?,timer_lease_until=? WHERE id=?').run(projectedCutoff, leaseAt, pausedAttemptId);
+
+    const pausedRead = await request(pausedPath, reconnecting);
+    const pausedList = (await request('/quizzes', reconnecting)).data.data.find(quiz => quiz.id === pausedQuizId);
+    const pausedOverview = (await request('/overview', reconnecting)).data.data.summary;
+    const pausedCertificate = (await request('/certificates', reconnecting)).data.data.items.find(item => item.assessment_id === pausedQuizId);
+    check(pausedRead.data.data.timer.remaining_ms === 40_000 && pausedRead.data.data.timer.lease_until === leaseAt
+      && pausedRead.data.data.expired === false && pausedRead.data.data.results === null
+      && pausedList.latest_deadline === projectedCutoff && pausedList.latest_timer_lease_until === leaseAt
+      && pausedOverview.pending === 1 && pausedOverview.expired === 0 && pausedCertificate.completion_status === 'in_progress'
+      && attemptRow(pausedAttemptId).timer_lease_until === leaseAt,
+    'a missed connection lease pauses the remaining time without expiring or renewing on passive reads');
+    check((await request(pausedPath + '/answers', reconnecting, 'PUT', { expected_revision: 1, responses: reconnectAnswers })).status === 423
+      && (await request(pausedPath + '/submit', reconnecting, 'POST', {})).status === 423
+      && attemptRow(pausedAttemptId).answers_revision === 1 && categoryResultCount(pausedAttemptId) === 0,
+    'paused attempts keep the saved revision and require a renewed connection before saving or submitting');
+    const renewed = await request(pausedPath + '/clock', reconnecting, 'POST', {});
+    const duplicateRenewal = await request(pausedPath + '/clock', reconnecting, 'POST', {});
+    check(renewed.status === 200 && renewed.data.data.status === 'in_progress'
+      && renewed.data.data.timer.remaining_ms === 40_000
+      && Date.parse(renewed.data.data.timer.lease_until) - Date.parse(renewed.data.data.server_now) === 15_000
+      && duplicateRenewal.data.data.timer.remaining_ms <= 40_000
+      && (await request(pausedPath, reconnecting)).data.data.responses.length === 1,
+    'reconnection restores only the remaining time and keeps saved answers without resetting the budget');
+    assert.equal((await request(pausedPath + '/answers', reconnecting, 'PUT', { expected_revision: 1, responses: reconnectAnswers })).status, 200);
+    const afterReconnect = await request(pausedPath + '/submit', reconnecting, 'POST', {});
+    check(afterReconnect.data.data.attempt.completion_reason === 'submitted' && afterReconnect.data.data.results.percentage === 100,
+      'a reconnected student can finish and submit the original attempt normally');
+
+    const scheduledEnd = new Date(Date.now() + 120_000).toISOString();
+    const scheduledQuiz = await request('/quizzes', admin, 'POST', {
+      ...configuration, title: 'Scheduled closure fixture', end_date: scheduledEnd, assign_all: false, assigned_user_ids: [reconnecting.id],
+    });
+    const scheduledQuizId = scheduledQuiz.data.data.id;
+    const scheduledStart = await request('/quizzes/' + scheduledQuizId + '/start', reconnecting, 'POST', timedStart);
+    const scheduledAttemptId = scheduledStart.data.data.attempt.id;
+    const scheduledPath = '/attempts/' + scheduledAttemptId;
+    db.prepare('UPDATE quiz_attempts SET timer_lease_until=? WHERE id=?').run(leaseAt, scheduledAttemptId);
+    const scheduledRenewal = await request(scheduledPath + '/clock', reconnecting, 'POST', {});
+    assert.equal(scheduledRenewal.data.data.timer.closes_at, scheduledEnd);
+    assert.equal(attemptRow(scheduledAttemptId).deadline, scheduledEnd);
+    const endedSchoolWindow = new Date(Date.now() - 1000).toISOString();
+    db.prepare('UPDATE knowledge_quizzes SET end_date=? WHERE id=?').run(endedSchoolWindow, scheduledQuizId);
+    db.prepare('UPDATE quiz_attempts SET timer_lease_until=? WHERE id=?').run(leaseAt, scheduledAttemptId);
+    const closedRenewal = await request(scheduledPath + '/clock', reconnecting, 'POST', {});
+    const closedResult = await request(scheduledPath + '/submit', reconnecting, 'POST', {});
+    check(closedRenewal.data.data.timer.expired === true && closedRenewal.data.data.timer.remaining_ms === 0
+      && closedRenewal.data.data.timer.lease_until === leaseAt && closedResult.data.data.attempt.completion_reason === 'time_expired',
+    'a scheduled closing time remains authoritative before and after a connection interruption');
+
+    const legacyQuiz = await request('/quizzes', admin, 'POST', {
+      ...configuration, title: 'Existing fixed timer fixture', assign_all: false, assigned_user_ids: [reconnecting.id],
+    });
+    const legacyAttempt = await request('/quizzes/' + legacyQuiz.data.data.id + '/start', reconnecting, 'POST', { accepted_instructions: true });
+    assert.equal(legacyAttempt.data.data.timer, null);
+    const legacyAttemptId = legacyAttempt.data.data.attempt.id;
+    const legacyPath = '/attempts/' + legacyAttemptId;
+    db.prepare('UPDATE quiz_attempts SET deadline=? WHERE id=?').run(endedSchoolWindow, legacyAttemptId);
+    const legacyClock = await request(legacyPath + '/clock', reconnecting, 'POST', {});
+    const legacyRead = await request(legacyPath, reconnecting);
+    check(legacyClock.data.data.timer === null && legacyRead.data.data.timer === null && legacyRead.data.data.expired === true
+      && attemptRow(legacyAttemptId).deadline === endedSchoolWindow,
+    'existing attempts without a connection lease retain their original fixed deadlines');
 
     console.log('Quiz-completion checks: ' + passed + ' passed, 0 failed');
   } finally {

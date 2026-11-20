@@ -49,6 +49,135 @@ function answerFixture() {
   };
 }
 
+function clockFixture(now, remaining, leaseUntil = now + 15000, closesAt = null) {
+  return {
+    status: 'in_progress',
+    server_now: new Date(now).toISOString(),
+    timer: { remaining_ms: remaining, lease_until: new Date(leaseUntil).toISOString(), closes_at: closesAt, expired: remaining === 0 },
+  };
+}
+
+describe('timed assessment interruptions', () => {
+  it('pauses the display and question controls when offline, and resumes with confirmed time', async () => {
+    const attempt = answerFixture();
+    let time = Date.now();
+    let online = true;
+    const initial = clockFixture(time, 60000);
+    vi.spyOn(Date, 'now').mockImplementation(() => time);
+    vi.spyOn(window.navigator, 'onLine', 'get').mockImplementation(() => online);
+    vi.spyOn(recovery, 'readQuizRecovery').mockResolvedValue(null);
+    vi.spyOn(recovery, 'writeQuizRecovery').mockResolvedValue();
+    vi.spyOn(api, 'get').mockResolvedValue({ data: { data: { ...attempt, ...initial } } });
+    const post = vi.spyOn(api, 'post').mockResolvedValueOnce({ data: { data: initial } })
+      .mockImplementation(async (path) => {
+        expect(path).toBe('/knowledge/attempts/23/clock');
+        return { data: { data: clockFixture(time, 45000) } };
+      });
+    openStudentAttempt();
+    expect(await screen.findByRole('radio', { name: 'Firefox' })).toBeEnabled();
+    expect(screen.getByLabelText('Time remaining')).toHaveTextContent('01:00');
+
+    time += 4000;
+    online = false;
+    fireEvent(window, new Event('offline'));
+    expect(screen.getByRole('heading', { name: 'Assessment timer paused' })).toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Time remaining')).toHaveTextContent('00:56');
+    time += 90000;
+    fireEvent(document, new Event('visibilitychange'));
+    expect(screen.getByLabelText('Time remaining')).toHaveTextContent('00:56');
+    expect(post).toHaveBeenCalledTimes(1);
+
+    online = true;
+    fireEvent(window, new Event('online'));
+    expect(await screen.findByRole('radio', { name: 'Firefox' })).toBeEnabled();
+    expect(screen.getByLabelText('Time remaining')).toHaveTextContent('00:45');
+    expect(screen.queryByText('Time expired', { exact: true })).not.toBeInTheDocument();
+  });
+
+  it('reopens the same timed attempt with saved answers and restored time after a blackout', async () => {
+    const attempt = answerFixture();
+    const startedAt = Date.now();
+    let time = startedAt;
+    vi.spyOn(Date, 'now').mockImplementation(() => time);
+    vi.spyOn(recovery, 'readQuizRecovery').mockResolvedValue(null);
+    vi.spyOn(recovery, 'writeQuizRecovery').mockResolvedValue();
+    const initial = clockFixture(time, 60000);
+    const savedResponses = [{ question_id: 11, answer: 'browser' }];
+    const get = vi.spyOn(api, 'get').mockResolvedValueOnce({ data: { data: { ...attempt, ...initial } } })
+      .mockImplementation(async () => ({ data: { data: { ...attempt, ...clockFixture(time, 45000, startedAt + 15000),
+        attempt: { ...attempt.attempt, answers_revision: 1 }, responses: savedResponses } } }));
+    const put = vi.spyOn(api, 'put').mockResolvedValue({ data: { data: { answers_revision: 1 } } });
+    const post = vi.spyOn(api, 'post').mockImplementation(async () => ({ data: { data: clockFixture(time, time === startedAt ? 60000 : 45000) } }));
+    const page = openStudentAttempt();
+    fireEvent.click(await screen.findByRole('radio', { name: 'Firefox' }));
+    await waitFor(() => expect(put).toHaveBeenCalledOnce());
+    page.unmount();
+
+    time += 120000;
+    openStudentAttempt();
+    expect(await screen.findByRole('radio', { name: 'Firefox' })).toBeChecked();
+    expect(screen.getByLabelText('Time remaining')).toHaveTextContent('00:45');
+    expect(get.mock.calls.map(([path]) => path)).toEqual(['/knowledge/attempts/23', '/knowledge/attempts/23']);
+    expect(post.mock.calls.map(([path]) => path)).toEqual(['/knowledge/attempts/23/clock', '/knowledge/attempts/23/clock']);
+  });
+
+  it('waits for the assessment server when the browser still reports internet access', async () => {
+    const attempt = answerFixture();
+    const initial = clockFixture(Date.now(), 60000);
+    vi.spyOn(recovery, 'readQuizRecovery').mockResolvedValue(null);
+    vi.spyOn(recovery, 'writeQuizRecovery').mockResolvedValue();
+    vi.spyOn(api, 'get').mockResolvedValue({ data: { data: { ...attempt, ...initial } } });
+    vi.spyOn(api, 'post').mockRejectedValueOnce(new Error('Server unavailable'))
+      .mockResolvedValueOnce({ data: { data: clockFixture(Date.now(), 58000) } });
+    openStudentAttempt();
+
+    expect(await screen.findByRole('heading', { name: 'Assessment timer paused' })).toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Reconnect timer' }));
+    expect(await screen.findByRole('radio', { name: 'Firefox' })).toBeEnabled();
+  });
+
+  it('finalizes only after the server confirms the scheduled closing time passed offline', async () => {
+    const attempt = answerFixture();
+    let time = Date.now();
+    let online = true;
+    const closesAt = new Date(time + 30000).toISOString();
+    const initial = clockFixture(time, 30000, time + 15000, closesAt);
+    vi.spyOn(Date, 'now').mockImplementation(() => time);
+    vi.spyOn(window.navigator, 'onLine', 'get').mockImplementation(() => online);
+    vi.spyOn(recovery, 'readQuizRecovery').mockResolvedValue(null);
+    vi.spyOn(recovery, 'writeQuizRecovery').mockResolvedValue();
+    vi.spyOn(recovery, 'clearQuizRecovery').mockResolvedValue();
+    vi.spyOn(api, 'get').mockResolvedValue({ data: { data: { ...attempt, ...initial } } });
+    const post = vi.spyOn(api, 'post').mockResolvedValueOnce({ data: { data: initial } })
+      .mockImplementation(async (path) => {
+        const clock = clockFixture(time, 0, time - 1000, closesAt);
+        if (path.endsWith('/clock')) return { data: { data: clock } };
+        expect(path).toBe('/knowledge/attempts/23/submit');
+        return { data: { data: { ...attempt, ...clock,
+          attempt: { ...attempt.attempt, status: 'completed', completion_reason: 'time_expired', completed_at: new Date(time).toISOString() },
+          results: { earned: 0, possible: 3, percentage: 0, level: 'Needs Improvement', categories: [], questions: [] },
+        } } };
+      });
+    openStudentAttempt();
+    expect(await screen.findByRole('radio', { name: 'Firefox' })).toBeEnabled();
+    online = false;
+    fireEvent(window, new Event('offline'));
+    time += 60000;
+    fireEvent(document, new Event('visibilitychange'));
+    expect(screen.getByLabelText('Time remaining')).toHaveTextContent('00:00');
+    expect(post).toHaveBeenCalledTimes(1);
+
+    online = true;
+    fireEvent(window, new Event('online'));
+    expect(await screen.findByText('Time expired', { exact: true })).toBeInTheDocument();
+    expect(post.mock.calls.map(([path]) => path)).toEqual([
+      '/knowledge/attempts/23/clock', '/knowledge/attempts/23/clock', '/knowledge/attempts/23/submit',
+    ]);
+  });
+});
+
 describe('student assessment answers', () => {
   it('answers all three question types, reviews the responses, and renders the submitted result', async () => {
     const attempt = answerFixture();

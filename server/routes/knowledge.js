@@ -9,6 +9,7 @@ const { questionInput, publicSnapshot, scoreSnapshot, shuffled, withOpaqueOption
 const { enrollPublishedQuizzes } = require('../utils/quizEnrollment');
 const { programProgress } = require('../utils/programProgress');
 const { nonblankAnswerSQL } = require('../db/quizCompletion');
+const { QUIZ_TIMER_LEASE_MS, getAttemptTimer, attemptHasExpired, attemptIsPaused, renewAttemptTimer, attemptExpiredSQL } = require('../utils/quizTimer');
 const { drawCompletionAward } = require('../utils/completionAward');
 const awardThemes = require('../../shared/completion-awards.json');
 
@@ -35,6 +36,7 @@ const handler = (fn) => (req, res, next) => {
   });
 };
 const result = (res, data, message, status = 200) => res.status(status).json({ success: true, data, message });
+const pausedTimerMessage = 'The assessment timer is paused. Reconnect and resume the timer before continuing.';
 function quizFor(user, quizId) {
   const quiz = db.prepare('SELECT * FROM knowledge_quizzes WHERE id=?').get(id(quizId));
   if (!quiz) throw fail('Assessment not found.', 404);
@@ -58,8 +60,8 @@ function answerKeyReleased(user, attempt) {
   if (!closed) return false;
   const used = db.prepare('SELECT COUNT(*) count FROM quiz_attempts WHERE quiz_id=? AND user_id=?').get(attempt.quiz_id, attempt.user_id).count;
   if (used < attempt.quiz_max_attempts) return false;
-  return !db.prepare(`SELECT 1 FROM quiz_attempts WHERE quiz_id=? AND status='in_progress'
-    AND (deadline IS NULL OR julianday(deadline)>julianday('now')) LIMIT 1`).get(attempt.quiz_id);
+  return !db.prepare(`SELECT 1 FROM quiz_attempts a JOIN knowledge_quizzes q ON q.id=a.quiz_id
+    WHERE a.quiz_id=? AND a.status='in_progress' AND NOT ${attemptExpiredSQL('a', 'q')} LIMIT 1`).get(attempt.quiz_id);
 }
 const integrityTypes = ['page_hidden', 'window_blur', 'copy_attempt', 'paste', 'drop_attempt', 'context_menu'];
 const maxIntegrityEvents = 400;
@@ -87,13 +89,14 @@ function trackAttemptSession(attempt, sessionId) {
     .run(attempt.id, hasBaseline ? 'new_session' : 'attempt_started', fingerprint, new Date().toISOString());
 }
 function attemptData(attempt, user) {
+  const now = Date.now();
   const snapshot = JSON.parse(attempt.snapshot_json);
   const responses = db.prepare('SELECT question_id,answer FROM quiz_responses WHERE attempt_id=?').all(attempt.id);
   const { snapshot_json, quiz_max_attempts, quiz_end_date, quiz_status, ...safeAttempt } = attempt;
   const released = answerKeyReleased(user, attempt);
   const score = attempt.status === 'completed' ? scoreSnapshot(snapshot, responses) : null;
-  return { attempt: safeAttempt, snapshot: publicSnapshot(snapshot), responses, server_now: new Date().toISOString(),
-    expired: Boolean(attempt.deadline && Date.now() >= Date.parse(attempt.deadline)),
+  return { attempt: safeAttempt, snapshot: publicSnapshot(snapshot), responses, server_now: new Date(now).toISOString(),
+    timer: getAttemptTimer(attempt, now), expired: attemptHasExpired(attempt, now),
     answer_key_released: Boolean(score && released),
     integrity: user.role === 'respondent' ? undefined : integritySummary(attempt.id),
     results: score ? (released ? score : lockedReview(score)) : null };
@@ -149,7 +152,7 @@ function buildStudentCertificateItems(userId) {
     ORDER BY CASE WHEN q.stage='baseline' THEN 0 WHEN q.stage='follow_up' THEN 1 ELSE 2 END,q.id DESC`)
     .all(userId, userId, userId, userId);
 
-  const quizAttempts = db.prepare(`SELECT id,quiz_id,status,percentage,level,certificate_earned,completion_reason,deadline,completed_at
+  const quizAttempts = db.prepare(`SELECT id,quiz_id,status,percentage,level,certificate_earned,completion_reason,deadline,timer_lease_until,completed_at
     FROM quiz_attempts WHERE user_id=? ORDER BY id DESC`).all(userId);
   const attemptsByQuiz = new Map();
   for (const row of quizAttempts) {
@@ -197,7 +200,7 @@ function buildStudentCertificateItems(userId) {
     }
 
     const latestExpired = Boolean(latest && (latest.completion_reason === 'time_expired'
-      || (latest.status === 'in_progress' && latest.deadline && Date.parse(latest.deadline) <= now)));
+      || (latest.status === 'in_progress' && attemptHasExpired({ ...latest, quiz_end_date: q.end_date }, now))));
     const completionStatus = latestExpired ? 'time_expired'
       : latest?.status === 'in_progress' ? 'in_progress'
       : latest?.status === 'completed' ? 'below_threshold'
@@ -503,9 +506,10 @@ router.get('/quizzes', handler((req, res) => {
     (SELECT a.id FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=? ORDER BY a.id DESC LIMIT 1) latest_attempt_id,
     (SELECT a.status FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=? ORDER BY a.id DESC LIMIT 1) latest_status,
     (SELECT a.deadline FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=? ORDER BY a.id DESC LIMIT 1) latest_deadline,
+    (SELECT a.timer_lease_until FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=? ORDER BY a.id DESC LIMIT 1) latest_timer_lease_until,
     (SELECT a.completion_reason FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=? ORDER BY a.id DESC LIMIT 1) latest_completion_reason,
     (SELECT COUNT(*) FROM quiz_responses r WHERE r.attempt_id=(SELECT a.id FROM quiz_attempts a WHERE a.quiz_id=q.id AND a.user_id=? ORDER BY a.id DESC LIMIT 1) AND ${nonblankAnswerSQL}) latest_answered_count
-    FROM knowledge_quizzes q WHERE ${scope} ORDER BY CASE WHEN q.stage='baseline' THEN 0 WHEN q.stage='follow_up' THEN 1 ELSE 2 END,q.id DESC`).all(req.user.id, req.user.id, req.user.id, req.user.id, req.user.id, req.user.id, req.user.id, ...(req.user.role === 'admin' ? [] : [req.user.id]));
+    FROM knowledge_quizzes q WHERE ${scope} ORDER BY CASE WHEN q.stage='baseline' THEN 0 WHEN q.stage='follow_up' THEN 1 ELSE 2 END,q.id DESC`).all(req.user.id, req.user.id, req.user.id, req.user.id, req.user.id, req.user.id, req.user.id, req.user.id, ...(req.user.role === 'admin' ? [] : [req.user.id]));
   return result(res, rows);
 }));
 router.get('/quizzes/:id', handler((req, res) => {
@@ -587,7 +591,10 @@ router.post('/quizzes/:id/start', authorize('respondent'), handler((req, res) =>
   const attemptOutcome = db.transaction(() => {
     const quiz = quizFor(req.user, req.params.id);
     const resume = db.prepare("SELECT id FROM quiz_attempts WHERE quiz_id=? AND user_id=? AND status='in_progress'").get(quiz.id, req.user.id);
-    if (resume) return { id: resume.id, resumed: true };
+    if (resume) {
+      renewAttemptTimer(db, attemptFor(req.user, resume.id), Date.now());
+      return { id: resume.id, resumed: true };
+    }
     if (quiz.status !== 'published') throw fail('This assessment is not accepting new attempts.', 409);
     const now = Date.now();
     if (quiz.start_date && Date.parse(quiz.start_date) > now) throw fail('This assessment has not opened yet.', 409);
@@ -601,8 +608,11 @@ router.post('/quizzes/:id/start', authorize('respondent'), handler((req, res) =>
     snapshot.questions = snapshot.questions.map(withOpaqueOptionIds);
     const limits = [quiz.time_limit_minutes ? now + quiz.time_limit_minutes * 60000 : null, quiz.end_date ? Date.parse(quiz.end_date) : null].filter((value) => value !== null);
     const startedAt = new Date(now).toISOString();
-    const createdId = db.prepare('INSERT INTO quiz_attempts(quiz_id,user_id,snapshot_json,deadline,started_at,integrity_confirmed_at) VALUES(?,?,?,?,?,?)')
-      .run(quiz.id, req.user.id, JSON.stringify(snapshot), limits.length ? new Date(Math.min(...limits)).toISOString() : null, startedAt, startedAt).lastInsertRowid;
+    // Pages still open from before deployment use the fixed timer until refreshed.
+    const clientSupportsPausing = req.body.timer_protocol === 'connection-lease';
+    const leaseUntil = quiz.time_limit_minutes && clientSupportsPausing ? new Date(now + QUIZ_TIMER_LEASE_MS).toISOString() : null;
+    const createdId = db.prepare('INSERT INTO quiz_attempts(quiz_id,user_id,snapshot_json,deadline,started_at,integrity_confirmed_at,timer_lease_until) VALUES(?,?,?,?,?,?,?)')
+      .run(quiz.id, req.user.id, JSON.stringify(snapshot), limits.length ? new Date(Math.min(...limits)).toISOString() : null, startedAt, startedAt, leaseUntil).lastInsertRowid;
     trackAttemptSession({ id: createdId }, req.sessionId);
     logActivity(req.user.id, 'KNOWLEDGE_ATTEMPT_START', `Started knowledge attempt #${createdId}`);
     return { id: createdId, resumed: false };
@@ -619,9 +629,20 @@ router.get('/attempts/:id', handler((req, res) => {
   if (req.user.role === 'respondent' && attempt.status === 'in_progress') trackAttemptSession(attempt, req.sessionId);
   return result(res, attemptData(attempt, req.user));
 }));
+router.post('/attempts/:id/clock', authorize('respondent'), handler((req, res) => {
+  const clock = db.transaction(() => {
+    const attempt = attemptFor(req.user, req.params.id);
+    const now = Date.now();
+    const renewed = renewAttemptTimer(db, attempt, now);
+    if (renewed !== attempt) trackAttemptSession(renewed, req.sessionId);
+    return { timer: getAttemptTimer(renewed, now), status: renewed.status, server_now: new Date(now).toISOString() };
+  })();
+  return result(res, clock);
+}));
 router.post('/attempts/:id/integrity', authorize('respondent'), integrityLimit, handler((req, res) => {
   const attempt = attemptFor(req.user, req.params.id);
-  if (attempt.status !== 'in_progress' || (attempt.deadline && Date.now() >= Date.parse(attempt.deadline))) {
+  const now = Date.now();
+  if (attempt.status !== 'in_progress' || attemptHasExpired(attempt, now) || attemptIsPaused(attempt, now)) {
     return result(res, { recorded: false });
   }
   trackAttemptSession(attempt, req.sessionId);
@@ -640,7 +661,9 @@ router.post('/attempts/:id/integrity', authorize('respondent'), integrityLimit, 
 router.put('/attempts/:id/answers', authorize('respondent'), handler((req, res) => {
   const attempt = attemptFor(req.user, req.params.id);
   if (attempt.status !== 'in_progress') throw fail('Completed answers cannot be changed.', 409);
-  if (attempt.deadline && Date.now() >= Date.parse(attempt.deadline)) throw fail('Time has ended. Only answers received before the deadline can be scored.', 410);
+  const now = Date.now();
+  if (attemptHasExpired(attempt, now)) throw fail('Time has ended. Only answers received before the deadline can be scored.', 410);
+  if (attemptIsPaused(attempt, now)) throw fail(pausedTimerMessage, 423);
   trackAttemptSession(attempt, req.sessionId);
   const questions = new Map(JSON.parse(attempt.snapshot_json).questions.map((question) => [question.id, question]));
   if (!Number.isSafeInteger(req.body.expected_revision) || req.body.expected_revision < 0) throw fail('Reload the assessment before saving answers.');
@@ -656,11 +679,14 @@ router.put('/attempts/:id/answers', authorize('respondent'), handler((req, res) 
   db.transaction(() => {
     const update = db.prepare(`UPDATE quiz_attempts SET answers_revision=answers_revision+1
       WHERE id=? AND answers_revision=? AND status='in_progress'
-        AND (deadline IS NULL OR julianday(deadline)>julianday('now'))`).run(attempt.id, req.body.expected_revision);
+        AND (deadline IS NULL OR julianday(deadline)>julianday('now'))
+        AND (timer_lease_until IS NULL OR julianday(timer_lease_until)>julianday('now'))`).run(attempt.id, req.body.expected_revision);
     if (!update.changes) {
       const current = attemptFor(req.user, attempt.id);
       if (current.status !== 'in_progress') throw fail('Completed answers cannot be changed.', 409);
-      if (current.deadline && Date.now() >= Date.parse(current.deadline)) throw fail('Time has ended. Only answers received before the deadline can be scored.', 410);
+      const currentTime = Date.now();
+      if (attemptHasExpired(current, currentTime)) throw fail('Time has ended. Only answers received before the deadline can be scored.', 410);
+      if (attemptIsPaused(current, currentTime)) throw fail(pausedTimerMessage, 423);
       throw fail('Answers changed in another tab or device. Review the saved answers before replacing them.', 409);
     }
     const save = db.prepare('INSERT INTO quiz_responses(attempt_id,question_id,answer,saved_at) VALUES(?,?,?,?) ON CONFLICT(attempt_id,question_id) DO UPDATE SET answer=excluded.answer,saved_at=excluded.saved_at');
@@ -673,10 +699,11 @@ router.post('/attempts/:id/submit', authorize('respondent'), handler((req, res) 
   const completed = db.transaction(() => {
     const attempt = attemptFor(req.user, req.params.id);
     if (attempt.status === 'completed') return false;
+    const now = Date.now();
+    const expired = attemptHasExpired(attempt, now);
+    if (!expired && attemptIsPaused(attempt, now)) throw fail(pausedTimerMessage, 423);
     const responses = db.prepare('SELECT question_id,answer FROM quiz_responses WHERE attempt_id=?').all(attempt.id);
     const snapshot = JSON.parse(attempt.snapshot_json);
-    const now = Date.now();
-    const expired = attempt.deadline && now >= Date.parse(attempt.deadline);
     if (!expired && responses.filter((response) => response.answer.trim()).length !== snapshot.questions.length) throw fail('Answer every question before submitting.');
     const score = scoreSnapshot(snapshot, responses);
     const completionReason = expired ? 'time_expired' : 'submitted';
@@ -708,12 +735,12 @@ router.get('/overview', handler((req, res) => {
   const pendingAssignments = db.prepare(`SELECT COUNT(*) count FROM quiz_assignments aa JOIN knowledge_quizzes q ON q.id=aa.quiz_id
     WHERE ${scope} AND (q.status='published' OR EXISTS(SELECT 1 FROM quiz_attempts ip WHERE ip.quiz_id=q.id AND ip.user_id=aa.user_id AND ip.status='in_progress'))
     AND NOT EXISTS(SELECT 1 FROM quiz_attempts done WHERE done.quiz_id=q.id AND done.user_id=aa.user_id AND done.status='completed')
-    AND NOT EXISTS(SELECT 1 FROM quiz_attempts ended WHERE ended.quiz_id=q.id AND ended.user_id=aa.user_id AND ended.status='in_progress' AND julianday(ended.deadline)<=julianday('now'))`).get(...params).count;
+    AND NOT EXISTS(SELECT 1 FROM quiz_attempts ended WHERE ended.quiz_id=q.id AND ended.user_id=aa.user_id AND ended.status='in_progress' AND ${attemptExpiredSQL('ended', 'q')})`).get(...params).count;
   const assignedQuizCount = db.prepare(`SELECT COUNT(DISTINCT aa.quiz_id) count FROM quiz_assignments aa JOIN knowledge_quizzes q ON q.id=aa.quiz_id
     WHERE ${scope} AND (q.status='published' OR EXISTS(SELECT 1 FROM quiz_attempts old WHERE old.quiz_id=q.id AND old.user_id=aa.user_id))`).get(...params).count;
   const scoreScope = req.user.role === 'admin' ? '1=1' : 'a.user_id=?';
   const expiredCount = db.prepare(`SELECT COUNT(*) count FROM quiz_attempts a JOIN knowledge_quizzes q ON q.id=a.quiz_id
-    WHERE ${scoreScope} AND (a.completion_reason='time_expired' OR (a.status='in_progress' AND julianday(a.deadline)<=julianday('now')))
+    WHERE ${scoreScope} AND (a.completion_reason='time_expired' OR (a.status='in_progress' AND ${attemptExpiredSQL('a', 'q')}))
     AND NOT EXISTS(SELECT 1 FROM quiz_attempts newer WHERE newer.user_id=a.user_id AND newer.quiz_id=a.quiz_id AND newer.id>a.id)`).get(...params).count;
   const categoryScores = db.prepare(`SELECT cr.category_id id,COALESCE(c.name,MAX(cr.category_name)) name,SUM(cr.earned) earned,SUM(cr.possible) possible
     FROM quiz_category_results cr JOIN quiz_attempts a ON a.id=cr.attempt_id JOIN knowledge_quizzes q ON q.id=a.quiz_id LEFT JOIN quiz_categories c ON c.id=cr.category_id
