@@ -49,7 +49,10 @@ export default function KnowledgeAssessments() {
     if (await run(() => api.post('/knowledge/quizzes', payload), 'Assessment created.')) { setFormOpen(false); state.reload(); }
   };
   const changeStatus = async (quiz, status) => {
-    if (!window.confirm(`${status === 'published' ? 'Publish' : status === 'archived' ? 'Archive' : 'Unpublish'} “${quiz.title}”?`)) return;
+    const prompt = status === 'archived'
+      ? `Permanently close “${quiz.title}” to new attempts? Students can finish their open attempts.`
+      : `${status === 'published' ? 'Publish' : 'Unpublish'} “${quiz.title}”?`;
+    if (!window.confirm(prompt)) return;
     if (await run(() => api.put(`/knowledge/quizzes/${quiz.id}/status`, { status }), 'Assessment status updated.')) state.reload();
   };
   const remove = async (quiz) => {
@@ -82,7 +85,7 @@ export default function KnowledgeAssessments() {
           {quiz.latest_status === 'completed' && <Link className="kq-button kq-button-secondary" to={`/respondent/knowledge/attempts/${quiz.latest_attempt_id}`}>{expired ? 'View saved result' : 'View result'}</Link>}
         </> : <>
           <button className="kq-button kq-button-secondary" onClick={() => view(quiz)}>View</button>
-          <button className="kq-button kq-button-secondary" disabled={busy || freeDemoReadOnly} onClick={() => changeStatus(quiz, quiz.status === 'published' ? 'draft' : 'published')}>{quiz.status === 'published' ? 'Unpublish' : 'Publish'}</button>
+          {quiz.status !== 'archived' && <button className="kq-button kq-button-secondary" disabled={busy || freeDemoReadOnly} onClick={() => changeStatus(quiz, quiz.status === 'published' ? 'draft' : 'published')}>{quiz.status === 'published' ? 'Unpublish' : 'Publish'}</button>}
           <button className="kq-button kq-button-secondary" disabled={freeDemoReadOnly} onClick={() => { setAssignQuiz(quiz); setSelectedStudents([]); }}>Assign students</button>
           <button className="kq-button kq-button-secondary" disabled={busy || freeDemoReadOnly || quiz.status === 'archived'} onClick={() => changeStatus(quiz, 'archived')}>Archive</button>
           <button className="kq-button kq-button-danger" disabled={busy || freeDemoReadOnly} onClick={() => remove(quiz)}>Delete</button>

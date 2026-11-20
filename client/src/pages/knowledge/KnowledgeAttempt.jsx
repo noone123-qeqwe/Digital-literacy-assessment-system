@@ -13,6 +13,18 @@ import { timeExpiredResult } from './attemptStatus';
 
 const expandedQuestionMapQuery = '(min-width: 1024px), (min-width: 768px) and (min-height: 500px)';
 
+function savedAnswers(responses) {
+  return Object.fromEntries(responses.map(({ question_id, answer }) => [question_id, answer]));
+}
+
+function answersMatch(answers, saved) {
+  return Object.entries(answers).every(([id, answer]) => (saved[id] ?? '') === answer);
+}
+
+function uploadWasAcknowledged(upload, data) {
+  return upload && data.attempt.answers_revision === upload.baseRevision + 1 && answersMatch(upload.answers, savedAnswers(data.responses));
+}
+
 export default function KnowledgeAttemptRoute() {
   const { attemptId } = useParams();
   return <KnowledgeAttempt key={attemptId} attemptId={Number(attemptId)} />;
@@ -31,8 +43,10 @@ function KnowledgeAttempt({ attemptId }) {
   const [conflict, setConflict] = useState(false);
   const [online, setOnline] = useState(navigator.onLine), [now, setNow] = useState(() => Date.now());
   const [submitting, setSubmitting] = useState(false), [retainedDraft, setRetainedDraft] = useState(null);
+  const [submitError, setSubmitError] = useState('');
   const latest = useRef(null), writes = useRef(Promise.resolve()), upload = useRef(null), active = useRef(true);
   const automaticSubmit = useRef(false), questionHeading = useRef(null), moveFocus = useRef(false);
+  const submitInFlight = useRef(false);
   const telemetrySent = useRef({});
   const canAnswer = user.role === 'respondent';
   useEffect(() => {
@@ -57,28 +71,64 @@ function KnowledgeAttempt({ attemptId }) {
       while (active.current && latest.current?.pending && navigator.onLine) {
         await writes.current;
         const record = latest.current;
-        if (record.data.attempt.status === 'completed') return false;
+        if (!active.current || record.data.attempt.status === 'completed' || record.conflict) return false;
+        const batch = record.unconfirmedUpload || { baseRevision: record.baseRevision, revision: record.revision, answers: record.answers };
+        if (!record.unconfirmedUpload) {
+          latest.current = { ...record, unconfirmedUpload: batch };
+          await persist(latest.current);
+        }
+        if (!active.current || !navigator.onLine) return false;
         try {
-          if (active.current) setSyncStatus('Saving answers to the server…');
-          if (record.conflict) return false;
-          const saved = await api.put(`/knowledge/attempts/${attemptId}/answers`, { expected_revision: record.baseRevision,
-            responses: Object.entries(record.answers).map(([question_id, answer]) => ({ question_id: Number(question_id), answer })) });
-          latest.current = { ...latest.current, baseRevision: saved.data.data.answers_revision };
-          if (latest.current.revision === record.revision) {
-            latest.current = { ...latest.current, pending: false };
-            if (active.current) setPending(false);
-            const acknowledgedRevision = record.revision;
-            writes.current = writes.current.catch(() => {}).then(() => {
-              const current = latest.current;
-              if (current.revision === acknowledgedRevision && !current.pending) return writeQuizRecovery(user.id, attemptId, current);
-              return undefined;
-            }).catch((failure) => { if (active.current) setStorageError(failure.message); });
-            await writes.current;
-            if (active.current) setSyncStatus('All answers saved to the server');
+          setSyncStatus('Saving answers to the server…');
+          let baseRevision;
+          let serverAnswers;
+          try {
+            const saved = await api.put(`/knowledge/attempts/${attemptId}/answers`, { expected_revision: batch.baseRevision,
+              responses: Object.entries(batch.answers).map(([question_id, answer]) => ({ question_id: Number(question_id), answer })) });
+            baseRevision = saved.data.data.answers_revision;
+          } catch (failure) {
+            if (failure.response?.status !== 409) throw failure;
+            const response = await api.get(`/knowledge/attempts/${attemptId}`);
+            const current = response.data.data;
+            if (current.attempt.status === 'completed') {
+              const unsynced = !answersMatch(latest.current.answers, savedAnswers(current.responses));
+              latest.current = { ...latest.current, data: current, pending: unsynced };
+              if (!unsynced) await clearQuizRecovery(user.id, attemptId).catch(() => {});
+              if (active.current) {
+                if (unsynced) setRetainedDraft({ ...latest.current, userId: user.id, attemptId });
+                setData(current);
+              }
+              return false;
+            }
+            if (!uploadWasAcknowledged(batch, current)) throw failure;
+            baseRevision = current.attempt.answers_revision;
+            serverAnswers = savedAnswers(current.responses);
           }
+          const hasMoreEdits = latest.current.revision !== batch.revision;
+          const mergedAnswers = serverAnswers ? { ...serverAnswers, ...latest.current.answers } : latest.current.answers;
+          latest.current = { ...latest.current, answers: mergedAnswers, baseRevision, unconfirmedUpload: null, pending: hasMoreEdits };
+          if (active.current) {
+            if (serverAnswers) setAnswers(mergedAnswers);
+            setPending(hasMoreEdits);
+          }
+          await persist(latest.current);
+          if (active.current && !latest.current.pending) setSyncStatus('All answers saved to the server');
         } catch (failure) {
-          if (failure.response?.status === 409) { latest.current = { ...latest.current, conflict: true }; if (active.current) setConflict(true); }
-          if (active.current) setSyncStatus(failure.response?.status === 410 ? 'Time has ended. Only answers received before the deadline can be scored.' : 'Upload pending. Keep this browser’s recovery copy and reconnect to sync.');
+          const status = failure.response?.status;
+          const rejected = [400, 413, 422].includes(status);
+          if (status === 409) {
+            latest.current = { ...latest.current, conflict: true };
+            if (active.current) setConflict(true);
+            await persist(latest.current);
+          } else if (rejected) {
+            latest.current = { ...latest.current, unconfirmedUpload: null };
+            await persist(latest.current);
+          }
+          if (active.current) {
+            if (status === 410) setSyncStatus('Time has ended. Only answers received before the deadline can be scored.');
+            else if (rejected) setSyncStatus(failure.response.data?.message || 'The server could not save these answers. Review your responses and retry.');
+            else setSyncStatus('Upload pending. Keep this browser’s recovery copy and reconnect to sync.');
+          }
           return false;
         }
       }
@@ -86,7 +136,7 @@ function KnowledgeAttempt({ attemptId }) {
     };
     upload.current = operation().finally(() => { upload.current = null; });
     return upload.current;
-  }, [attemptId, canAnswer, user.id]);
+  }, [attemptId, canAnswer, persist, user.id]);
 
   useEffect(() => {
     active.current = true;
@@ -101,18 +151,21 @@ function KnowledgeAttempt({ attemptId }) {
         const response = await api.get(`/knowledge/attempts/${attemptId}`);
         if (cancelled) return;
         const loaded = response.data.data;
-        const serverAnswers = Object.fromEntries(loaded.responses.map((answer) => [answer.question_id, answer.answer]));
+        const serverAnswers = savedAnswers(loaded.responses);
         if (loaded.attempt.status === 'completed') {
-          if (backup?.pending) setRetainedDraft(backup);
+          if (backup?.pending && !answersMatch(backup.answers, serverAnswers)) setRetainedDraft(backup);
           else if (canAnswer) await clearQuizRecovery(user.id, attemptId).catch(() => {});
           setData(loaded); setAnswers(serverAnswers); return;
         }
-        const acknowledged = backup?.pending && Object.entries(backup.answers).every(([questionId, answer]) => (serverAnswers[questionId] ?? '') === answer);
+        const acknowledged = backup?.pending && answersMatch(backup.answers, serverAnswers);
         const hasPending = Boolean(backup?.pending && !acknowledged);
-        const diverged = hasPending && (backup.baseRevision ?? -1) !== loaded.attempt.answers_revision;
+        const uploadAcknowledged = uploadWasAcknowledged(backup?.unconfirmedUpload, loaded);
+        const diverged = hasPending && !uploadAcknowledged && (backup.conflict || backup.baseRevision !== loaded.attempt.answers_revision);
         const recovered = hasPending ? { ...serverAnswers, ...backup.answers } : serverAnswers;
         const record = { data: loaded, answers: recovered, pending: hasPending, conflict: diverged,
-          baseRevision: loaded.attempt.answers_revision, revision: Number(backup?.revision || 0), clockOffset: loaded.server_now ? Date.parse(loaded.server_now) - Date.now() : 0 };
+          baseRevision: diverged ? backup.baseRevision : loaded.attempt.answers_revision,
+          unconfirmedUpload: hasPending && !uploadAcknowledged ? backup.unconfirmedUpload : null,
+          revision: Number(backup?.revision || 0), clockOffset: loaded.server_now ? Date.parse(loaded.server_now) - Date.now() : 0 };
         latest.current = record; setData(loaded); setAnswers(recovered); setPending(record.pending); setClockOffset(record.clockOffset); setConflict(diverged);
         setSyncStatus(record.pending ? 'Recovered answers waiting to sync' : 'All answers saved to the server');
         if (canAnswer) { await persist(record); if (!cancelled) void sync(); }
@@ -146,34 +199,42 @@ function KnowledgeAttempt({ attemptId }) {
   const remaining = data?.attempt.deadline ? Math.max(0, Math.ceil((Date.parse(data.attempt.deadline) - now - clockOffset) / 1000)) : null;
   const expired = remaining === 0;
   const submit = useCallback(async (timedOut = false) => {
-    if (!latest.current || !navigator.onLine || submitting || freeDemoReadOnly) return;
+    if (!latest.current || !navigator.onLine || submitInFlight.current || freeDemoReadOnly) return;
     if (!timedOut && !window.confirm('Submit your answers for scoring? Submitted answers cannot be changed.')) return;
+    submitInFlight.current = true;
+    setSubmitError('');
     setSubmitting(true);
     try {
       await writes.current;
-      const synchronized = await sync();
-      if (!synchronized && !timedOut && latest.current.pending) throw new Error('Wait for your answers to synchronize before submitting.');
+      if (timedOut) await upload.current;
+      else if (!(await sync()) && latest.current.pending) throw new Error('Wait for your answers to synchronize before submitting.');
+      if (latest.current.data.attempt.status === 'completed') return;
       const response = await api.post(`/knowledge/attempts/${attemptId}/submit`);
       const completed = response.data.data;
-      if (latest.current.pending) setRetainedDraft({ ...latest.current, userId: user.id, attemptId });
-      else await clearQuizRecovery(user.id, attemptId).catch(() => {});
-      latest.current = { ...latest.current, data: completed };
+      const unsynced = latest.current.pending && !answersMatch(latest.current.answers, savedAnswers(completed.responses));
+      latest.current = { ...latest.current, data: completed, pending: unsynced };
+      if (!unsynced) await clearQuizRecovery(user.id, attemptId).catch(() => {});
       if (active.current) {
+        if (unsynced) setRetainedDraft({ ...latest.current, userId: user.id, attemptId });
         setData(completed);
         emitCertificateSync({ instrument: 'knowledge', attemptId, unlocked: completed.attempt?.certificate_earned === 1 });
         if (timeExpiredResult(completed.attempt)) toast('Time expired. Your saved answers have been scored.', { icon: '⏱' });
         else toast.success('Assessment submitted. Your result is ready.');
       }
-    } catch (failure) { if (active.current) toast.error(failure.response?.data?.message || failure.message || 'Could not submit. Your saved answers remain available.'); }
-    finally { if (active.current) setSubmitting(false); }
-  }, [attemptId, freeDemoReadOnly, submitting, sync, user.id]);
+    } catch (failure) {
+      if (active.current) setSubmitError(failure.response?.data?.message || failure.message || 'Could not submit. Your saved answers remain available.');
+    } finally {
+      submitInFlight.current = false;
+      if (active.current) setSubmitting(false);
+    }
+  }, [attemptId, freeDemoReadOnly, sync, user.id]);
 
   useEffect(() => {
-    if (expired && online && canAnswer && data?.attempt.status === 'in_progress' && !automaticSubmit.current) {
+    if (expired && online && canAnswer && !freeDemoReadOnly && !submitting && data?.attempt.status === 'in_progress' && !automaticSubmit.current) {
       automaticSubmit.current = true;
       void submit(true);
     }
-  }, [expired, online, canAnswer, data?.attempt.status, submit]);
+  }, [expired, online, canAnswer, freeDemoReadOnly, submitting, data?.attempt.status, submit]);
 
   const monitoring = Boolean(canAnswer && data && !data.results && !expired && !freeDemoReadOnly);
   const logIntegrity = useCallback((eventType, detail = '') => {
@@ -240,13 +301,14 @@ function KnowledgeAttempt({ attemptId }) {
   const selectQuestion = (value) => { moveFocus.current = true; setIndex(value); setReview(false); if (!window.matchMedia(expandedQuestionMapQuery).matches) setQuestionMapOpen(false); };
   const resolveConflict = async (keepLocal) => {
     if (!navigator.onLine) return;
-    if (!window.confirm(keepLocal ? 'Replace the current server answers with this device’s responses?' : 'Replace this device’s pending answers with the server copy? Download the local copy first if you need to keep it.')) return;
+    if (!window.confirm(keepLocal ? 'Use this device’s responses for matching questions and keep answers saved only on the server?' : 'Replace this device’s pending answers with the server copy? Download the local copy first if you need to keep it.')) return;
     try {
       const response = await api.get(`/knowledge/attempts/${attemptId}`);
       const current = response.data.data;
       if (current.attempt.status === 'completed') { setRetainedDraft({ ...latest.current, userId: user.id, attemptId }); setData(current); return; }
-      const resolved = { ...latest.current, data: current, conflict: false, baseRevision: current.attempt.answers_revision,
-        answers: keepLocal ? latest.current.answers : Object.fromEntries(current.responses.map((item) => [item.question_id, item.answer])), pending: keepLocal, revision: latest.current.revision + 1 };
+      const serverAnswers = savedAnswers(current.responses);
+      const resolved = { ...latest.current, data: current, conflict: false, baseRevision: current.attempt.answers_revision, unconfirmedUpload: null,
+        answers: keepLocal ? { ...serverAnswers, ...latest.current.answers } : serverAnswers, pending: keepLocal, revision: latest.current.revision + 1 };
       latest.current = resolved; setAnswers(resolved.answers); setPending(resolved.pending); setConflict(false);
       await persist(resolved); if (keepLocal) void sync(); else setSyncStatus('Server answers restored on this device');
     } catch { toast.error('Could not compare the saved answers. Reconnect and try again.'); }
@@ -290,7 +352,9 @@ function KnowledgeAttempt({ attemptId }) {
       {review ? <section className="kq-card"><h2 ref={questionHeading} tabIndex={-1}>Review your answers</h2><p className="kq-note">{questions.length - answered} unanswered. You can return to any question before submitting.</p><div className="kq-list" style={{ marginTop: 18 }}>{questions.map((item, number) => <button className="kq-question-row" key={item.id} onClick={() => selectQuestion(number)}><span><strong>{number + 1}. {item.prompt}</strong><p>{item.options.find((option) => option.id === answers[item.id])?.text || answers[item.id] || 'Unanswered'}</p></span><ArrowRight size={17} aria-hidden="true" /></button>)}</div><div className="kq-actions" style={{ marginTop: 20 }}><button className="kq-button" disabled={!online || submitting || (answered !== questions.length && !expired) || freeDemoReadOnly} onClick={() => submit(expired)}>{submitting ? 'Submitting…' : 'Submit assessment'}</button><button className="kq-button kq-button-secondary" onClick={() => selectQuestion(index)}>Continue answering</button></div></section>
         : <section className={canAnswer ? 'kq-card kq-question-card kq-proctored' : 'kq-card kq-question-card'}><div className="kq-section-title"><span className="kq-badge">{question.category_name}</span><span className="kq-note">{question.points} point{question.points === 1 ? '' : 's'} · {question.type.replaceAll('_', ' ')}</span></div><h2 ref={questionHeading} tabIndex={-1}>{index + 1}. {question.prompt}</h2><fieldset disabled={expired || submitting || !canAnswer || freeDemoReadOnly} className="kq-options"><legend className="sr-only">Your answer to question {index + 1}</legend>{question.type === 'identification' ? <Field label="Your answer"><input type="text" maxLength={500} value={answers[question.id] || ''} onChange={(event) => answer(event.target.value)} autoComplete="off" /></Field> : question.options.map((option) => <label key={option.id}><input type="radio" name={`question-${question.id}`} value={option.id} checked={answers[question.id] === option.id} onChange={() => answer(option.id)} /><span>{option.text}</span></label>)}</fieldset><div className="kq-actions kq-question-actions" style={{ justifyContent: 'space-between', marginTop: 26 }}><button className="kq-button kq-button-secondary" disabled={index === 0} onClick={() => selectQuestion(index - 1)}><ArrowLeft size={15} aria-hidden="true" />Previous</button>{index < questions.length - 1 ? <button className="kq-button" onClick={() => selectQuestion(index + 1)}>Next<ArrowRight size={15} aria-hidden="true" /></button> : <button className="kq-button" onClick={() => { moveFocus.current = true; setReview(true); }}><CheckCircle2 size={16} aria-hidden="true" />Review answers</button>}</div></section>}
       {!review && <button className="kq-button kq-button-secondary" onClick={() => { moveFocus.current = true; setReview(true); }}>Review all answers</button>}
-      {pending && online && <button className="kq-button kq-button-secondary" onClick={() => void sync()}>Retry synchronization</button>}
+      {submitError && <p role="alert" className="kq-note">{submitError}</p>}
+      {pending && online && !expired && <button className="kq-button kq-button-secondary" onClick={() => void sync()}>Retry synchronization</button>}
+      {expired && online && submitError && canAnswer && !freeDemoReadOnly && <button className="kq-button" disabled={submitting} onClick={() => submit(true)}>Retry finalizing assessment</button>}
       {expired && !online && <Empty>Time has ended. Reconnect to finalize the answers received by the server before the deadline.</Empty>}
     </div>}
   </KnowledgePage>;

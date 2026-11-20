@@ -104,6 +104,9 @@ async function run() {
     await request(`/questions/${ids[0]}`, { actor: admin, method: 'PUT', body: { ...kinds[0], correct_answer: '1', prompt: 'Updated question after assessment creation.' } });
     const completed = await request(`/attempts/${attemptId}/submit`, { actor: maria, method: 'POST' });
     check(completed.status === 200 && completed.data.data.results.percentage === 100 && completed.data.data.results.level === 'Advanced', 'weighted points and normalized identification produce the expected percentage');
+    const savedScore = db.prepare('SELECT earned_points, possible_points, percentage FROM quiz_attempts WHERE id=?').get(attemptId);
+    const displayedScore = completed.data.data.results;
+    check(savedScore.earned_points === displayedScore.earned && savedScore.possible_points === displayedScore.possible && savedScore.percentage === displayedScore.percentage, 'stored score agrees with the displayed score for the same saved answers');
     check(completed.data.data.results.review_locked === true && completed.data.data.answer_key_released === false
       && completed.data.data.results.questions.every((item) => !('answers' in item) && !('explanation' in item) && !('correct' in item))
       && !('integrity' in completed.data.data), 'student result review withholds answer keys, explanations, and integrity telemetry while attempts remain');
