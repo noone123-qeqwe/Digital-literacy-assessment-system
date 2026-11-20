@@ -1,24 +1,32 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Plus, Clock3 } from 'lucide-react';
+import { ArrowRight, ChevronDown, Plus, Clock3 } from 'lucide-react';
 import api from '../../api/axios';
 import Modal from '../../components/common/Modal';
 import { useAuth } from '../../contexts/useAuth';
 import { useDemoMode } from '../../contexts/useDemoMode';
+import { formatDateTime } from '../../utils/helpers';
 import { Empty, Field, KnowledgePage, ResearchLink } from './KnowledgeCommon';
 import { displayDate, useKnowledgeAction, useKnowledgeData } from './knowledgeClient';
 import { BookmarkButton, BookmarkFilter } from '../../components/assessments/AssessmentBookmarks';
 import { useAssessmentBookmarks } from '../../components/assessments/useAssessmentBookmarks';
 import { knowledgeQuizState } from './attemptStatus';
 
-function StudentPicker({ selected, setSelected }) {
+function StudentPicker({ selected, setSelected, assigned = [] }) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const state = useKnowledgeData([`/knowledge/students?search=${encodeURIComponent(search)}&page=${page}`]);
   const directory = state.data[0];
   return <div className="kq-form"><Field label="Find active, verified students"><input type="search" value={search} placeholder="Search name or email…" onChange={(event) => { setPage(1); setSearch(event.target.value); }} /></Field>
-    <p className="kq-note">{selected.length} selected · selections are retained while searching.</p>
-    <div className="kq-picker">{directory?.users.map((student) => <label className="kq-check" key={student.id}><input type="checkbox" checked={selected.includes(student.id)} onChange={() => setSelected(selected.includes(student.id) ? selected.filter((value) => value !== student.id) : [...selected, student.id])} /><span>{student.first_name} {student.last_name}<br /><small>{student.email}</small></span></label>)}{!directory?.users.length && <Empty>{state.loading ? 'Loading students…' : state.error || 'No matching verified students.'}</Empty>}</div>
+    <p className="kq-note" role="status">{selected.length} selected{assigned.length > 0 && ` · ${assigned.length} already assigned`}. Selections are kept while searching.</p>
+    <div className="kq-picker">{directory?.users.map((student) => {
+      const alreadyAssigned = assigned.includes(student.id);
+      return <label className="kq-check" key={student.id}>
+        <input type="checkbox" checked={alreadyAssigned || selected.includes(student.id)} disabled={alreadyAssigned}
+          onChange={() => setSelected(selected.includes(student.id) ? selected.filter((value) => value !== student.id) : [...selected, student.id])} />
+        <span>{student.first_name} {student.last_name}<br /><small>{student.email}</small>{alreadyAssigned && <small className="block font-semibold">Already assigned</small>}</span>
+      </label>;
+    })}{!directory?.users.length && <Empty>{state.loading ? 'Loading students…' : state.error || 'No matching verified students.'}</Empty>}</div>
     {directory && <div className="kq-actions"><button type="button" className="kq-button kq-button-secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}>Previous</button><span className="kq-note">Page {page} of {directory.pages}</span><button type="button" className="kq-button kq-button-secondary" disabled={page >= directory.pages} onClick={() => setPage(page + 1)}>Next</button></div>}
   </div>;
 }
@@ -30,12 +38,66 @@ const studentAssessmentGroups = [
   ['results', 'Saved results and attempts'],
   ['unavailable', 'Unavailable'],
 ];
+const publicationStatuses = [
+  ['published', 'Published'],
+  ['draft', 'Draft'],
+  ['archived', 'Archived'],
+];
 
 function studentAssessmentGroup(quiz, status) {
   if (status.expired || quiz.latest_status === 'completed') return 'results';
   if (status.ongoing) return 'in_progress';
   if (status.exhausted || status.future || status.closed || status.locked) return 'unavailable';
   return 'ready';
+}
+
+function AdminAssessmentCard({ quiz, status, bookmarks, busy, readOnly, onView, onAssign, onStatus, onRemove }) {
+  const archived = quiz.status === 'archived';
+  const published = quiz.status === 'published';
+  const label = publicationStatuses.find(([value]) => value === quiz.status)?.[1] || quiz.status;
+  const tone = published ? ' kq-badge-success' : archived ? ' kq-badge-neutral' : ' kq-badge-warning';
+  return <article className="kq-card kq-assessment-card kq-admin-assessment-card">
+    <div className="assessment-bookmark-heading">
+      <div className="kq-actions">
+        <span className={`kq-badge${tone}`}>{label}</span>
+        {published && (status.closed || status.future) && <span className="kq-badge kq-badge-neutral">{status.closed ? 'Closed' : 'Scheduled'}</span>}
+        {quiz.stage && <span className="kq-badge kq-badge-neutral">{quiz.stage === 'baseline' ? 'Baseline' : 'Follow-up'}</span>}
+      </div>
+      <BookmarkButton assessment={quiz} bookmarks={bookmarks} />
+    </div>
+    <div className="kq-admin-assessment-copy">
+      <h2>{quiz.title}</h2>
+      {quiz.description && <p>{quiz.description}</p>}
+    </div>
+    <dl className="kq-admin-assessment-metrics">
+      <div><dt>Questions</dt><dd>{quiz.question_count}</dd></div>
+      <div><dt>Assigned students</dt><dd>{quiz.assigned_count}</dd></div>
+      <div><dt>Submissions</dt><dd>{quiz.completed_count}</dd></div>
+    </dl>
+    <div className="kq-note">
+      <p>{quiz.time_limit_minutes ? `${quiz.time_limit_minutes} minutes` : 'No time limit'} · Certificate at {quiz.pass_percentage}%</p>
+      {quiz.start_date && <p>Opens {formatDateTime(quiz.start_date)}</p>}
+      {quiz.end_date && <p>Closes {formatDateTime(quiz.end_date)}</p>}
+      {!archived && quiz.auto_assign_verified === 1 && <p>Automatically assigns verified students while published.</p>}
+    </div>
+    <div className="kq-admin-assessment-actions">
+      <div className="kq-actions">
+        <button type="button" className={archived ? 'kq-button' : 'kq-button kq-button-secondary'} disabled={busy} onClick={() => onView(quiz)}>View details</button>
+        {!archived && <button type="button" className="kq-button" disabled={busy || readOnly} onClick={() => onAssign(quiz)}>Assign students</button>}
+      </div>
+      {!readOnly && <details className="kq-admin-assessment-options">
+        <summary aria-label={`More actions for ${quiz.title}`}>More actions <ChevronDown size={15} aria-hidden="true" /></summary>
+        <div className="kq-actions">
+          {!archived && <>
+            <button type="button" className="kq-button kq-button-secondary" disabled={busy}
+              onClick={() => onStatus(quiz, published ? 'draft' : 'published')}>{published ? 'Unpublish' : 'Publish'}</button>
+            <button type="button" className="kq-button kq-button-secondary" disabled={busy} onClick={() => onStatus(quiz, 'archived')}>Archive</button>
+          </>}
+          <button type="button" className="kq-button kq-button-danger" disabled={busy} onClick={() => onRemove(quiz)}>Delete</button>
+        </div>
+      </details>}
+    </div>
+  </article>;
 }
 
 export default function KnowledgeAssessments() {
@@ -85,8 +147,23 @@ export default function KnowledgeAssessments() {
       .filter(([id]) => assessmentStatus === 'all' || assessmentStatus === id)
       .flatMap(([id]) => rows.filter((item) => item.group === id))
     : rows;
-  const filtering = Boolean(searchTerm || showBookmarks || assessmentStatus !== 'all');
-  const clearFilters = () => { setSearch(''); setShowBookmarks(false); setAssessmentStatus('all'); };
+  const statusParam = searchParams.get('status');
+  const publicationStatus = publicationStatuses.some(([status]) => status === statusParam) ? statusParam : 'all';
+  const visibleQuizzes = student || publicationStatus === 'all' ? filtered : filtered.filter(({ quiz }) => quiz.status === publicationStatus);
+  const currentFilter = student ? assessmentStatus : publicationStatus;
+  const filtering = Boolean(searchTerm || showBookmarks || currentFilter !== 'all');
+  const setPublicationStatus = (status) => {
+    const next = new URLSearchParams(searchParams);
+    if (status === 'all') next.delete('status');
+    else next.set('status', status);
+    setSearchParams(next, { replace: true });
+  };
+  const clearFilters = () => {
+    setSearch('');
+    setShowBookmarks(false);
+    if (student) setAssessmentStatus('all');
+    else setPublicationStatus('all');
+  };
 
   const bank = questions.filter((question) => !category || question.category_id === Number(category));
   const base = user?.role === 'admin' ? '/admin' : '/respondent';
@@ -109,6 +186,12 @@ export default function KnowledgeAssessments() {
     if (await run(() => api.delete(`/knowledge/quizzes/${quiz.id}`), 'Assessment deleted.')) state.reload();
   };
   const view = async (quiz) => { setAccepted(false); if (student) setPreview(quiz); else { const response = await run(() => api.get(`/knowledge/quizzes/${quiz.id}`)); if (response) setPreview(response.data.data); } };
+  const assign = async (quiz) => {
+    const response = await run(() => api.get(`/knowledge/quizzes/${quiz.id}`));
+    if (!response) return;
+    setSelectedStudents([]);
+    setAssignQuiz(response.data.data);
+  };
   const begin = async () => {
     const response = await run(() => api.post(`/knowledge/quizzes/${preview.id}/start`, {
       accepted_instructions: accepted,
@@ -118,30 +201,34 @@ export default function KnowledgeAssessments() {
   };
   const searchField = <Field label="Search assessments"><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by title or description…" /></Field>;
   const bookmarkFilter = <BookmarkFilter bookmarks={bookmarks} records={quizzes} selected={showBookmarks} setSelected={setShowBookmarks} />;
-  return <KnowledgePage {...state} className={student ? 'student-assessment-browser' : ''} title={student ? 'Knowledge assessments' : 'Assessment management'} description={student ? 'Resume an assessment, start a new one, or review a saved result.' : 'Scored knowledge assessments use correct answers, points, and percentage proficiency levels. Research questionnaires have a separate workflow.'}
+  return <KnowledgePage {...state} className={student ? 'student-assessment-browser' : 'admin-assessment-browser'} title={student ? 'Knowledge assessments' : 'Assessment management'} description={student ? 'Resume an assessment, start a new one, or review a saved result.' : 'Create quizzes, choose when students can take them, and manage assignments.'}
     action={student ? <ResearchLink to="/respondent/assessments" /> : <button className="kq-button" disabled={freeDemoReadOnly || !questions.length} onClick={() => { setForm(blankForm); setFormOpen(true); }}><Plus size={17} aria-hidden="true" />Create assessment</button>}>
     {!student && <div className="kq-actions"><ResearchLink to={'/admin/assessments'}>Manage research assessments</ResearchLink>{user.role === 'admin' && <Link className="kq-button kq-button-secondary" to="/admin/knowledge/questions">Open scored question bank</Link>}</div>}
     {freeDemoReadOnly && <p className="kq-note">This demonstration is read-only. You can view assessments; starting attempts and editing are disabled.</p>}
-    {student ? <section className="kq-card kq-assessment-filters" aria-label="Find an assessment">
+    <section className="kq-card kq-assessment-filters" aria-label="Find an assessment">
       <div className="kq-assessment-filter-fields">
         {searchField}
-        <Field label="Assessment status">
-          <select value={assessmentStatus} onChange={(event) => setAssessmentStatus(event.target.value)}>
+        <Field label={student ? 'Assessment status' : 'Publication status'}>
+          <select value={currentFilter} onChange={(event) => (student ? setAssessmentStatus : setPublicationStatus)(event.target.value)}>
             <option value="all">Any status ({matches.length})</option>
-            {studentAssessmentGroups.map(([id, label]) => <option value={id} key={id}>{label} ({statusCounts[id]})</option>)}
+            {(student ? studentAssessmentGroups : publicationStatuses).map(([id, label]) => <option value={id} key={id}>
+              {label} ({student ? statusCounts[id] : matches.filter((quiz) => quiz.status === id).length})
+            </option>)}
           </select>
         </Field>
       </div>
       {bookmarkFilter}
       <div className="kq-assessment-filter-summary">
-        <p className="kq-note" role="status">{filtered.length} of {quizzes.length} assessments shown</p>
+        <p className="kq-note" role="status">{visibleQuizzes.length} of {quizzes.length} assessments shown</p>
         <button type="button" className="kq-button kq-button-secondary" disabled={!filtering} onClick={clearFilters}>Clear filters</button>
       </div>
-    </section> : <>{searchField}{bookmarkFilter}</>}
-    <div className="kq-grid">{filtered.map(({ quiz, status, group }) => {
+    </section>
+    <div className="kq-grid">{visibleQuizzes.map(({ quiz, status, group }) => {
+      if (!student) return <AdminAssessmentCard key={quiz.id} quiz={quiz} status={status} bookmarks={bookmarks}
+        busy={busy} readOnly={freeDemoReadOnly} onView={view} onAssign={assign} onStatus={changeStatus} onRemove={remove} />;
       const { ongoing, expired, paused, pausable, exhausted, closed, future, locked, label } = status;
-      return <article className="kq-card kq-assessment-card" data-assessment-group={student ? group : undefined} key={quiz.id}>
-        <div className="assessment-bookmark-heading"><div className="kq-actions"><span className={`kq-badge${student && (expired || paused) ? ' kq-badge-warning' : ''}`}>{student ? label : quiz.status}</span>{!student && <span className="kq-badge">{quiz.question_count} questions</span>}{quiz.stage && <span className="kq-badge">{quiz.stage === 'baseline' ? 'Baseline' : 'Follow-up'}</span>}</div><BookmarkButton assessment={quiz} bookmarks={bookmarks} /></div>
+      return <article className="kq-card kq-assessment-card" data-assessment-group={group} key={quiz.id}>
+        <div className="assessment-bookmark-heading"><div className="kq-actions"><span className={`kq-badge${expired || paused ? ' kq-badge-warning' : ''}`}>{label}</span>{quiz.stage && <span className="kq-badge">{quiz.stage === 'baseline' ? 'Baseline' : 'Follow-up'}</span>}</div><BookmarkButton assessment={quiz} bookmarks={bookmarks} /></div>
         <h2>{quiz.title}</h2><p>{quiz.description || 'Evaluate your digital literacy knowledge across selected categories.'}</p>
         {student && locked && <p className="kq-note">Complete {quiz.prerequisite_title || 'the baseline'} to unlock this assessment. No minimum baseline score is required.</p>}
         {student && paused && <p className="kq-note">Reconnect and resume to continue with your saved answers and remaining time.</p>}
@@ -150,20 +237,13 @@ export default function KnowledgeAssessments() {
           ? 'Time has ended. Your saved answers are still available.'
           : 'The timer continued while you were away. Your saved answers are kept; this attempt ended when time ran out.'}</p>}
         {student && (ongoing || expired) && Number.isInteger(quiz.latest_answered_count) && <p className="kq-note">{quiz.latest_answered_count} of {quiz.question_count} answers saved to the server.</p>}
-        {!student && quiz.auto_assign_verified === 1 && <p className="kq-note">Automatically assigned to current and newly verified students while published.</p>}
-        <div className="kq-note"><p><Clock3 size={13} className="inline" aria-hidden="true" /> {student && `${quiz.question_count} questions · `}{quiz.time_limit_minutes ? `${quiz.time_limit_minutes} minutes` : 'No time limit'} · Certificate at {quiz.pass_percentage}%</p><p>{student ? `${quiz.attempt_count}/${quiz.max_attempts} attempts used` : `${quiz.assigned_count} assigned · ${quiz.completed_count} submissions`}</p>{quiz.start_date && <p>Opens {displayDate(quiz.start_date)}</p>}{quiz.end_date && <p>Deadline {displayDate(quiz.end_date)}</p>}</div>
-        <div className="kq-actions">{student ? <>
+        <div className="kq-note"><p><Clock3 size={13} className="inline" aria-hidden="true" /> {quiz.question_count} questions · {quiz.time_limit_minutes ? `${quiz.time_limit_minutes} minutes` : 'No time limit'} · Certificate at {quiz.pass_percentage}%</p><p>{quiz.attempt_count}/{quiz.max_attempts} attempts used</p>{quiz.start_date && <p>Opens {displayDate(quiz.start_date)}</p>}{quiz.end_date && <p>Deadline {displayDate(quiz.end_date)}</p>}</div>
+        <div className="kq-actions">
           {ongoing ? <Link className="kq-button" to={`/respondent/knowledge/attempts/${quiz.latest_attempt_id}`}>{expired ? 'View saved attempt' : 'Resume assessment'}<ArrowRight size={15} aria-hidden="true" /></Link> : <button className="kq-button" disabled={freeDemoReadOnly || exhausted || closed || future} onClick={() => view(quiz)}>{quiz.attempt_count ? 'Take again' : 'View instructions'}</button>}
           {quiz.latest_status === 'completed' && <Link className="kq-button kq-button-secondary" to={`/respondent/knowledge/attempts/${quiz.latest_attempt_id}`}>{expired ? 'View saved result' : 'View result'}</Link>}
-        </> : <>
-          <button className="kq-button kq-button-secondary" onClick={() => view(quiz)}>View</button>
-          {quiz.status !== 'archived' && <button className="kq-button kq-button-secondary" disabled={busy || freeDemoReadOnly} onClick={() => changeStatus(quiz, quiz.status === 'published' ? 'draft' : 'published')}>{quiz.status === 'published' ? 'Unpublish' : 'Publish'}</button>}
-          <button className="kq-button kq-button-secondary" disabled={freeDemoReadOnly} onClick={() => { setAssignQuiz(quiz); setSelectedStudents([]); }}>Assign students</button>
-          <button className="kq-button kq-button-secondary" disabled={busy || freeDemoReadOnly || quiz.status === 'archived'} onClick={() => changeStatus(quiz, 'archived')}>Archive</button>
-          <button className="kq-button kq-button-danger" disabled={busy || freeDemoReadOnly} onClick={() => remove(quiz)}>Delete</button>
-        </>}</div>
+        </div>
       </article>;
-    })}</div>{!filtered.length && <Empty>{!quizzes.length
+    })}</div>{!visibleQuizzes.length && <Empty>{!quizzes.length
       ? student ? 'No knowledge assessments are assigned yet.' : questions.length ? 'No assessments yet. Create one from the scored question bank.' : 'Add scored questions to the question bank before creating an assessment.'
       : showBookmarks && !bookmarks.saved.length ? 'No bookmarks yet. Select Bookmark on an assessment to save it here.'
       : 'No assessments match these filters. Clear the filters or try a different search.'}</Empty>}
@@ -197,7 +277,7 @@ export default function KnowledgeAssessments() {
           : <><p className="kq-note">{preview.assigned_user_ids?.length} assigned students · Version {preview.snapshot?.version}</p><div className="kq-list">{preview.snapshot?.questions.map((question, index) => <div className="kq-question-row" key={question.id}><div><strong>{index + 1}. {question.prompt}</strong><p>{question.category_name} · {question.points} points</p></div></div>)}</div></>}
       </div>}
     </Modal></div>
-    <div className="kq-modal"><Modal isOpen={Boolean(assignQuiz)} onClose={() => setAssignQuiz(null)} title={`Assign students: ${assignQuiz?.title || ''}`}><div className="kq-form"><StudentPicker selected={selectedStudents} setSelected={setSelectedStudents} /><button className="kq-button" disabled={busy || !selectedStudents.length || freeDemoReadOnly} onClick={async () => { if (await run(() => api.post(`/knowledge/quizzes/${assignQuiz.id}/assign`, { user_ids: selectedStudents }), 'Students assigned.')) { setAssignQuiz(null); state.reload(); } }}>Assign selected students</button></div></Modal></div>
+    <div className="kq-modal"><Modal isOpen={Boolean(assignQuiz)} onClose={() => setAssignQuiz(null)} title={`Assign students: ${assignQuiz?.title || ''}`}><div className="kq-form"><StudentPicker selected={selectedStudents} setSelected={setSelectedStudents} assigned={assignQuiz?.assigned_user_ids} /><button className="kq-button" disabled={busy || !selectedStudents.length || freeDemoReadOnly} onClick={async () => { if (await run(() => api.post(`/knowledge/quizzes/${assignQuiz.id}/assign`, { user_ids: selectedStudents }), 'Students assigned.')) { setAssignQuiz(null); state.reload(); } }}>Assign selected students</button></div></Modal></div>
     {!student && <Link to={`${base}/results`} className="kq-note">Open student assessment results →</Link>}
   </KnowledgePage>;
 }

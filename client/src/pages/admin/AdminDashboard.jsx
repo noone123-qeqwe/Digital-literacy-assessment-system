@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Award, CheckCircle2, CircleAlert, ClipboardList, Clock3, Mail, RefreshCw, Users, BookOpen, HelpCircle, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Award, BookOpen, CheckCircle2, CircleAlert, ClipboardList, Clock3, FileText, HelpCircle, Mail, RefreshCw, ShieldCheck, Users } from 'lucide-react';
 import toast from 'react-hot-toast';
 import api from '../../api/axios';
 import { useAuth } from '../../contexts/useAuth';
@@ -10,6 +10,13 @@ import { displayDate } from '../knowledge/knowledgeClient';
 import '../knowledge/Knowledge.css';
 
 const tabs = [['overview', 'Overview'], ['research', 'Research outcomes'], ['status', 'System readiness']];
+const shortcuts = [
+  { Icon: FileText, label: 'Review drafts', detail: 'Unpublished knowledge assessments', path: '/admin/knowledge?status=draft' },
+  { Icon: ClipboardList, label: 'Published assessments', detail: 'Review assessments and manage assignments', path: '/admin/knowledge?status=published' },
+  { Icon: HelpCircle, label: 'Question bank', detail: 'Questions and answer keys', path: '/admin/knowledge/questions' },
+  { Icon: Users, label: 'Manage users', detail: 'Accounts, roles and access', path: '/admin/users' },
+  { Icon: BookOpen, label: 'Learning materials', detail: 'Resources for all eight categories', path: '/admin/materials' },
+];
 const levelColors = ['#006b3c', '#0e7490', '#7c3aed', '#b45309', '#e11d48'];
 const activityLabels = {
   knowledge_attempt_complete: 'Assessment completed', knowledge_attempt_start: 'Assessment started',
@@ -80,21 +87,30 @@ export default function AdminDashboard() {
     return `${levelColors[index % levelColors.length]} ${start}% ${start + (total ? entry.count / total * 100 : 0)}%`;
   });
   return <div className="admin-home admin-stack">
-    <header className="admin-page-heading"><div><p className="admin-eyebrow">Administration / Dashboard</p><h1>Welcome back, {user?.first_name || 'Administrator'}</h1><p>Welcome to the Digital Literacy Assessment System!</p></div><div className="admin-actions"><button className="admin-button admin-button-secondary" onClick={refresh} disabled={loading}><RefreshCw size={16} className={loading ? 'animate-spin' : ''} aria-hidden="true" />{loading ? 'Refreshing…' : 'Refresh'}</button><Link className="admin-button" to="/admin/knowledge">Manage assessments <ArrowRight size={16} aria-hidden="true" /></Link></div></header>
+    <header className="admin-page-heading"><div><p className="admin-eyebrow">Administration / Dashboard</p><h1>Welcome back, {user?.first_name || 'Administrator'}</h1><p>Manage assessments and track student submissions.</p></div><div className="admin-actions"><button className="admin-button admin-button-secondary" onClick={refresh} disabled={loading}><RefreshCw size={16} className={loading ? 'animate-spin' : ''} aria-hidden="true" />{loading ? 'Refreshing…' : 'Refresh'}</button><Link className="admin-button" to="/admin/knowledge">Manage assessments <ArrowRight size={16} aria-hidden="true" /></Link></div></header>
     <div className="admin-tab-bar"><div className="admin-tabs" role="tablist" aria-label="Dashboard views">{tabs.map(([id, label], index) => <button key={id} ref={(element) => { tabRefs.current[index] = element; }} role="tab" id={`admin-tab-${id}`} aria-controls={`admin-panel-${id}`} aria-selected={tab === id} tabIndex={tab === id ? 0 : -1} onClick={() => setTab(id)} onKeyDown={(event) => onTabKey(event, index)}>{label}{id === 'status' && readiness?.checks?.some((check) => !check.ready) && <span className="admin-status-dot" aria-label="Outstanding setup checks" />}</button>)}</div><p className="admin-updated" role="status">{loading ? 'Updating overview…' : updatedAt ? `Updated ${updatedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : ''}</p></div>
     <div role="tabpanel" id={`admin-panel-${tab}`} aria-labelledby={`admin-tab-${tab}`} tabIndex={0} className="admin-stack admin-tab-panel">
       {tab === 'overview' && <>
         {error && <AdminNotice tone="error" action={<button className="admin-button admin-button-secondary" onClick={refresh} disabled={loading}>Try again</button>}>{error}{overview && ' Showing the last available data.'}</AdminNotice>}
+        <AdminPanel title="Quick actions">
+          <nav className="admin-shortcuts grid-cols-1 sm:grid-cols-2 xl:grid-cols-3" aria-label="Administration shortcuts">
+            {shortcuts.map(({ Icon, label, detail, path }) => <Link key={path} to={path}>
+              <span><Icon size={20} aria-hidden="true" /></span>
+              <div><strong>{label}</strong><p>{detail}</p></div>
+              <ArrowRight size={17} aria-hidden="true" />
+            </Link>)}
+          </nav>
+        </AdminPanel>
         {loading && !overview ? <div className="admin-metrics" role="status" aria-label="Loading overview">{Array.from({ length: 5 }, (_, index) => <div key={index} className="admin-metric admin-skeleton"><span /><strong /><span /></div>)}</div> : overview && <>
           <section className="admin-metrics" aria-label="Knowledge assessment summary"><AdminMetric label="Registered students" value={summary.registeredStudents ?? 0} detail="Student accounts" icon={Users} /><AdminMetric label="Assessments" value={summary.totalAssessments ?? 0} detail="Knowledge assessments" icon={ClipboardList} tone="violet" /><AdminMetric label="Completed" value={summary.completed ?? 0} detail="Submitted assessments" icon={CheckCircle2} tone="teal" /><AdminMetric label="Pending" value={summary.pending ?? 0} detail="Outstanding assignments" icon={Clock3} tone="amber" /><AdminMetric label="Average score" value={summary.average == null ? '—' : `${summary.average}%`} detail="Scored knowledge results" icon={Award} /></section>
           <div className="admin-overview-grid"><AdminPanel title="Category performance" description="Points earned across completed knowledge assessments." eyebrow="Learning insights" action={<Link className="admin-text-link" to="/admin/analytics">Reports <ArrowRight size={16} aria-hidden="true" /></Link>}>
-            {categories.length ? <div className="admin-category-bars">{categories.map((category, index) => <div key={category.id}><div><span className="admin-category-number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span><span>{category.name}</span><strong>{category.percentage}%</strong></div><meter min="0" max="100" value={category.percentage} aria-label={`${category.name}: ${category.percentage}%`} /></div>)}</div> : <AdminEmpty title="Your first insights start here" description="Category performance will appear when a student completes a knowledge assessment." action={<Link className="admin-button admin-button-secondary" to="/admin/knowledge">View assessments</Link>} />}
+            {categories.length ? <div className="admin-category-bars">{categories.map((category, index) => <div key={category.id}><div><span className="admin-category-number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span><span>{category.name}</span><strong>{category.percentage}%</strong></div><meter min="0" max="100" value={category.percentage} aria-label={`${category.name}: ${category.percentage}%`} /></div>)}</div> : <AdminEmpty title="No category results yet" description="Category performance will appear when a student completes a knowledge assessment." />}
           </AdminPanel><AdminPanel title="Digital literacy levels" description="Proficiency across completed student-assessment results." eyebrow="Achievement overview">
             <div className="admin-distribution"><div className="admin-donut" role="img" aria-label={`${total} completed results. Proficiency counts are listed below.`} style={{ background: total ? `conic-gradient(${stops.join(',')})` : '#e2ece6' }}><div><strong>{total}</strong><span>completed results</span></div></div><ul>{distribution.map((entry, index) => <li key={entry.level}><i style={{ background: levelColors[index % levelColors.length] }} aria-hidden="true" /><span>{entry.level}</span><strong>{entry.count}</strong></li>)}</ul></div><Link className="admin-button admin-button-secondary admin-full-width" to="/admin/progress">View student progress <ArrowRight size={16} aria-hidden="true" /></Link>
           </AdminPanel></div>
-          <div className="admin-overview-grid"><AdminPanel title="Recent activity" description="Latest recorded actions across your system." action={<Link className="admin-text-link" to="/admin/results">Results <ArrowRight size={16} aria-hidden="true" /></Link>}>
+          <AdminPanel title="Recent activity" action={<Link className="admin-text-link" to="/admin/results">Results <ArrowRight size={16} aria-hidden="true" /></Link>}>
             {overview.activities?.length ? <ul className="admin-activity-list">{overview.activities.slice(0, 5).map((entry, index) => <li key={entry.id || index}><span className="admin-activity-icon"><CheckCircle2 size={16} aria-hidden="true" /></span><div><strong>{entry.first_name ? `${entry.first_name} ${entry.last_name}` : 'System activity'}</strong><p>{activityLabel(entry.action)}</p></div><time>{displayDate(entry.created_at)}</time></li>)}</ul> : <AdminEmpty title="No recent activity" description="Student and administrator activity will appear here as the system is used." />}
-          </AdminPanel><AdminPanel title="Quick actions" description="Keep your people and learning content up to date."><div className="admin-shortcuts">{[[Users, 'Manage users', 'Accounts, roles and access', '/admin/users'], [HelpCircle, 'Question bank', 'Questions and answer keys', '/admin/knowledge/questions'], [BookOpen, 'Learning materials', 'Resources for all eight categories', '/admin/materials']].map(([Icon, title, detail, path]) => <Link key={path} to={path}><span><Icon size={20} aria-hidden="true" /></span><div><strong>{title}</strong><p>{detail}</p></div><ArrowRight size={17} aria-hidden="true" /></Link>)}</div></AdminPanel></div>
+          </AdminPanel>
           <p className="admin-footnote">Knowledge quiz scores use percentages. Open Research outcomes for the original DigComp self-reflection results.</p>
         </>}
       </>}
