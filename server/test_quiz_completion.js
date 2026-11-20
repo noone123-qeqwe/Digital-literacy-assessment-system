@@ -255,6 +255,39 @@ async function run() {
       && (await request('/quizzes/' + whitespaceFollowupId + '/start', whitespaceStudent, 'POST', { accepted_instructions: true })).status === 409
       && db.prepare('SELECT answer FROM quiz_responses WHERE attempt_id=? AND question_id=?').get(whitespaceAttemptId, questionIds[2]).answer === blankAnswer,
     'tabs, newlines and Unicode-only whitespace remain saved but never count as answered or unlock a follow-up after expiry');
+
+    const archive = await request('/quizzes', admin, 'POST', {
+      ...configuration, question_ids: [questionIds[2]], title: 'Archive with work in progress',
+    });
+    assert.equal(archive.status, 201);
+    const archivePath = '/quizzes/' + archive.data.data.id;
+    const archiveFirst = await request(archivePath + '/start', normal, 'POST', { accepted_instructions: true });
+    const archiveSecond = await request(archivePath + '/start', interrupted, 'POST', { accepted_instructions: true });
+    assert.equal(archiveFirst.status, 200);
+    assert.equal(archiveSecond.status, 200);
+    const firstPath = '/attempts/' + archiveFirst.data.data.attempt.id;
+    const secondPath = '/attempts/' + archiveSecond.data.data.attempt.id;
+    const archiveAnswer = { expected_revision: 0, responses: [{ question_id: questionIds[2], answer: 'example' }] };
+    assert.equal((await request(firstPath + '/answers', normal, 'PUT', archiveAnswer)).status, 200);
+    assert.equal((await request(firstPath + '/submit', normal, 'POST', {})).status, 200);
+    assert.equal((await request(archivePath + '/status', admin, 'PUT', { status: 'archived' })).status, 200);
+
+    const archivedReview = await request(firstPath, normal);
+    check(archivedReview.data.data.answer_key_released === false
+      && archivedReview.data.data.results.percentage === 100
+      && (await request('/overview', normal)).data.data.history.some(row => row.id === archiveFirst.data.data.attempt.id),
+    'archiving preserves the saved result and keeps detailed review locked while another attempt is open');
+    const archivedResume = await request(archivePath + '/start', interrupted, 'POST', {});
+    check(archivedResume.status === 200 && archivedResume.data.data.attempt.id === archiveSecond.data.data.attempt.id
+      && archivedResume.data.data.attempt.deadline === archiveSecond.data.data.attempt.deadline
+      && (await request(archivePath + '/start', unrelated, 'POST', { accepted_instructions: true })).status === 409,
+    'an archived assessment lets an existing attempt resume with its original deadline and closes new starts');
+    assert.equal((await request(secondPath + '/answers', interrupted, 'PUT', archiveAnswer)).status, 200);
+    const archivedCompletion = await request(secondPath + '/submit', interrupted, 'POST', {});
+    check(archivedCompletion.status === 200 && archivedCompletion.data.data.results.percentage === 100
+      && (await request(firstPath, normal)).data.data.answer_key_released === true,
+    'the last open attempt can finish and detailed review becomes available afterward');
+
     console.log('Quiz-completion checks: ' + passed + ' passed, 0 failed');
   } finally {
     server.closeAllConnections?.();

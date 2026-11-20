@@ -25,6 +25,11 @@ function uploadWasAcknowledged(upload, data) {
   return upload && data.attempt.answers_revision === upload.baseRevision + 1 && answersMatch(upload.answers, savedAnswers(data.responses));
 }
 
+function deadlinePassed(record) {
+  const { deadline } = record.data.attempt;
+  return Boolean(deadline && Date.now() + (record.clockOffset || 0) >= Date.parse(deadline));
+}
+
 export default function KnowledgeAttemptRoute() {
   const { attemptId } = useParams();
   return <KnowledgeAttempt key={attemptId} attemptId={Number(attemptId)} />;
@@ -72,12 +77,16 @@ function KnowledgeAttempt({ attemptId }) {
         await writes.current;
         const record = latest.current;
         if (!active.current || record.data.attempt.status === 'completed' || record.conflict) return false;
+        if (deadlinePassed(record)) {
+          setSyncStatus('Time has ended. Only answers received before the deadline can be scored.');
+          return false;
+        }
         const batch = record.unconfirmedUpload || { baseRevision: record.baseRevision, revision: record.revision, answers: record.answers };
         if (!record.unconfirmedUpload) {
           latest.current = { ...record, unconfirmedUpload: batch };
           await persist(latest.current);
         }
-        if (!active.current || !navigator.onLine) return false;
+        if (!active.current || !navigator.onLine || deadlinePassed(record)) return false;
         try {
           setSyncStatus('Saving answers to the server…');
           let baseRevision;
@@ -141,19 +150,24 @@ function KnowledgeAttempt({ attemptId }) {
   useEffect(() => {
     active.current = true;
     let cancelled = false;
-    const load = async () => {
-      let backup;
-      if (canAnswer) {
+    let refreshOnReconnect = false;
+    const load = async (refreshing = false) => {
+      const currentDraft = refreshing ? latest.current : null;
+      let backup = currentDraft;
+      if (canAnswer && !refreshing) {
         try { backup = await readQuizRecovery(user.id, attemptId); }
         catch (failure) { if (!cancelled) setStorageError(failure.message); }
       }
       try {
         const response = await api.get(`/knowledge/attempts/${attemptId}`);
-        if (cancelled) return;
+        if (cancelled || (refreshing && latest.current !== currentDraft)) return;
+        refreshOnReconnect = false;
         const loaded = response.data.data;
         const serverAnswers = savedAnswers(loaded.responses);
         if (loaded.attempt.status === 'completed') {
-          if (backup?.pending && !answersMatch(backup.answers, serverAnswers)) setRetainedDraft(backup);
+          const unsynced = Boolean(backup?.pending && !answersMatch(backup.answers, serverAnswers));
+          if (latest.current) latest.current = { ...latest.current, data: loaded, pending: unsynced };
+          if (unsynced) setRetainedDraft(backup);
           else if (canAnswer) await clearQuizRecovery(user.id, attemptId).catch(() => {});
           setData(loaded); setAnswers(serverAnswers); return;
         }
@@ -172,14 +186,25 @@ function KnowledgeAttempt({ attemptId }) {
       } catch (failure) {
         if (cancelled) return;
         // Authorization failures never reveal a cached assessment.
+        if (refreshing && !failure.response) return;
         if (backup && !failure.response && canAnswer && backup.userId === user.id && backup.attemptId === attemptId) {
+          refreshOnReconnect = true;
           latest.current = backup; setData(backup.data); setAnswers(backup.answers); setPending(backup.pending); setClockOffset(backup.clockOffset || 0); setConflict(Boolean(backup.conflict)); setSyncStatus('Recovered on this device. Reconnect to synchronize before submitting.');
         } else setError(failure.response?.data?.message || 'Could not load this assessment. Reconnect and try again.');
       } finally { if (!cancelled) setLoading(false); }
     };
     void load();
-    const connected = () => { automaticSubmit.current = false; setOnline(true); void sync(); };
-    const disconnected = () => { setOnline(false); setSyncStatus('Offline. New responses remain on this device until uploaded.'); };
+    const connected = () => {
+      automaticSubmit.current = false;
+      setOnline(true);
+      if (refreshOnReconnect && !latest.current?.pending) void load(true);
+      else void sync();
+    };
+    const disconnected = () => {
+      refreshOnReconnect = true;
+      setOnline(false);
+      setSyncStatus('Offline. New responses remain on this device until uploaded.');
+    };
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     const visible = () => { setNow(Date.now()); if (navigator.onLine) void sync(); };
     const beforeUnload = (event) => { if (latest.current?.pending) { event.preventDefault(); event.returnValue = ''; } };
@@ -297,7 +322,7 @@ function KnowledgeAttempt({ attemptId }) {
   }, [monitoring, logIntegrity]);
 
   const answer = (value) => {
-    if (!latest.current || expired || submitting) return;
+    if (!latest.current || latest.current.data.attempt.status !== 'in_progress' || deadlinePassed(latest.current) || submitting) return;
     const next = { ...latest.current.answers, [data.snapshot.questions[index].id]: value };
     const record = { ...latest.current, answers: next, revision: latest.current.revision + 1, pending: true };
     latest.current = record; setAnswers(next); setPending(true); setSyncStatus('Saving a recovery copy on this device…');

@@ -119,6 +119,96 @@ describe('student assessment answers', () => {
     expect(await screen.findByText('All answers saved to the server')).toBeInTheDocument();
     expect(screen.getByRole('radio', { name: 'Calculator' })).toBeChecked();
   });
+
+  it('recovers an answer after reopening offline and uploads it on reconnection', async () => {
+    const attempt = answerFixture();
+    let online = true;
+    let stored = null;
+    vi.spyOn(window.navigator, 'onLine', 'get').mockImplementation(() => online);
+    vi.spyOn(recovery, 'readQuizRecovery').mockImplementation(async () => stored);
+    vi.spyOn(recovery, 'writeQuizRecovery').mockImplementation(async (userId, attemptId, record) => {
+      stored = structuredClone({ ...record, userId, attemptId });
+    });
+    vi.spyOn(api, 'get').mockResolvedValueOnce({ data: { data: attempt } }).mockRejectedValueOnce(new Error('Network offline'));
+    vi.spyOn(api, 'post').mockResolvedValue({ data: { data: { recorded: true } } });
+    const put = vi.spyOn(api, 'put').mockResolvedValue({ data: { data: { answers_revision: 1 } } });
+    const original = openStudentAttempt();
+
+    const answer = await screen.findByRole('radio', { name: 'Firefox' });
+    online = false;
+    fireEvent(window, new Event('offline'));
+    fireEvent.click(answer);
+    expect(await screen.findByText(/saved on this device. reconnect/i)).toBeInTheDocument();
+    expect(put).not.toHaveBeenCalled();
+    original.unmount();
+
+    openStudentAttempt();
+    expect(await screen.findByRole('radio', { name: 'Firefox' })).toBeChecked();
+    expect(screen.getByText(/recovered on this device/i)).toBeInTheDocument();
+    online = true;
+    fireEvent(window, new Event('online'));
+    expect(await screen.findByText('All answers saved to the server')).toBeInTheDocument();
+    expect(put).toHaveBeenCalledExactlyOnceWith('/knowledge/attempts/23/answers', {
+      expected_revision: 0,
+      responses: [{ question_id: 11, answer: 'browser' }],
+    });
+    expect(stored).toMatchObject({ pending: false, baseRevision: 1, answers: { 11: 'browser' } });
+  });
+
+  it('keeps answers saved only by the other session when a student keeps local responses', async () => {
+    const attempt = answerFixture();
+    const later = { ...attempt, attempt: { ...attempt.attempt, answers_revision: 1 },
+      responses: [{ question_id: 11, answer: 'other' }, { question_id: 12, answer: 'true' }] };
+    vi.spyOn(recovery, 'readQuizRecovery').mockResolvedValue({
+      userId: 12, attemptId: 23, data: attempt, answers: { 11: 'browser' }, pending: true, baseRevision: 0, revision: 1,
+    });
+    vi.spyOn(recovery, 'writeQuizRecovery').mockResolvedValue();
+    vi.spyOn(api, 'get').mockResolvedValue({ data: { data: later } });
+    vi.spyOn(api, 'post').mockResolvedValue({ data: { data: { recorded: true } } });
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const put = vi.spyOn(api, 'put').mockResolvedValue({ data: { data: { answers_revision: 2 } } });
+    openStudentAttempt();
+
+    expect(await screen.findByText('Answers changed in another tab or device')).toBeInTheDocument();
+    expect(put).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Keep this device’s answers' }));
+    expect(await screen.findByText('All answers saved to the server')).toBeInTheDocument();
+    expect(put).toHaveBeenCalledExactlyOnceWith('/knowledge/attempts/23/answers', {
+      expected_revision: 1,
+      responses: [{ question_id: 11, answer: 'browser' }, { question_id: 12, answer: 'true' }],
+    });
+    expect(screen.getByRole('radio', { name: 'Firefox' })).toBeChecked();
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }));
+    expect(screen.getByRole('radio', { name: 'True' })).toBeChecked();
+  });
+
+  it('refreshes a recovered attempt that was completed on another device while offline', async () => {
+    const attempt = answerFixture();
+    const serverData = { ...attempt,
+      attempt: { ...attempt.attempt, status: 'completed', completion_reason: 'submitted', completed_at: new Date().toISOString() },
+      responses: [{ question_id: 11, answer: 'browser' }, { question_id: 12, answer: 'true' }, { question_id: 13, answer: 'CSV' }],
+      results: { earned: 3, possible: 3, percentage: 100, level: 'Advanced', categories: [], questions: [] },
+    };
+    let online = false;
+    vi.spyOn(window.navigator, 'onLine', 'get').mockImplementation(() => online);
+    vi.spyOn(recovery, 'readQuizRecovery').mockResolvedValue({
+      userId: 12, attemptId: 23, data: attempt, answers: {}, pending: false, baseRevision: 0, revision: 0,
+    });
+    vi.spyOn(recovery, 'clearQuizRecovery').mockResolvedValue();
+    const get = vi.spyOn(api, 'get').mockRejectedValueOnce(new Error('Network offline')).mockResolvedValueOnce({ data: { data: serverData } });
+    const put = vi.spyOn(api, 'put').mockResolvedValue({});
+    const post = vi.spyOn(api, 'post').mockResolvedValue({});
+    openStudentAttempt();
+
+    expect(await screen.findByText(/recovered on this device/i)).toBeInTheDocument();
+    online = true;
+    fireEvent(window, new Event('online'));
+    expect(await screen.findByText('Assessment submitted', { exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    expect(get).toHaveBeenCalledTimes(2);
+    expect(put).not.toHaveBeenCalled();
+    expect(post).not.toHaveBeenCalled();
+  });
 });
 
 describe('saved assessment result reason', () => {
@@ -155,6 +245,40 @@ describe('saved assessment result reason', () => {
     fireEvent.click(retry);
     expect(await screen.findByText('Time expired', { exact: true })).toBeInTheDocument();
     expect(post).toHaveBeenCalledTimes(2);
+  });
+
+  it('scores server answers and retains the local copy when reconnecting after the deadline', async () => {
+    const fixture = answerFixture();
+    const responses = [{ question_id: 11, answer: 'browser' }];
+    const expired = { ...fixture, responses, attempt: { ...fixture.attempt, answers_revision: 1, deadline: new Date(Date.now() - 5000).toISOString() } };
+    vi.spyOn(recovery, 'readQuizRecovery').mockResolvedValue({
+      userId: 12, attemptId: 23, data: expired, answers: { 11: 'browser', 12: 'true' }, pending: true, baseRevision: 1, revision: 2,
+    });
+    vi.spyOn(recovery, 'writeQuizRecovery').mockResolvedValue();
+    const clear = vi.spyOn(recovery, 'clearQuizRecovery').mockResolvedValue();
+    vi.spyOn(api, 'get').mockRejectedValueOnce(new Error('Network offline'));
+    const put = vi.spyOn(api, 'put').mockRejectedValue({ response: { status: 410 } });
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ data: { data: {
+      ...expired,
+      attempt: { ...expired.attempt, status: 'completed', completion_reason: 'time_expired', completed_at: new Date().toISOString() },
+      results: { earned: 1, possible: 3, percentage: 33.33, level: 'Needs Improvement', categories: [], questions: [] },
+    } } });
+    let online = false;
+    vi.spyOn(window.navigator, 'onLine', 'get').mockImplementation(() => online);
+    openStudentAttempt();
+
+    expect(await screen.findByText(/time has ended. reconnect/i)).toBeInTheDocument();
+    expect(screen.getByRole('radio', { name: 'Firefox' })).toBeDisabled();
+    expect(post).not.toHaveBeenCalled();
+    online = true;
+    fireEvent(window, new Event('online'));
+
+    expect(await screen.findByText('Time expired', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText(/1 of 3 answers reached the server/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Download local recovery copy' })).toBeInTheDocument();
+    expect(post).toHaveBeenCalledExactlyOnceWith('/knowledge/attempts/23/submit');
+    expect(put).not.toHaveBeenCalled();
+    expect(clear).not.toHaveBeenCalled();
   });
 
   it('withholds accepted answers and renders locked review safely while showing integrity signals to staff', async () => {
