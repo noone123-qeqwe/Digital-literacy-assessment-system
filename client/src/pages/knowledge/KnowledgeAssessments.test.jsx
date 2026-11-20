@@ -1,6 +1,6 @@
 import React from 'react';
-import { fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from '../../api/axios';
 import { AuthContext } from '../../contexts/AuthContextStore';
@@ -10,10 +10,14 @@ const now = Date.parse('2030-01-01T12:00:00Z');
 const base = { id: 7, title: 'Interrupted assessment', description: 'A saved assessment attempt.', status: 'published',
   question_count: 12, time_limit_minutes: 15, max_attempts: 1, pass_percentage: 80,
   attempt_count: 1, latest_attempt_id: 23, latest_answered_count: 3 };
-function renderAssessment(changes) {
-  vi.spyOn(api, 'get').mockImplementation(async path => ({ data: { data: path === '/bookmarks' ? { knowledge: [] } : [{ ...base, ...changes }] } }));
+function CurrentAssessmentQuery() {
+  return <output data-testid="assessment-query">{useLocation().search}</output>;
+}
+
+function renderAssessment(changes, { records = [{ ...base, ...changes }], bookmarked = [], location = '/respondent/knowledge' } = {}) {
+  vi.spyOn(api, 'get').mockImplementation(async path => ({ data: { data: path === '/bookmarks' ? { knowledge: bookmarked } : records } }));
   render(<AuthContext.Provider value={{ user: { id: 12, role: 'respondent' } }}>
-    <MemoryRouter initialEntries={['/respondent/knowledge']}><Routes>
+    <MemoryRouter initialEntries={[location]}><CurrentAssessmentQuery /><Routes>
       <Route path="/respondent/knowledge" element={<KnowledgeAssessments />} />
       <Route path="/respondent/knowledge/attempts/:id" element={<p>Saved attempt opened</p>} />
     </Routes></MemoryRouter>
@@ -110,5 +114,57 @@ describe('assessment interruption status', () => {
     expect(assessment.queryByText('Completed', { exact: true })).not.toBeInTheDocument();
     expect(assessment.queryByText('Submitted', { exact: true })).not.toBeInTheDocument();
     expect(assessment.getByRole('button', { name: 'Take again' })).toBeDisabled();
+  });
+});
+
+describe('finding student assessments', () => {
+  beforeEach(() => { vi.spyOn(Date, 'now').mockReturnValue(now); });
+
+  it('prioritizes unfinished work and combines status, search and bookmarks', async () => {
+    renderAssessment({}, { records: [
+      { ...base, id: 1, title: 'Ready media assessment', attempt_count: 0 },
+      { ...base, id: 2, title: 'Paused communication assessment', latest_status: 'in_progress', latest_deadline: '2030-01-01T12:03:00Z', latest_timer_lease_until: '2030-01-01T11:55:00Z' },
+      { ...base, id: 3, title: 'Submitted media assessment', latest_status: 'completed', latest_completion_reason: 'submitted' },
+    ], bookmarked: [1, 2] });
+
+    await screen.findByRole('heading', { name: 'Ready media assessment' });
+    expect(within(screen.getAllByRole('article')[0]).getByRole('heading')).toHaveTextContent('Paused communication assessment');
+    const filters = within(screen.getByRole('region', { name: 'Find an assessment' }));
+    fireEvent.change(filters.getByRole('combobox', { name: 'Assessment status' }), { target: { value: 'ready' } });
+    expect(screen.getByRole('heading', { name: 'Ready media assessment' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Paused communication assessment' })).not.toBeInTheDocument();
+    expect(filters.getByRole('status')).toHaveTextContent('1 of 3 assessments shown');
+
+    fireEvent.click(filters.getByRole('button', { name: /bookmarked/i }));
+    fireEvent.change(filters.getByRole('searchbox', { name: 'Search assessments' }), { target: { value: 'communication' } });
+    expect(screen.getByText('No assessments match these filters. Clear the filters or try a different search.')).toBeInTheDocument();
+    expect(filters.getByRole('option', { name: 'In progress or paused (1)' })).toBeInTheDocument();
+    fireEvent.change(filters.getByRole('combobox', { name: 'Assessment status' }), { target: { value: 'in_progress' } });
+    expect(screen.getByRole('link', { name: 'Resume assessment' })).toBeInTheDocument();
+
+    fireEvent.click(filters.getByRole('button', { name: 'Clear filters' }));
+    expect(filters.getByRole('status')).toHaveTextContent('3 of 3 assessments shown');
+    expect(screen.getByRole('link', { name: 'View result' })).toBeInTheDocument();
+  });
+
+  it('opens instructions from the dashboard and consumes only the assessment query', async () => {
+    const start = vi.spyOn(api, 'post').mockResolvedValue({});
+    renderAssessment({ attempt_count: 0 }, { records: [{ ...base, attempt_count: 0 }], location: '/respondent/knowledge?assessment=7&source=dashboard' });
+
+    const instructions = within(await screen.findByRole('dialog', { name: base.title }));
+    expect(instructions.getByRole('button', { name: 'Begin assessment' })).toBeDisabled();
+    await waitFor(() => expect(screen.getByTestId('assessment-query')).toHaveTextContent('?source=dashboard'));
+    fireEvent.click(instructions.getByRole('button', { name: 'Close dialog' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it('leaves the list open when a dashboard link names a locked assessment', async () => {
+    renderAssessment({}, { records: [{ ...base, attempt_count: 0, prerequisite_quiz_id: 99 }], location: '/respondent/knowledge?assessment=7' });
+
+    await screen.findByRole('heading', { name: base.title });
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText('Complete baseline first', { exact: true })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('assessment-query')).toBeEmptyDOMElement());
   });
 });

@@ -68,9 +68,9 @@
   .dlas-student-dashboard .dashboard-welcome-art .character-position { inset: 0; }
   .dlas-student-dashboard .dashboard-welcome h1 { font-size: 28px; }
   .dlas-student-dashboard .dashboard-profile-prompt { min-height: 44px; max-width: 150px; align-content: center; }
-  .dashboard-mobile-shortcuts { order: 2; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .dashboard-mobile-shortcuts { order: 3; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
   .dashboard-mobile-shortcuts a { display: grid; min-height: 78px; align-content: center; justify-items: center; gap: 8px; border: 1px solid #d5e4db; border-radius: 16px; background: #fff; color: #005a32; font-size: 13px; font-weight: 650; }
-  .dlas-student-dashboard .kq-student-pulse { order: 3; gap: 10px; }
+  .dlas-student-dashboard .kq-student-pulse { order: 2; gap: 10px; }
   .dlas-student-dashboard .dashboard-next { order: 4; }
   .dlas-student-dashboard .dashboard-stats { order: 5; }
   .dlas-student-dashboard .dashboard-performance { order: 6; }

@@ -153,7 +153,7 @@ export const RespondentDashboard = () => {
   const latestLevel = latestIsDigCompSat ? 'Self-reflection' : getProficiencyLevel(latestResult?.overall_mean).label;
   const awardsAvailable = demoStatusAvailable && !freeDemoReadOnly;
   const stats = [
-    { label: 'Active assessments', value: pendingAssessments.length, Icon: ClipboardList, tone: 'green', path: '/respondent/assessments' },
+    { label: 'Active questionnaires', value: pendingAssessments.length, Icon: ClipboardList, tone: 'green', path: '/respondent/assessments' },
     { label: 'Completed attempts', value: completedAttempts.length, Icon: CheckCircle2, tone: 'teal', path: '#dashboard-history' },
     { label: 'Completion awards', value: awardsAvailable ? completedAttempts.length : 0, Icon: Award, tone: 'gold', path: latestResult ? `/respondent/assessments/${latestResult.id}/results` : '/respondent/assessments' },
   ];
@@ -183,9 +183,9 @@ export const RespondentDashboard = () => {
           <div className="dashboard-welcome-copy">
             <p className="dashboard-eyebrow">Masbate Colleges</p>
             <h1 id="student-welcome">Hello, {user?.first_name || 'student'}!</h1>
-            <p>Keep building your digital confidence. Your next step starts here.</p>
-            <Link className="dashboard-welcome-action" to={nextPath}>
-              {nextAssessment && !isScheduled ? nextAction : 'Explore assessments'}
+            <p>Take a knowledge assessment or continue a saved attempt.</p>
+            <Link className="dashboard-welcome-action" to="/respondent/knowledge">
+              Browse assessments
               <ArrowRight aria-hidden="true" size={17} />
             </Link>
             {profileCompletion < 100 && <Link to="/respondent/profile" className="dashboard-profile-prompt">Complete your profile · {profileCompletion}%</Link>}
@@ -211,15 +211,14 @@ export const RespondentDashboard = () => {
         </section>}
       </div>
 
+      <KnowledgePulse student now={currentTime} />
       <nav className="dashboard-mobile-shortcuts" aria-label="Learning shortcuts">
         <Link to="/respondent/materials"><BookOpen aria-hidden="true" size={21} /><span>Learn</span></Link>
         <Link to="/respondent/progress"><TrendingUp aria-hidden="true" size={21} /><span>Progress</span></Link>
         <Link to="/respondent/certificates"><Award aria-hidden="true" size={21} /><span>Awards</span></Link>
       </nav>
-      <KnowledgePulse student />
-
       {hasResearch && <>
-      <section aria-label="Assessment overview" className="dashboard-stats">
+      <section aria-label="Research questionnaire overview" className="dashboard-stats">
         {stats.map(({ label, value, Icon, tone, path }, index) => (
           <Link key={label} to={path}
             onClick={path === '#dashboard-history' ? (event) => {
@@ -239,7 +238,7 @@ export const RespondentDashboard = () => {
       <div className="dashboard-insights">
         <section className="dashboard-card dashboard-activity dashboard-enter" aria-labelledby="dashboard-activity">
           <div className="dashboard-panel-heading">
-            <h2 id="dashboard-activity">Assessment activity</h2>
+            <h2 id="dashboard-activity">Research activity</h2>
             <label><span className="sr-only">Activity period</span>
               <select value={activityDays} onChange={(event) => setActivityDays(Number(event.target.value))}>
                 <option value={7}>Last 7 days</option><option value={14}>Last 14 days</option>
@@ -279,7 +278,7 @@ export const RespondentDashboard = () => {
         </section>
 
         <section className="dashboard-card dashboard-progress dashboard-enter" aria-labelledby="dashboard-progress">
-          <div className="dashboard-panel-heading"><h2 id="dashboard-progress">My progress</h2></div>
+          <div className="dashboard-panel-heading"><h2 id="dashboard-progress">Research progress</h2></div>
           <div className="dashboard-progress-body">
             <DashboardRing values={[progressCounts.completed, progressCounts.inProgress, progressCounts.remaining]} colors={['#006b3c', '#7abfa3', '#e9be5c']} label={`${completionPercent}% complete. ${progressCounts.completed} completed, ${progressCounts.inProgress} in progress, ${progressCounts.remaining} remaining assessments.`} animate={!reducedMotion}>
               <strong>{completionPercent}%</strong><span>completed</span>
@@ -296,7 +295,7 @@ export const RespondentDashboard = () => {
 
       <div className="dashboard-bottom-grid">
         <section className="dashboard-card dashboard-next dashboard-enter" aria-labelledby="dashboard-next">
-          <div className="dashboard-panel-heading"><h2 id="dashboard-next">Up next</h2><Link to="/respondent/assessments" className="dashboard-text-link">View all <ArrowRight aria-hidden="true" size={14} /></Link></div>
+          <div className="dashboard-panel-heading"><h2 id="dashboard-next">Research questionnaires</h2><Link to="/respondent/assessments" className="dashboard-text-link">View all <ArrowRight aria-hidden="true" size={14} /></Link></div>
           {nextAssessment ? <>
             <span className="dashboard-next-status">{inProgress ? 'In progress' : isScheduled ? 'Scheduled' : hasRetake ? 'Retake available' : 'Ready to begin'}</span>
             <h3>{nextAssessment.title}</h3>
@@ -307,7 +306,7 @@ export const RespondentDashboard = () => {
         </section>
 
         <section id="dashboard-history" tabIndex={-1} className="dashboard-card dashboard-history dashboard-enter" aria-labelledby="dashboard-history-heading">
-          <div className="dashboard-panel-heading"><h2 id="dashboard-history-heading">Recent results</h2><FileCheck2 aria-hidden="true" size={18} /></div>
+          <div className="dashboard-panel-heading"><h2 id="dashboard-history-heading">Recent research results</h2><FileCheck2 aria-hidden="true" size={18} /></div>
           {visibleHistory.length ? <>
             <ul id="assessment-history-list">{visibleHistory.map((attempt) => (
               <li key={attempt.id}>

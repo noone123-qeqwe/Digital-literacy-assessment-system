@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Plus, Clock3 } from 'lucide-react';
 import api from '../../api/axios';
 import Modal from '../../components/common/Modal';
@@ -23,6 +23,20 @@ function StudentPicker({ selected, setSelected }) {
   </div>;
 }
 const blankForm = { title: '', description: '', instructions: 'Answer independently. Review all answers before submitting. Your responses and score will be saved to your account.', time_limit_minutes: 20, max_attempts: 2, pass_percentage: 70, randomize: true, assign_all: true, assigned_user_ids: [], question_ids: [], status: 'draft', start_date: '', end_date: '' };
+const noAssessments = [];
+const studentAssessmentGroups = [
+  ['in_progress', 'In progress or paused'],
+  ['ready', 'Ready to start'],
+  ['results', 'Saved results and attempts'],
+  ['unavailable', 'Unavailable'],
+];
+
+function studentAssessmentGroup(quiz, status) {
+  if (status.expired || quiz.latest_status === 'completed') return 'results';
+  if (status.ongoing) return 'in_progress';
+  if (status.exhausted || status.future || status.closed || status.locked) return 'unavailable';
+  return 'ready';
+}
 
 export default function KnowledgeAssessments() {
   const bookmarks = useAssessmentBookmarks('knowledge');
@@ -30,15 +44,50 @@ export default function KnowledgeAssessments() {
   const { user } = useAuth(); const student = user?.role === 'respondent';
   const { freeDemoReadOnly } = useDemoMode();
   const state = useKnowledgeData(student ? ['/knowledge/quizzes'] : ['/knowledge/quizzes', '/knowledge/questions', '/knowledge/categories']);
-  const quizzes = state.data[0] || [], questions = state.data[1] || [], categories = state.data[2] || [];
+  const quizzes = state.data[0] || noAssessments;
+  const questions = state.data[1] || [], categories = state.data[2] || [];
   const { busy, run } = useKnowledgeAction(); const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState(''); const [category, setCategory] = useState('');
+  const [assessmentStatus, setAssessmentStatus] = useState('all');
   const [formOpen, setFormOpen] = useState(false); const [form, setForm] = useState(blankForm);
   const [preview, setPreview] = useState(null); const [accepted, setAccepted] = useState(false);
   const [assignQuiz, setAssignQuiz] = useState(null); const [selectedStudents, setSelectedStudents] = useState([]);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 30000); return () => window.clearInterval(timer); }, []);
-  const filtered = quizzes.filter((quiz) => (!showBookmarks || bookmarks.saved.includes(quiz.id)) && `${quiz.title} ${quiz.description}`.toLowerCase().includes(search.toLowerCase()));
+  useEffect(() => {
+    if (!student || state.loading || state.error || !searchParams.has('assessment')) return;
+    const frame = window.requestAnimationFrame(() => {
+      const linked = quizzes.find((quiz) => String(quiz.id) === searchParams.get('assessment'));
+      if (linked && !freeDemoReadOnly && studentAssessmentGroup(linked, knowledgeQuizState(linked)) === 'ready') {
+        setAccepted(false);
+        setPreview(linked);
+      }
+      const remaining = new URLSearchParams(searchParams);
+      remaining.delete('assessment');
+      setSearchParams(remaining, { replace: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [freeDemoReadOnly, quizzes, searchParams, setSearchParams, state.error, state.loading, student]);
+
+  const searchTerm = search.trim().toLowerCase();
+  const matches = quizzes.filter((quiz) =>
+    (!showBookmarks || bookmarks.saved.includes(quiz.id)) && `${quiz.title} ${quiz.description || ''}`.toLowerCase().includes(searchTerm));
+  const statusCounts = Object.fromEntries(studentAssessmentGroups.map(([id]) => [id, 0]));
+  const rows = matches.map((quiz) => {
+    const status = knowledgeQuizState(quiz, now);
+    const group = studentAssessmentGroup(quiz, status);
+    statusCounts[group] += 1;
+    return { quiz, status, group };
+  });
+  const filtered = student
+    ? studentAssessmentGroups
+      .filter(([id]) => assessmentStatus === 'all' || assessmentStatus === id)
+      .flatMap(([id]) => rows.filter((item) => item.group === id))
+    : rows;
+  const filtering = Boolean(searchTerm || showBookmarks || assessmentStatus !== 'all');
+  const clearFilters = () => { setSearch(''); setShowBookmarks(false); setAssessmentStatus('all'); };
+
   const bank = questions.filter((question) => !category || question.category_id === Number(category));
   const base = user?.role === 'admin' ? '/admin' : '/respondent';
   const create = async (event) => {
@@ -67,16 +116,32 @@ export default function KnowledgeAssessments() {
     }));
     if (response) navigate(`/respondent/knowledge/attempts/${response.data.data.attempt.id}`);
   };
-  return <KnowledgePage {...state} className={student ? 'student-assessment-browser' : ''} title={student ? 'Take an assessment' : 'Assessment management'} description={student ? 'Choose an assessment, read the instructions, and continue where you left off.' : 'Scored knowledge assessments use correct answers, points, and percentage proficiency levels. Research questionnaires have a separate workflow.'}
+  const searchField = <Field label="Search assessments"><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by title or description…" /></Field>;
+  const bookmarkFilter = <BookmarkFilter bookmarks={bookmarks} records={quizzes} selected={showBookmarks} setSelected={setShowBookmarks} />;
+  return <KnowledgePage {...state} className={student ? 'student-assessment-browser' : ''} title={student ? 'Knowledge assessments' : 'Assessment management'} description={student ? 'Resume an assessment, start a new one, or review a saved result.' : 'Scored knowledge assessments use correct answers, points, and percentage proficiency levels. Research questionnaires have a separate workflow.'}
     action={student ? <ResearchLink to="/respondent/assessments" /> : <button className="kq-button" disabled={freeDemoReadOnly || !questions.length} onClick={() => { setForm(blankForm); setFormOpen(true); }}><Plus size={17} aria-hidden="true" />Create assessment</button>}>
     {!student && <div className="kq-actions"><ResearchLink to={'/admin/assessments'}>Manage research assessments</ResearchLink>{user.role === 'admin' && <Link className="kq-button kq-button-secondary" to="/admin/knowledge/questions">Open scored question bank</Link>}</div>}
     {freeDemoReadOnly && <p className="kq-note">This demonstration is read-only. You can view assessments; starting attempts and editing are disabled.</p>}
-    <Field label="Search assessments"><input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search by title or description…" /></Field>
-    <BookmarkFilter bookmarks={bookmarks} records={quizzes} selected={showBookmarks} setSelected={setShowBookmarks} />
-    <div className="kq-grid">{filtered.map((quiz) => {
-      const { ongoing, expired, paused, pausable, exhausted, closed, future, locked, label } = knowledgeQuizState(quiz, now);
-      return <article className="kq-card kq-assessment-card" key={quiz.id}>
-        <div className="assessment-bookmark-heading"><div className="kq-actions"><span className="kq-badge">{student ? label : quiz.status}</span><span className="kq-badge">{quiz.question_count} questions</span>{quiz.stage && <span className="kq-badge">{quiz.stage === 'baseline' ? 'Baseline' : 'Follow-up'}</span>}</div><BookmarkButton assessment={quiz} bookmarks={bookmarks} /></div>
+    {student ? <section className="kq-card kq-assessment-filters" aria-label="Find an assessment">
+      <div className="kq-assessment-filter-fields">
+        {searchField}
+        <Field label="Assessment status">
+          <select value={assessmentStatus} onChange={(event) => setAssessmentStatus(event.target.value)}>
+            <option value="all">Any status ({matches.length})</option>
+            {studentAssessmentGroups.map(([id, label]) => <option value={id} key={id}>{label} ({statusCounts[id]})</option>)}
+          </select>
+        </Field>
+      </div>
+      {bookmarkFilter}
+      <div className="kq-assessment-filter-summary">
+        <p className="kq-note" role="status">{filtered.length} of {quizzes.length} assessments shown</p>
+        <button type="button" className="kq-button kq-button-secondary" disabled={!filtering} onClick={clearFilters}>Clear filters</button>
+      </div>
+    </section> : <>{searchField}{bookmarkFilter}</>}
+    <div className="kq-grid">{filtered.map(({ quiz, status, group }) => {
+      const { ongoing, expired, paused, pausable, exhausted, closed, future, locked, label } = status;
+      return <article className="kq-card kq-assessment-card" data-assessment-group={student ? group : undefined} key={quiz.id}>
+        <div className="assessment-bookmark-heading"><div className="kq-actions"><span className={`kq-badge${student && (expired || paused) ? ' kq-badge-warning' : ''}`}>{student ? label : quiz.status}</span>{!student && <span className="kq-badge">{quiz.question_count} questions</span>}{quiz.stage && <span className="kq-badge">{quiz.stage === 'baseline' ? 'Baseline' : 'Follow-up'}</span>}</div><BookmarkButton assessment={quiz} bookmarks={bookmarks} /></div>
         <h2>{quiz.title}</h2><p>{quiz.description || 'Evaluate your digital literacy knowledge across selected categories.'}</p>
         {student && locked && <p className="kq-note">Complete {quiz.prerequisite_title || 'the baseline'} to unlock this assessment. No minimum baseline score is required.</p>}
         {student && paused && <p className="kq-note">Reconnect and resume to continue with your saved answers and remaining time.</p>}
@@ -86,7 +151,7 @@ export default function KnowledgeAssessments() {
           : 'The timer continued while you were away. Your saved answers are kept; this attempt ended when time ran out.'}</p>}
         {student && (ongoing || expired) && Number.isInteger(quiz.latest_answered_count) && <p className="kq-note">{quiz.latest_answered_count} of {quiz.question_count} answers saved to the server.</p>}
         {!student && quiz.auto_assign_verified === 1 && <p className="kq-note">Automatically assigned to current and newly verified students while published.</p>}
-        <div className="kq-note"><p><Clock3 size={13} className="inline" aria-hidden="true" /> {quiz.time_limit_minutes ? `${quiz.time_limit_minutes} minutes` : 'No time limit'} · Certificate at {quiz.pass_percentage}%</p><p>{student ? `${quiz.attempt_count}/${quiz.max_attempts} attempts used` : `${quiz.assigned_count} assigned · ${quiz.completed_count} submissions`}</p>{quiz.start_date && <p>Opens {displayDate(quiz.start_date)}</p>}{quiz.end_date && <p>Deadline {displayDate(quiz.end_date)}</p>}</div>
+        <div className="kq-note"><p><Clock3 size={13} className="inline" aria-hidden="true" /> {student && `${quiz.question_count} questions · `}{quiz.time_limit_minutes ? `${quiz.time_limit_minutes} minutes` : 'No time limit'} · Certificate at {quiz.pass_percentage}%</p><p>{student ? `${quiz.attempt_count}/${quiz.max_attempts} attempts used` : `${quiz.assigned_count} assigned · ${quiz.completed_count} submissions`}</p>{quiz.start_date && <p>Opens {displayDate(quiz.start_date)}</p>}{quiz.end_date && <p>Deadline {displayDate(quiz.end_date)}</p>}</div>
         <div className="kq-actions">{student ? <>
           {ongoing ? <Link className="kq-button" to={`/respondent/knowledge/attempts/${quiz.latest_attempt_id}`}>{expired ? 'View saved attempt' : 'Resume assessment'}<ArrowRight size={15} aria-hidden="true" /></Link> : <button className="kq-button" disabled={freeDemoReadOnly || exhausted || closed || future} onClick={() => view(quiz)}>{quiz.attempt_count ? 'Take again' : 'View instructions'}</button>}
           {quiz.latest_status === 'completed' && <Link className="kq-button kq-button-secondary" to={`/respondent/knowledge/attempts/${quiz.latest_attempt_id}`}>{expired ? 'View saved result' : 'View result'}</Link>}
@@ -98,7 +163,10 @@ export default function KnowledgeAssessments() {
           <button className="kq-button kq-button-danger" disabled={busy || freeDemoReadOnly} onClick={() => remove(quiz)}>Delete</button>
         </>}</div>
       </article>;
-    })}</div>{!filtered.length && <Empty>{showBookmarks ? 'No bookmarked assessments match. Use Bookmark on an assessment to save it, or select All assessments and adjust your search.' : quizzes.length ? 'No assessments match your search. Try another title or description.' : student ? 'No knowledge assessments are assigned yet. Research assessments remain available using the button above.' : questions.length ? 'No assessments yet. Create one from the scored question bank.' : 'Add scored questions to the question bank before creating an assessment.'}</Empty>}
+    })}</div>{!filtered.length && <Empty>{!quizzes.length
+      ? student ? 'No knowledge assessments are assigned yet.' : questions.length ? 'No assessments yet. Create one from the scored question bank.' : 'Add scored questions to the question bank before creating an assessment.'
+      : showBookmarks && !bookmarks.saved.length ? 'No bookmarks yet. Select Bookmark on an assessment to save it here.'
+      : 'No assessments match these filters. Clear the filters or try a different search.'}</Empty>}
     <div className="kq-modal"><Modal isOpen={formOpen} onClose={() => setFormOpen(false)} title="Create knowledge assessment" maxWidth="max-w-4xl"><form className="kq-form" onSubmit={create}>
       <Field label="Assessment title"><input required minLength={3} maxLength={160} value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></Field>
       <Field label="Description"><textarea rows={2} maxLength={2000} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} /></Field>
