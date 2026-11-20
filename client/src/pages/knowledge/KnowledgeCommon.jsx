@@ -24,7 +24,7 @@ export function ResearchLink({ to, children = 'Open research assessments' }) { r
 export function LevelBadge({ level }) { return <span className={`kq-badge ${['Advanced', 'Proficient'].includes(level) ? 'kq-badge-success' : level === 'Needs Improvement' ? 'kq-badge-warning' : ''}`}>{level}</span>; }
 
 export function KnowledgeStats({ summary, student = false }) {
-  const values = student ? [['Assigned assessments', summary.totalAssessments], ['Submitted', summary.completed], ['Pending', summary.pending], ['Average score', summary.average === null ? '—' : `${summary.average}%`]]
+  const values = student ? [['Assigned assessments', summary.totalAssessments], ['Submitted', summary.completed], ['Awaiting submission', summary.pending], ['Average score', summary.average === null ? '—' : `${summary.average}%`]]
     : [['Registered students', summary.registeredStudents], ['Total assessments', summary.totalAssessments], ['Submitted', summary.completed], ['Pending', summary.pending], ['Average score', summary.average === null ? '—' : `${summary.average}%`]];
   return <section className="kq-stats" aria-label="Knowledge assessment summary">{values.map(([label, value]) => <article key={label} className="kq-card"><p>{label}</p><strong>{value ?? 0}</strong></article>)}</section>;
 }
@@ -53,6 +53,7 @@ export function KnowledgePulse({ student = false }) {
   const base = student ? '/respondent' : '/admin';
   return <section className={`kq-page kq-dashboard-pulse ${student ? 'kq-student-pulse' : ''}`}>
     {student ? <div className="kq-student-summary-heading"><h2>Your assessments</h2><Link to={`${base}/knowledge`}>View all<ArrowRight aria-hidden="true" size={16} /></Link></div> : <div className="kq-hero"><div><p className="kq-eyebrow">Your digital learning hub</p><h2>Welcome to the Digital Literacy Assessment System!</h2><p>Assess your knowledge, discover strengths, and build the skills you need.</p></div><Link className="kq-button" to={`${base}/knowledge`}>Manage assessments<ArrowRight aria-hidden="true" size={17} /></Link></div>}
+    {student && overview?.summary.totalAssessments > 0 && <p className="kq-note">Some assessments are assigned automatically when you verify your email.</p>}
     {overview && <KnowledgeStats summary={overview.summary} student={student} />}
     {overview?.summary.expired > 0 && <p className="kq-note">{overview.summary.expired} assessment attempt{overview.summary.expired === 1 ? '' : 's'} ended because time expired. Saved scores remain in your result history and are separate from submitted completions.</p>}
     {state.error && <p role="status" className="kq-note">Knowledge assessment statistics are unavailable. <button onClick={state.reload}>Retry</button></p>}
